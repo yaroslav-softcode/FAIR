@@ -39,3 +39,8 @@ _mockups/
 # Рецепты сборки — включаем в репозиторий
 !build_installer/fair.iss
 !build_installer/fair.spec
+
+# runtime/local noise
+fair_log.txt
+*.bak
+vox/
