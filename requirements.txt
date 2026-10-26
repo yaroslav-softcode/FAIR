@@ -1,0 +1,14 @@
+customtkinter==6.0.0
+numpy==2.5.2
+requests==2.34.2
+beautifulsoup4==4.15.0
+pyperclip==1.11.0
+sounddevice==0.5.5
+psutil==7.2.2
+pillow==12.3.0
+piper-tts==1.6.0
+llama-cpp-python==0.3.34
+
+# --- опционально: озвучка VoxCPM2 (тянет torch ~2.5 ГБ) ---
+# voxcpm
+# torch==2.5.1

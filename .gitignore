@@ -1,0 +1,41 @@
+# Окружение и сборка
+.venv/
+__pycache__/
+*.pyc
+build_installer/work/
+build/
+build_launcher/
+dist_installer/
+dist_launcher/
+*.exe
+
+# Модели, голоса и тулзы — докачиваются самим приложением
+models/
+models_f5/
+models_llm/
+models_vox/
+voices/
+tools/
+_removed_kokoro/
+_removed_voices/
+
+# Пользовательское состояние и личные файлы
+settings.json
+config.json
+*.wav
+
+# Не используется в v2 (старая версия приложения и лишние ассеты)
+modern_app.py
+FAIR.bat
+fair_launcher.py
+blank.ico
+
+# Дежурные мелочи: IDE, черновики, тестовые артефакты
+.idea/
+_files.json
+_hf_test/
+_mockups/
+
+# Рецепты сборки — включаем в репозиторий
+!build_installer/fair.iss
+!build_installer/fair.spec
