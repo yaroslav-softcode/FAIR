@@ -32,7 +32,9 @@ License: GPL-3.0 · UI: English / Russian
    required — it installs to `%LOCALAPPDATA%\Programs\Free AI Reader`.
 3. On first launch the app offers to **download the Gemma model (≈5 GB)** —
    with progress and resume. Voices **Irina, Ruslan** and `en_US-ljspeech-high`
-   are bundled in the installer; adding your own voices is disabled. If an
+   are bundled in the installer. Button **⬇** next to the voice list: more ready
+   voices (Amy, Alan, Thorsten) and **import of your own Piper voice** — pick
+   `name.onnx` on your computer (with `name.onnx.json` next to it). If a bundled
    Irina/Ruslan file goes missing, the app re-downloads it on next launch.
 4. **VOX engine** (optional, ≈1.5 GB download, ≈3 GB on disk) is offered on first
    launch; it installs into `%LOCALAPPDATA%\FAIR\vox` and needs a GPU with 8 GB VRAM.
@@ -72,8 +74,10 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
    администратора: ставится в `%LOCALAPPDATA%\Programs\Free AI Reader`.
 3. При первом запуске приложение само предложит **скачать модель Gemma (≈5 ГБ)** —
    с прогрессом и докачкой. Голоса **Ирина, Руслан** и `en_US-ljspeech-high`
-   уже входят в установщик; добавление своих голосов отключено. Если файлы
-   Ирины или Руслана пропадут — приложение докачает их при следующем запуске.
+   уже входят в установщик. Кнопка **⬇** рядом со списком «Озвучка»: готовые
+   голоса (Amy, Alan, Thorsten) и **импорт своего Piper-голоса** — выбираешь
+   `name.onnx` на компьютере (рядом с ним должен лежать `name.onnx.json`).
+   Если файлы Ирины или Руслана пропадут — приложение докачает их само.
 4. **Vox (нейроголос по образцу с микрофона)** — необязательное дополнение
    (≈1,5 ГБ загрузки, ~3 ГБ на диске, нужна видеокарта с 8 ГБ видеопамяти).
    Ставится в `%LOCALAPPDATA%\FAIR\vox`, системный Python не нужен.

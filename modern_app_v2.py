@@ -955,6 +955,13 @@ _PAIRS += [
     ("Загрузка…", "Downloading…"),
     ("Закрыть", "Close"),
     ("Голос установлен", "Voice installed"),
+    ("Свой Piper (.onnx)…", "Your Piper voice (.onnx)…"),
+    ("Импорт голоса Piper", "Import Piper voice"),
+    ("Модель Piper (.onnx)", "Piper model (.onnx)"),
+    ("Для импорта голоса нужны два файла рядом: name.onnx и name.onnx.json — стандартный набор Piper.",
+     "To import a voice you need two files side by side: name.onnx and name.onnx.json — the standard Piper set."),
+    ("Конфиг голоса повреждён", "Voice config is corrupt"),
+    ("Голос импортирован", "Voice imported"),
     ("Голоса Irina и Ruslan — CC BY-NC-SA: только для личного использования, "
      "в публичную сборку не входят.",
      "Irina and Ruslan voices are CC BY-NC-SA: personal use only, "
@@ -1948,6 +1955,57 @@ class ModernTTSApp(ctk.CTk):
                       font=FONT_SMALL, fg_color="transparent", border_width=1,
                       border_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN,
                       hover_color=COLOR_CARD, command=dlg.destroy).pack(side="right")
+        ctk.CTkButton(foot, text=_tr("Свой Piper (.onnx)…"), width=200, height=30,
+                      corner_radius=R_PANEL, font=FONT_SMALL, fg_color="#c6763a",
+                      hover_color="#a95f2c", text_color="#ffffff",
+                      command=lambda: self._import_piper_voice(dlg, info)).pack(side="left")
+
+    def _import_piper_voice(self, dlg, info):
+        """Свой голос Piper: выбрать на компьютере name.onnx (+ name.onnx.json рядом)."""
+        path = filedialog.askopenfilename(
+            parent=dlg, title=_tr("Импорт голоса Piper"),
+            filetypes=[(_tr("Модель Piper (.onnx)"), "*.onnx"), (_tr("Все файлы"), "*.*")])
+        if not path:
+            return
+        src = os.path.abspath(path)
+        name = os.path.splitext(os.path.basename(src))[0]
+        name = re.sub(r"[^\w.\-]", "_", name) or "my_voice"
+
+        cfg = os.path.splitext(src)[0] + ".onnx.json"     # стандарт Piper
+        if not os.path.isfile(cfg):
+            cfg = src + ".json"
+        if not os.path.isfile(cfg):
+            messagebox.showwarning("FAIR", _tr(
+                "Для импорта голоса нужны два файла рядом: name.onnx и name.onnx.json "
+                "— стандартный набор Piper."))
+            return
+        try:
+            json.loads(open(cfg, encoding="utf-8").read())
+        except Exception:
+            messagebox.showwarning("FAIR",
+                                   f"{_tr('Конфиг голоса повреждён')}: {os.path.basename(cfg)}")
+            return
+
+        folder = os.path.join(self.BASE_DIR, "models")
+        os.makedirs(folder, exist_ok=True)
+        dst = self._voice_file(name)
+        n = 2
+        while os.path.exists(dst):
+            dst = self._voice_file(f"{name}-{n}")
+            n += 1
+        name = os.path.splitext(os.path.basename(dst))[0]
+        try:
+            shutil.copy2(src, dst)
+            shutil.copy2(cfg, dst + ".json")
+        except Exception as e:
+            messagebox.showwarning("FAIR", f"{_tr('Ошибка загрузки')}: {e}")
+            return
+        self._refresh_voices(select=name)
+        try:
+            info.configure(text=f"{_tr('Голос импортирован')}: {name}")
+        except Exception:
+            pass
+        self.update_status(f"✅ {_tr('Голос импортирован')}: «{name}»")
 
     def _install_piper_voice(self, name, suffix, dlg, btn, bar, info):
         """Скачать голос (.onnx + .json) в models/ с прогрессом."""
