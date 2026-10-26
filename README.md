@@ -3,7 +3,8 @@
 Offline AI reader for Windows. Paste an article link or any text — a local AI model
 condenses it to the length you choose, and the app reads the result aloud.
 Everything runs on your machine: analysis via llama.cpp (GGUF), speech via
-**Piper (fast)** or **VOX (high quality, voice cloning)**. No cloud, no subscription.
+**Piper (fast)** or **VOX (high quality) — VOX can also clone your own voice**
+from a 5–15 s microphone sample. No cloud, no subscription.
 
 License: GPL-3.0 · UI: English / Russian
 
@@ -56,8 +57,9 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
   текст или файл (pdf / docx / txt).
 - **Сжатие**: готовые профили (10 %, 30 %, 50 %, 100 %) и свои уровни
   с собственным промтом.
-- **Озвучка**: Piper (быстрая, на процессоре) или VOX (качественная, клон своего
-  голоса по образцу 5–15 секунд с микрофона). Скорость речи, пауза между
+- **Озвучка**: Piper (быстрая, на процессоре) или VOX (качественная; возможна
+  озвучка твоим голосом — VOX клонирует его по образцу 5–15 секунд с микрофона).
+  Скорость речи, пауза между
   фрагментами, автоплей после анализа. Кнопка ⏯ ставит воспроизведение на паузу
   посреди фразы и продолжает с того же места; после конца — играет сначала.
 - **Модель анализа**: любая GGUF; по умолчанию предлагается Gemma 4 E4B Q4_K_M (≈5 ГБ).
