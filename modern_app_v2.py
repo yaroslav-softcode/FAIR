@@ -18,6 +18,7 @@ import requests
 from bs4 import BeautifulSoup
 import gc
 import subprocess
+import tempfile
 import pyperclip
 import shutil
 
@@ -29,29 +30,60 @@ warnings.filterwarnings("ignore", message=".*tokenizer.*")
 ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
 
-# ---------- Windows 11 Fluent: пары (светлая, тёмная) ----------
-# --- Палитра в стиле MusicBee: нейтральные серые, голубое выделение, алый акцент ---
-COLOR_BG = ("#f2f2f2", "#242424")            # фон окна
-COLOR_PANEL = ("#ededed", "#2e2e2e")         # панели и карточки
-COLOR_CARD = ("#e9e9e9", "#2a2a2a")          # карточки-поверхности
-COLOR_CARD2 = ("#ffffff", "#1f1f1f")         # поля ввода и списки
-COLOR_BORDER = ("#c4c4c4", "#4e4e4e")        # разделители и обводки
-COLOR_ACCENT = ("#3a3a3a", "#e0e0e0")        # главные кнопки (тёмные, как транспорт MusicBee)
-COLOR_ACCENT_HOVER = ("#262626", "#f0f0f0")
-COLOR_ACCENT_SOFT = ("#e6e6e6", "#333333")   # мягкое нейтральное выделение
-COLOR_SELECT = ("#dcdcdc", "#3a3a3a")        # выделенная строка / наведение (графит)
-COLOR_SEG_ON = ("#3a3a3a", "#e0e0e0")        # активный пункт переключателя
-COLOR_SEG_ON_HOVER = ("#262626", "#f0f0f0")
-COLOR_SEG_ON_TEXT = ("#ffffff", "#1f1f1f")
-COLOR_SELECT_TEXT = ("#d0d0d0", "#505050")   # фон выделения текста в полях
-COLOR_HEAD = ("#1f1f1f", "#f2f2f2")          # заголовки
-COLOR_TEXT_MAIN = ("#222222", "#e8e8e8")
-COLOR_TEXT_SEC = ("#5c5c5c", "#b4b4b4")
-COLOR_ON_ACCENT = ("#ffffff", "#1f1f1f")
+# ---------- «Книга и кожа»: пары (бумага, кожа) — палитра сайта FAIRSite (Енот, 27.10.26) ----------
+# Токены сайта: --paper #f3ecdd, --paper-2 #ece2cd, --paper-edge #d8cdb6, --ink #2b231c,
+# --ink-2 #5c4f40, --leather #1c1510, --leather-hi #2b2018, --brand #c6763a, --gold #b08a3c, --gold-hi #e0ac42
+COLOR_BG = ("#f3ecdd", "#1c1510")            # фон окна — бумага сайта (тёмная тема — кожа)
+COLOR_PANEL = ("#f9f2e4", "#2b2018")         # панели — чуть светлее фона, как на сайте
+COLOR_CARD = ("#fbf6ea", "#241b13")          # карточки — тон сайта .panel (#fbf6ea)
+COLOR_CARD2 = ("#fffdf6", "#17120d")         # поля ввода и списки — самый светлый ТЗ-тон #fffdf6
+COLOR_BORDER = ("#d8cdb6", "#4a3a28")        # разделители и обводки (paper-edge)
+COLOR_ACCENT = ("#2b2018", "#c6763a")        # главные кнопки — тёмная кожа (состояние «играет»)
+COLOR_ACCENT_HOVER = ("#1a130c", "#a95f2c")
+COLOR_ACCENT_SOFT = ("#f1e9d7", "#35281d")   # мягкое нейтральное выделение
+COLOR_SELECT = ("#f0dfae", "#3a2b1a")        # выделенная строка / наведение — мягкое золото
+COLOR_SEG_ON = ("#c6763a", "#c6763a")        # активный пункт переключателя — медь
+COLOR_SEG_ON_HOVER = ("#a95f2c", "#8f4e22")
+COLOR_SEG_ON_TEXT = ("#fffdf6", "#fffdf6")
+COLOR_SELECT_TEXT = ("#e0ac42", "#e0ac42")   # фон выделения текста — золото (как ::selection на сайте)
+COLOR_HEAD = ("#7d4a1e", "#e0ac42")          # заголовки — жжёный янтарь
+COLOR_TEXT_MAIN = ("#2b231c", "#f3e7cf")     # чернила / крем
+COLOR_TEXT_SEC = ("#5c4f40", "#a08a5f")      # ink-2 / приглушённое золото
+COLOR_ON_ACCENT = ("#f3e7cf", "#1c1510")     # кремовый текст на тёмной коже
 COLOR_GREEN = ("#2e7d32", "#7bc67e")
-COLOR_RED = ("#d94a4a", "#e57373")           # «сердце» MusicBee
-COLOR_FILL_SOFT = ("#e2e2e2", "#3a3a3a")     # вторичные кнопки
-COLOR_SWITCH_OFF = ("#c8c8c8", "#4a4a4a")
+COLOR_RED = ("#a04b2a", "#c96a45")           # ржавчина вместо алого — в тон книги
+COLOR_FILL_SOFT = ("#f4ecd9", "#35281d")     # вторичные кнопки
+COLOR_SWITCH_OFF = ("#cbbd9e", "#4a3a28")
+COLOR_BRAND = ("#c6763a", "#c6763a")         # фирменная медь сайта — главные CTA
+COLOR_BRAND_HOVER = ("#a95f2c", "#8f4e22")
+COLOR_GOLD = ("#b08a3c", "#b08a3c")          # золото сайта — линейки-разделители
+
+# ---------- шапка окна в цвет приложения (Windows 11, DWM) ----------
+# Полоса со свернуть/развернуть/закрыть рисуется Windows, не customtkinter —
+# красим её через DwmSetWindowAttribute: фон как бумага, текст чернильный.
+def _dwm_titlebar(widget):
+    def ref(h):
+        h = h.lstrip("#")
+        return int(h[4:6] + h[2:4] + h[0:2], 16)        # COLORREF = 0x00BBGGRR
+    try:
+        widget.update_idletasks()
+        hwnd = ctypes.windll.user32.GetParent(widget.winfo_id()) or widget.winfo_id()
+        dwm = ctypes.windll.dwmapi
+        for attr, val in ((34, "#d8cdb6"),   # DWMWA_BORDER_COLOR  — край окна
+                          (35, "#f3ecdd"),   # DWMWA_CAPTION_COLOR — сама полоса
+                          (36, "#2e2620")):  # DWMWA_TEXT_COLOR    — надпись
+            v = ctypes.c_int32(ref(val))
+            dwm.DwmSetWindowAttribute(ctypes.c_void_p(hwnd), attr,
+                                      ctypes.byref(v), ctypes.sizeof(v))
+    except Exception as e:
+        print(f"⚠️ цвет шапки окна: {e}")
+
+# все диалоги (CTkToplevel) получают такую же шапку, что и главное окно
+_orig_ctk_tl_init = ctk.CTkToplevel.__init__
+def _ctk_tl_init_patched(self, *a, **kw):
+    _orig_ctk_tl_init(self, *a, **kw)
+    self.after(80, lambda: _dwm_titlebar(self))
+ctk.CTkToplevel.__init__ = _ctk_tl_init_patched
 
 COMBO_W = 260
 R_PANEL = 4
@@ -94,6 +126,15 @@ FONT_SUBHEADER = (FONT_FAMILY, 13, "bold")
 FONT_NORMAL = (FONT_FAMILY, 12)
 FONT_SMALL = (FONT_FAMILY, 11)
 FONT_TINY = (FONT_FAMILY, 10)
+
+
+def _style_tk_menu(menu):
+    """Системное контекстное меню — в стиле сайта: бумага, чернила, золото."""
+    try:
+        menu.configure(bg="#fdf6e8", fg="#2b231c", bordercolor="#d8cdb6",
+                       activebackground="#e0ac42", activeforeground="#2b231c")
+    except Exception:
+        pass
 
 
 def _hex_rgb(h):
@@ -347,7 +388,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                                        text_color=COLOR_TEXT_MAIN)
         self.entry_name.pack(fill="x", padx=18, pady=(4, 10))
         try:
-            self.entry_name._entry.configure(selectbackground="#d0d0d0", selectforeground="#111111")
+            self.entry_name._entry.configure(selectbackground="#e0ac42", selectforeground="#2b231c")
         except Exception:
             pass
         if initial_name:
@@ -367,7 +408,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
 
         self.btn_rec = ctk.CTkButton(row, text="●  Начать запись", command=self.toggle_recording,
                                      height=34, corner_radius=3, font=(FONT_FAMILY, 12, "bold"),
-                                     fg_color=COLOR_RED, hover_color=COLOR_RED, text_color="#ffffff")
+                                     fg_color=COLOR_RED, hover_color=COLOR_RED, text_color="#fffdf6")
         self.btn_rec.grid(row=0, column=0, sticky="ew")
 
         self.btn_play_sample = ctk.CTkButton(row, text="▶", width=40, height=34, corner_radius=3,
@@ -406,8 +447,8 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                       text_color=COLOR_TEXT_MAIN).grid(row=0, column=1, sticky="ew", padx=(5, 0))
 
         tb = self.entry_text._textbox
-        tb.configure(selectbackground="#d0d0d0", selectforeground="#111111",
-                     inactiveselectbackground="#d0d0d0")
+        tb.configure(selectbackground="#e0ac42", selectforeground="#2b231c",
+                     inactiveselectbackground="#e0ac42")
         tb.bind("<Button-3>", self._text_menu, add="+")
         for seq in ("<Control-v>", "<Control-V>", "<Control-Shift-v>", "<Control-Shift-V>",
                     "<Shift-Insert>", "<Control-Insert>"):
@@ -552,6 +593,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
 
     def _text_menu(self, event):
         menu = Menu(self, tearoff=0)
+        _style_tk_menu(menu)
         menu.add_command(label=_tr("Вставить"), command=self._paste)
         menu.add_command(label=_tr("Выделить всё"),
                          command=lambda: self.entry_text._textbox.tag_add("sel", "1.0", "end-1c"))
@@ -713,7 +755,7 @@ class PresetDialog(ctk.CTkToplevel):
         self.entry_name.insert(0, name)
         try:
             self.entry_name._entry.configure(selectbackground=COLOR_SELECT_TEXT[0],
-                                             selectforeground="#111111")
+                                             selectforeground="#2b231c")
         except Exception:
             pass
 
@@ -735,7 +777,7 @@ class PresetDialog(ctk.CTkToplevel):
             self.text_prompt.insert("1.0", prompt)
         try:
             self.text_prompt._textbox.configure(selectbackground=COLOR_SELECT_TEXT[0],
-                                                selectforeground="#111111")
+                                                selectforeground="#2b231c")
         except Exception:
             pass
 
@@ -743,7 +785,7 @@ class PresetDialog(ctk.CTkToplevel):
         btns.pack(fill="x", padx=14, pady=(0, 12))
 
         ctk.CTkButton(btns, text="Сохранить", height=32, corner_radius=3, font=FONT_NORMAL,
-                      fg_color=COLOR_TEXT_MAIN, hover_color="#4a4a4a", text_color="#ffffff",
+                      fg_color=COLOR_TEXT_MAIN, hover_color=COLOR_ACCENT_HOVER, text_color=COLOR_ON_ACCENT,
                       command=self._save).pack(side="right", fill="x", expand=True, padx=(6, 0))
         ctk.CTkButton(btns, text="Отмена", height=32, corner_radius=3, font=FONT_NORMAL,
                       fg_color=COLOR_CARD2, hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
@@ -751,7 +793,7 @@ class PresetDialog(ctk.CTkToplevel):
                       command=self.destroy).pack(side="right", fill="x", expand=True, padx=(6, 0))
         if on_delete:
             ctk.CTkButton(btns, text="Удалить", height=32, corner_radius=3, font=FONT_NORMAL,
-                          fg_color=COLOR_CARD2, hover_color="#e8d0d0", text_color="#8a2b2b",
+                          fg_color=COLOR_CARD2, hover_color="#ecd6c8", text_color="#7d3418",
                           border_width=1, border_color=COLOR_BORDER,
                           command=self._delete).pack(side="left", fill="x", expand=True)
 
@@ -789,7 +831,7 @@ class PresetDialog(ctk.CTkToplevel):
 # модели остаются без изменений.
 UI_LANG = "ru"
 
-_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку, текст или файл — либо наберите текст в поле справа.', 'Paste a link, text or file — or type in the field on the right.'), ('Вставьте текст статьи, ссылку или файл — или просто печатайте здесь.\n\n', 'Paste an article link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('🎙  Образец голоса', '🎙  Voice sample'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку, текст или файл.', '✅ Ready. Paste a link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, txt)', 'Choose a file (pdf, docx, txt)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку, текст или файл.', 'Text is required: paste a link, text or file.'), ('Хорошо', 'OK')]
+_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку, текст или файл — либо наберите текст в поле справа.', 'Paste a link, text or file — or type in the field on the right.'), ('Вставьте текст статьи, ссылку или файл — или просто печатайте здесь.\n\n', 'Paste an article link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку, текст или файл.', '✅ Ready. Paste a link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, txt)', 'Choose a file (pdf, docx, txt)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку, текст или файл.', 'Text is required: paste a link, text or file.'), ('Хорошо', 'OK')]
 
 _PAIRS += [
     # заголовки отдельных окон и динамические подписи (с образцом значений —
@@ -1217,7 +1259,7 @@ def _apply_lang(root):
                             pass
         if isinstance(w, ctk.CTkOptionMenu):
             _lang_optmenu(w)
-        if isinstance(w, ctk.CTkTextbox):
+        if isinstance(w, ctk.CTkTextbox) and not getattr(w, "_no_auto_tr", False):
             try:
                 cur = w.get("1.0", "end-1c")
                 new = _tr(cur)
@@ -1303,6 +1345,33 @@ class ModernTTSApp(ctk.CTk):
         "Очень кратко (30%)": 0.30,
         "Кратко (50%)": 0.50,
         "Подробно (80%)": 0.80,
+    }
+    PRESET_PROMPTS_RU = {
+        "Только суть (10%)":
+            "Оставь только главную мысль текста — одно-два коротких предложения, не более 10% объёма. "
+            "Отбрось примеры, второстепенные детали, повторы и оговорки. "
+            "Если без имён или чисел мысль станет непонятной — сохрани их.",
+        "Очень кратко (30%)":
+            "Сократи текст до ~30% объёма: ключевые факты, главные аргументы и вывод. "
+            "Убери примеры, пояснения, вступления и повторы, но сохрани все значимые "
+            "числа, даты, имена и названия.",
+        "Кратко (50%)":
+            "Сократи текст примерно вдвое (~50% объёма): главные факты, аргументы и выводы "
+            "вместе с ключевыми деталями, которые на них влияют. Порядок изложения — как "
+            "в исходном тексте, без потери логики.",
+        "Подробно (80%)":
+            "Сожми текст до ~80% объёма: сохрани структуру, порядок изложения и почти все "
+            "детали. Сжимай только формулировки и убирай повторы — ничего существенного "
+            "не выбрасывай.",
+        "Речь для озвучки (100%)":
+            "Перепиши текст целиком для озвучки, сохранив весь смысл, структуру и порядок "
+            "изложения. Убери только визуальный мусор: ссылки, подписи, колонтитулы, "
+            "номера страниц и служебные пометки.",
+        "Перевод на английский (100%)":
+            "Переведи текст на английский язык. Сохрани весь смысл, структуру и порядок "
+            "изложения, ничего не сокращай, не добавляй и не комментируй. Термины, имена "
+            "и названия передавай так, как это принято в англоязычной литературе по теме. "
+            "Верни только перевод, без пояснений и вступлений.",
     }
     # Те же промпты для английского интерфейса: ключ — название уровня, как в PRESET_VALUES
     PRESET_PROMPTS_EN = {
@@ -1401,6 +1470,7 @@ class ModernTTSApp(ctk.CTk):
         super().__init__()
         self._apply_app_icon()
         self.after(120, self._apply_titlebar_icon)
+        self.after(160, lambda: _dwm_titlebar(self))    # бумажная шапка Windows 11
 
         self.BASE_DIR = BASE_DIR    # в установленной версии — %LOCALAPPDATA%\FAIR
         self.theme = self._load_theme()
@@ -2143,7 +2213,7 @@ class ModernTTSApp(ctk.CTk):
         inner = getattr(widget, "_textbox", None) or getattr(widget, "_entry", None) or widget
         try:
             inner.configure(selectbackground=COLOR_SELECT_TEXT[0],
-                            selectforeground="#111111",
+                            selectforeground="#2b231c",
                             inactiveselectbackground=COLOR_SELECT_TEXT[0])
         except Exception:
             pass
@@ -2289,6 +2359,7 @@ class ModernTTSApp(ctk.CTk):
 
         def popup(event):
             menu = Menu(self, tearoff=0)
+            _style_tk_menu(menu)
             menu.add_command(label=_tr("Вставить"), command=paste)
             menu.add_command(label=_tr("Копировать"), command=copy)
             menu.add_command(label=_tr("Вырезать"), command=cut)
@@ -2335,6 +2406,16 @@ class ModernTTSApp(ctk.CTk):
                 self.btn_add_voice.pack(fill="x", padx=12, pady=(0, 10), before=self.rate_row)
             else:
                 self.btn_add_voice.pack_forget()
+        except Exception:
+            pass
+
+    def _show_piper_import(self, show):
+        """Кнопка «📂 Свой голос Piper…» — только для движка Piper."""
+        try:
+            if show:
+                self.btn_import_piper.pack(fill="x", padx=12, pady=(0, 10), before=self.rate_row)
+            else:
+                self.btn_import_piper.pack_forget()
         except Exception:
             pass
 
@@ -2431,6 +2512,7 @@ class ModernTTSApp(ctk.CTk):
                                 border_width=1, border_color=COLOR_BORDER)
             card.pack(fill="x", padx=2, pady=(0, 8))
             self._card_head(card, title)
+            self._add_side_edges(card)      # вертикальные «грани» слева и справа
             return card
 
         # ----- Источник -----
@@ -2475,7 +2557,7 @@ class ModernTTSApp(ctk.CTk):
                                              font=FONT_SMALL, height=30, corner_radius=3, width=150,
                                              fg_color=COLOR_CARD2, button_color=COLOR_FILL_SOFT,
                                              button_hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
-                                             dropdown_fg_color="#ffffff", dropdown_text_color=COLOR_TEXT_MAIN,
+                                             dropdown_fg_color="#fffdf6", dropdown_text_color=COLOR_TEXT_MAIN,
                                              dropdown_hover_color=COLOR_SELECT)
         self.preset_menu.grid(row=0, column=1, sticky="ew", padx=(8, 0))
 
@@ -2488,6 +2570,9 @@ class ModernTTSApp(ctk.CTk):
                                                 fg_color=COLOR_CARD, border_width=1, border_color=COLOR_BORDER,
                                                 text_color=COLOR_TEXT_MAIN)
         self.instruction_entry.pack(fill="x", padx=12, pady=(0, 8))
+        # текст промпта переводит _translate_instruction, а не общий обход _apply_lang
+        # (иначе обход подменял в нём отдельные слова вроде «Скорость» или «Готово»)
+        self.instruction_entry._no_auto_tr = True
         self._style_text_selection(self.instruction_entry)
         self.instruction_entry._textbox.bind("<FocusIn>", lambda e: self.instruction_entry.configure(height=150), add="+")
         self.instruction_entry._textbox.bind("<FocusOut>", lambda e: self.instruction_entry.configure(height=74), add="+")
@@ -2503,7 +2588,7 @@ class ModernTTSApp(ctk.CTk):
 
         self.btn_process = ctk.CTkButton(run_row, text="Запустить анализ", command=self.start_full_process,
                                          height=34, corner_radius=3, font=(FONT_FAMILY, 12, "bold"),
-                                         fg_color=COLOR_ACCENT, hover_color=COLOR_ACCENT_HOVER,
+                                         fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
                                          text_color=COLOR_ON_ACCENT)
         self.btn_process.grid(row=0, column=0, sticky="ew")
 
@@ -2516,8 +2601,8 @@ class ModernTTSApp(ctk.CTk):
 
         self.auto_play_cb = ctk.CTkSwitch(src, text="Озвучивать сразу после анализа", variable=self.auto_play_var,
                                           font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
-                                          progress_color=COLOR_ACCENT, fg_color=COLOR_SWITCH_OFF,
-                                          button_color="#ffffff", button_hover_color="#ffffff",
+                                          progress_color=COLOR_BRAND, fg_color=COLOR_SWITCH_OFF,
+                                          button_color="#fffdf6", button_hover_color="#fffdf6",
                                           command=self.save_settings)
         self.auto_play_cb.pack(fill="x", padx=12, pady=(0, 9))
 
@@ -2533,7 +2618,7 @@ class ModernTTSApp(ctk.CTk):
                                            corner_radius=3, command=self.on_llm_change,
                                            fg_color=COLOR_CARD2, button_color=COLOR_FILL_SOFT,
                                            button_hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
-                                           dropdown_fg_color="#ffffff", dropdown_text_color=COLOR_TEXT_MAIN,
+                                           dropdown_fg_color="#fffdf6", dropdown_text_color=COLOR_TEXT_MAIN,
                                            dropdown_hover_color=COLOR_SELECT)
         self.llm_combo.grid(row=0, column=0, sticky="ew")
 
@@ -2561,8 +2646,8 @@ class ModernTTSApp(ctk.CTk):
         self.lbl_mode_cpu.pack(side="left")
 
         self.llm_gpu_cb = ctk.CTkSwitch(gpu_row, text="", variable=self.llm_gpu_var, width=40,
-                                        progress_color=COLOR_TEXT_MAIN, fg_color=COLOR_SWITCH_OFF,
-                                        button_color="#ffffff", button_hover_color="#ffffff",
+                                        progress_color=COLOR_BRAND, fg_color=COLOR_SWITCH_OFF,
+                                        button_color="#fffdf6", button_hover_color="#fffdf6",
                                         command=self._on_gpu_toggle)
         self.llm_gpu_cb.pack(side="left", padx=8)
 
@@ -2583,8 +2668,8 @@ class ModernTTSApp(ctk.CTk):
 
         self.ctx_slider = ctk.CTkSlider(ctx_row, from_=MIN_CTX, to=8192, number_of_steps=8192 - MIN_CTX,
                                         command=self._on_ctx_slider, height=16,
-                                        progress_color=COLOR_ACCENT, button_color=COLOR_ACCENT,
-                                        button_hover_color=COLOR_ACCENT_HOVER, fg_color=COLOR_BORDER)
+                                        progress_color=COLOR_BRAND, button_color=COLOR_BRAND,
+                                        button_hover_color=COLOR_BRAND_HOVER, fg_color=COLOR_BORDER)
         self.ctx_slider.grid(row=0, column=1, sticky="ew", padx=7)
 
         self.ctx_entry = ctk.CTkEntry(ctx_row, font=FONT_TINY, width=78, justify="right", height=26,
@@ -2624,17 +2709,9 @@ class ModernTTSApp(ctk.CTk):
                                            corner_radius=3, command=self.on_tts_change,
                                            fg_color=COLOR_CARD2, button_color=COLOR_FILL_SOFT,
                                            button_hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
-                                           dropdown_fg_color="#ffffff", dropdown_text_color=COLOR_TEXT_MAIN,
+                                           dropdown_fg_color="#fffdf6", dropdown_text_color=COLOR_TEXT_MAIN,
                                            dropdown_hover_color=COLOR_SELECT)
         self.tts_combo.grid(row=0, column=0, sticky="ew")
-
-        # скачать/импортировать голос Piper (в установленной сборке идёт только один)
-        self.btn_voice_pack = ctk.CTkButton(voice_row, text="⬇", width=30, height=30,
-                                            corner_radius=3, font=(FONT_FAMILY, 13, "bold"),
-                                            fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
-                                            text_color=COLOR_TEXT_MAIN,
-                                            command=self._open_piper_voices)
-        self.btn_voice_pack.grid(row=0, column=1, padx=(6, 0))
 
         self.rate_row = ctk.CTkFrame(tts, fg_color="transparent")
         self.rate_row.pack(fill="x", padx=12, pady=(0, 10))
@@ -2643,8 +2720,8 @@ class ModernTTSApp(ctk.CTk):
                      text_color=COLOR_TEXT_SEC).grid(row=0, column=0, sticky="w")
         self.rate_slider = ctk.CTkSlider(self.rate_row, from_=0.5, to=1.5, number_of_steps=10,
                                          command=self._on_rate_slider, height=16,
-                                         progress_color=COLOR_ACCENT, button_color=COLOR_ACCENT,
-                                         button_hover_color=COLOR_ACCENT_HOVER, fg_color=COLOR_BORDER)
+                                         progress_color=COLOR_BRAND, button_color=COLOR_BRAND,
+                                         button_hover_color=COLOR_BRAND_HOVER, fg_color=COLOR_BORDER)
         self.rate_slider.grid(row=0, column=1, sticky="ew", padx=7)
         self.rate_slider.set(1.0)
         self.rate_label = ctk.CTkLabel(self.rate_row, text="×1.0", font=(FONT_FAMILY, 10, "bold"),
@@ -2660,6 +2737,16 @@ class ModernTTSApp(ctk.CTk):
                                            command=lambda: self.add_custom_voice())
         self.btn_add_voice.pack(fill="x", padx=12, pady=(0, 10), before=self.rate_row)
         self.btn_add_voice.pack_forget()  # показываем только для кастомных голосов
+
+        # загрузить СВОЙ файл голоса Piper — та же кнопка-слот, что «Образец голоса» у Vox
+        self.btn_import_piper = ctk.CTkButton(tts, text=_tr("📂  Свой голос Piper…"), height=30,
+                                              corner_radius=3, font=FONT_SMALL,
+                                              fg_color=COLOR_FILL_SOFT, hover_color=COLOR_SELECT,
+                                              text_color=COLOR_TEXT_MAIN,
+                                              border_width=1, border_color=COLOR_BORDER,
+                                              command=lambda: self._import_piper_voice(None, None))
+        self.btn_import_piper.pack(fill="x", padx=12, pady=(0, 10), before=self.rate_row)
+        self.btn_import_piper.pack_forget()  # показываем только для Piper
 
         # ---------------- правая область ----------------
         self.main_area = ctk.CTkFrame(self, fg_color=COLOR_PANEL, corner_radius=R_PANEL,
@@ -2737,7 +2824,7 @@ class ModernTTSApp(ctk.CTk):
 
         self.btn_play = ctk.CTkButton(self.audio_control_frame, text="Озвучить", command=self.play_result,
                                       width=140, height=36, corner_radius=3, font=(FONT_FAMILY, 12, "bold"),
-                                      fg_color=COLOR_ACCENT, hover_color=COLOR_ACCENT_HOVER,
+                                      fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
                                       text_color=COLOR_ON_ACCENT)
         self.btn_play.grid(row=0, column=0, padx=(14, 6), pady=12)
 
@@ -2762,7 +2849,7 @@ class ModernTTSApp(ctk.CTk):
         self.btn_pp.grid(row=0, column=2, padx=(0, 8), pady=12)
 
         self.progress_bar = ctk.CTkProgressBar(self.audio_control_frame, height=6, corner_radius=3,
-                                               progress_color=COLOR_ACCENT, fg_color=COLOR_BORDER)
+                                               progress_color=COLOR_BRAND, fg_color=COLOR_BORDER)
         self.progress_bar.grid(row=0, column=3, padx=14, pady=12, sticky="ew")
         self.progress_bar.set(0)
 
@@ -2967,7 +3054,7 @@ class ModernTTSApp(ctk.CTk):
             kwargs["width"] = width
         combo = ctk.CTkComboBox(parent, **kwargs)
         combo.grid(row=row + 1, column=0, padx=20, pady=5, sticky="ew")
-        combo.configure(fg_color=COLOR_CARD2, dropdown_fg_color="#ffffff",
+        combo.configure(fg_color=COLOR_CARD2, dropdown_fg_color="#fffdf6",
                         button_color=COLOR_FILL_SOFT, button_hover_color=COLOR_SELECT,
                         dropdown_hover_color=COLOR_SELECT,
                         border_width=1, border_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN)
@@ -3049,9 +3136,11 @@ class ModernTTSApp(ctk.CTk):
         self.ctx_slider.configure(from_=MIN_CTX, to=native, number_of_steps=native - MIN_CTX)
 
         chosen = self.ctx_choices.get(self._actual_llm())
-        used = min(int(chosen), native) if chosen else native
+        # значение из поля может быть БОЛЬШЕ родного контекста — не обрезаем его;
+        # ползунок физически упирается в свой максимум (CTkSlider.set клипует сам)
+        used = int(chosen) if chosen else native
         used = max(MIN_CTX, used)
-        self.ctx_slider.set(used)
+        self.ctx_slider.set(min(used, native))
 
         try:
             if self.ctx_entry.focus_get() != self.ctx_entry._entry:
@@ -3095,12 +3184,12 @@ class ModernTTSApp(ctk.CTk):
             v = int(re.sub(r"\s+", "", self.ctx_entry.get()))
         except Exception:
             return
-        native = min(meta["ctx"], 262144)
-        v = max(MIN_CTX, min(v, native))
+        # сверху не ограничиваем: можно ввести любое число больше родного контекста
+        v = max(MIN_CTX, v)
         self.ctx_choices[self._actual_llm()] = str(v)
         self.refresh_model_info()
         self.save_settings()
-        self.update_status(f"Контекст: {v} токенов")
+        self.update_status(f"Контекст: {v:,} токенов".replace(",", " "))
 
     def _on_rate_slider(self, value):
         self.speech_rate = round(value, 1)
@@ -3987,6 +4076,7 @@ class ModernTTSApp(ctk.CTk):
         except Exception:
             pass
         self._apply_language()
+        self._translate_instruction()   # название уровня и сам промпт — на одном языке
         self.save_settings()
 
     def save_settings(self):
@@ -4159,6 +4249,7 @@ class ModernTTSApp(ctk.CTk):
         self.instruction_entry.delete("1.0", "end")
         if instruction:
             self.instruction_entry.insert("1.0", instruction)
+            self._translate_instruction()   # промпт мог сохраниться на другом языке
         else:
             self.apply_preset(preset)
 
@@ -4180,6 +4271,7 @@ class ModernTTSApp(ctk.CTk):
                                text_color=COLOR_TEXT_SEC)
         if value == "Vox":
             self._show_custom_voice(True)
+            self._show_piper_import(False)
             self._ensure_empty_slot()
             self.tts_combo.configure(values=self.voice_values())
             names = self.voice_values()
@@ -4194,6 +4286,7 @@ class ModernTTSApp(ctk.CTk):
                 self.current_tts_name = cur
         elif value == "Piper":
             self._show_custom_voice(False)
+            self._show_piper_import(True)
             self.tts_combo.configure(values=sorted(self.tts_models.keys()))
             names = sorted(self.tts_models.keys())
             default = next((n for n in names if "irina" in n.lower()), names[0] if names else "")
@@ -4496,17 +4589,123 @@ class ModernTTSApp(ctk.CTk):
         self._draw_card_head(cv, title, height, indent)
         return cv
 
+    def _add_side_edges(self, card, width=11):
+        """Вертикальные «грани» карточки: полоска рамки + золотая кромка + градиент.
+
+        Полоска рисуется по всей высоте карточки, но её низ жёстко привязан
+        к нижней линии рамки: последняя строка красится цветом рамки, а всё,
+        что оказалось НИЖЕ рамки из-за дробной раскладки (у карточек разная
+        высота, округление даёт ±1 px), закрашивается цветом фона — перебег
+        становится невидимым. Так срез замкнут и не «торчит» ни на пиксель.
+        """
+        try:
+            base = _mode_color(COLOR_CARD)
+            edge = _mode_color(COLOR_BORDER)
+            bgc = _mode_color(COLOR_BG)
+            dark = ctk.get_appearance_mode() == "Dark"
+            outer = "#120d08" if dark else "#e0d2b4"   # тон у самого края — «срез страницы»
+            hair = "#2f2419" if dark else "#cbb68d"    # золотая кромка
+            paints = []
+            canvases = []
+            for side in ("left", "right"):
+                cv = tk.Canvas(card, width=width, highlightthickness=0, bd=0, bg=base)
+                # height=+1 даёт запас в одну строку ниже карточки; лишнее закрасим фоном
+                if side == "left":
+                    cv.place(x=0, y=1, relheight=1, height=1, width=width)
+                else:
+                    cv.place(relx=1, x=0, y=1, relheight=1, height=1, width=width, anchor="ne")
+
+                def paint(_cv=cv, _side=side):
+                    try:
+                        h = _cv.winfo_height() or 500
+                        # Строка нижней линии рамки карточки в координатах холста.
+                        # Берём ГАБАРИТ реально нарисованной рамки (tag border_parts) на
+                        # внутреннем холсте карточки — это единственный способ, который не
+                        # зависит от округления высоты: у карточек с чётной/нечётной высотой
+                        # рамка ложится то на последнюю, то на предпоследнюю строку.
+                        t = None
+                        try:
+                            fcv = card._canvas
+                            bb = fcv.bbox("inner_parts")      # фактическая заливка карточки
+                            if bb:
+                                # последняя залитая строка = строка нижней линии рамки
+                                t = (fcv.winfo_rooty() + bb[3] - 1) - _cv.winfo_rooty()
+                        except Exception:
+                            t = None
+                        if t is None:
+                            try:
+                                t = (card.winfo_rooty() + card.winfo_height() - 2) - _cv.winfo_rooty()
+                            except Exception:
+                                t = h - 2
+                        t = max(1, min(t, h - 1))
+                        _cv.delete("all")
+                        for x in range(width):
+                            if _side == "right":
+                                d = (width - 1 - x) / max(1, width - 3)   # 0 — внешний край
+                            else:
+                                d = x / max(1, width - 3)
+                            if d <= 0:
+                                col = edge            # рамка карточки
+                            elif d <= 1.0 / (width - 3):
+                                col = hair            # золотая кромка
+                            else:
+                                col = _blend(outer, base, (d - 1.0 / (width - 3)) ** 0.7)
+                            _cv.create_line(x, 0, x, t, fill=col)
+                            _cv.create_line(x, t, x, t + 1, fill=edge)   # замыкаем срез
+                        if t + 1 < h:
+                            _cv.create_rectangle(0, t + 1, width + 1, h + 1,
+                                                 fill=bgc, outline=bgc)  # перебег — в цвет фона
+                    except Exception as e:
+                        print(f"⚠️ грань {_side}: {e}")
+
+                paints.append(paint)
+                canvases.append(cv)
+                cv.bind("<Configure>", lambda e, p=paint: p())
+                paint()
+
+            def repaint_all(event=None):
+                for p in paints:
+                    p()
+
+            card.bind("<Configure>", repaint_all, add="+")
+            card.after(120, repaint_all)   # после того как карточка набрала высоту
+            card.after(400, repaint_all)   # контрольный проход после полной раскладки
+
+            if os.environ.get("FAIR_DEBUG_EDGES"):
+                def _dump():
+                    try:
+                        fcv = card._canvas
+                        rec = {
+                            "title": getattr(card, "_card_title", ""),
+                            "card": [card.winfo_rootx(), card.winfo_rooty(),
+                                     card.winfo_width(), card.winfo_height()],
+                            "fcv": [fcv.winfo_rootx(), fcv.winfo_rooty(),
+                                    fcv.winfo_width(), fcv.winfo_height()],
+                            "bbox_border": list(fcv.bbox("border_parts") or ()),
+                            "bbox_inner": list(fcv.bbox("inner_parts") or ()),
+                            "strips": [[c.winfo_rootx(), c.winfo_rooty(),
+                                        c.winfo_width(), c.winfo_height()] for c in canvases],
+                        }
+                        with open(os.path.join(tempfile.gettempdir(), "fair_edges_debug.jsonl"),
+                                  "a", encoding="utf-8") as fh:
+                            fh.write(json.dumps(rec) + "\n")
+                    except Exception as e:
+                        print("dump:", e)
+                card.after(2000, _dump)
+        except Exception as e:
+            print(f"⚠️ грани карточки: {e}")
+
     def _draw_card_head(self, cv, title, height, indent):
         """Градиент сверху вниз + подпись; перерисовывается при смене языка и размера."""
         try:
             base = _mode_color(COLOR_CARD)
-            top = "#4a4a4a" if ctk.get_appearance_mode() == "Dark" else "#ffffff"
+            top = "#3a2c1e" if ctk.get_appearance_mode() == "Dark" else "#fffdf6"
             cv.delete("all")
             w = cv.winfo_width() or 400
             for i in range(height):
                 t = (i / max(1, height - 1)) ** 1.5
                 cv.create_line(0, i, w, i, fill=_blend(top, base, t))
-            cv.create_line(0, 0, w, 0, fill=top, width=2)
+            cv.create_line(0, 0, w, 0, fill="#b08a3c", width=1)
             cv.create_text(indent, height // 2 + 1, text=_tr(title), anchor="w",
                            fill=_mode_color(COLOR_TEXT_SEC),
                            font=(FONT_FAMILY, 10, "bold"))
@@ -4526,14 +4725,14 @@ class ModernTTSApp(ctk.CTk):
             if not isinstance(base, str) or not base.startswith("#") or len(base) != 7:
                 return
             dark = ctk.get_appearance_mode() == "Dark"
-            top = "#4a4a4a" if dark else "#ffffff"
+            top = "#3a2c1e" if dark else "#fffdf6"
             canvas = tk.Canvas(frame, height=height, highlightthickness=0, bd=0)
             canvas.place(x=1, y=1, relwidth=1, width=-2)
             for i in range(height):
                 t = (i / max(1, height - 1)) ** 1.5
                 canvas.create_line(0, i, 4000, i, fill=_blend(top, base, t))
             # плотная кромка блика
-            canvas.create_line(0, 0, 4000, 0, fill=top, width=2)
+            canvas.create_line(0, 0, 4000, 0, fill="#c9b78d", width=1)
         except Exception as e:
             print(f"⚠️ Глянец: {e}")
 
@@ -4636,39 +4835,54 @@ class ModernTTSApp(ctk.CTk):
         Стилевые требования (речь без списков, цифры словами, без англицизмов)
         живут в system-промпте, поэтому здесь — только задача по содержанию.
         """
-        prompts = {
-            "Только суть (10%)":
-                "Оставь только главную мысль текста — одно-два коротких предложения, не более 10% объёма. "
-                "Отбрось примеры, второстепенные детали, повторы и оговорки. "
-                "Если без имён или чисел мысль станет непонятной — сохрани их.",
-            "Очень кратко (30%)":
-                "Сократи текст до ~30% объёма: ключевые факты, главные аргументы и вывод. "
-                "Убери примеры, пояснения, вступления и повторы, но сохрани все значимые "
-                "числа, даты, имена и названия.",
-            "Кратко (50%)":
-                "Сократи текст примерно вдвое (~50% объёма): главные факты, аргументы и выводы "
-                "вместе с ключевыми деталями, которые на них влияют. Порядок изложения — как "
-                "в исходном тексте, без потери логики.",
-            "Подробно (80%)":
-                "Сожми текст до ~80% объёма: сохрани структуру, порядок изложения и почти все "
-                "детали. Сжимай только формулировки и убирай повторы — ничего существенного "
-                "не выбрасывай.",
-            "Речь для озвучки (100%)":
-                "Перепиши текст целиком для озвучки, сохранив весь смысл, структуру и порядок "
-                "изложения. Убери только визуальный мусор: ссылки, подписи, колонтитулы, "
-                "номера страниц и служебные пометки.",
-            "Перевод на английский (100%)":
-                "Переведи текст на английский язык. Сохрани весь смысл, структуру и порядок "
-                "изложения, ничего не сокращай, не добавляй и не комментируй. Термины, имена "
-                "и названия передавай так, как это принято в англоязычной литературе по теме. "
-                "Верни только перевод, без пояснений и вступлений.",
-        }
-        prompt = prompts.get(choice, "")
-        if UI_LANG == "en":
-            prompt = self.PRESET_PROMPTS_EN.get(choice, prompt)
-        self.instruction_entry.delete("1.0", "end")
-        self.instruction_entry.insert("1.0", prompt)
+        table = self.PRESET_PROMPTS_EN if UI_LANG == "en" else self.PRESET_PROMPTS_RU
+        prompt = table.get(choice) or self.PRESET_PROMPTS_RU.get(choice, "")
+        if not prompt and choice in self.custom_presets:
+            prompt = self.custom_presets[choice].get("prompt", "")
+        self._set_instruction(prompt)
         self.save_settings()
+
+    def _set_instruction(self, text):
+        """Заменить текст в поле промпта целиком."""
+        try:
+            self.instruction_entry.delete("1.0", "end")
+            if text:
+                self.instruction_entry.insert("1.0", text)
+        except Exception as e:
+            print(f"⚠️ Промпт: {e}")
+
+    @staticmethod
+    def _norm_prompt(text):
+        return " ".join((text or "").split())
+
+    def _translate_instruction(self):
+        """Смена языка интерфейса переводит и сам промпт.
+
+        Переводим только стандартные промпты уровней (сравнение по тексту, а не по
+        названию): свой текст, набранный руками, не трогаем. Промпты прежней версии
+        заменяем актуальным для выбранного уровня.
+        """
+        try:
+            cur = self.instruction_entry.get("1.0", "end-1c")
+        except Exception:
+            return
+        if not cur.strip():
+            return
+        norm = self._norm_prompt
+        target = self.PRESET_PROMPTS_EN if UI_LANG == "en" else self.PRESET_PROMPTS_RU
+
+        for table in (self.PRESET_PROMPTS_RU, self.PRESET_PROMPTS_EN):
+            for key, text in table.items():
+                if norm(cur) == norm(text):
+                    new = target.get(key, "")
+                    if new and norm(new) != norm(cur):
+                        self._set_instruction(new)
+                    return
+
+        if any(marker in cur for marker in self.LEGACY_PROMPTS):
+            self.apply_preset(self.preset_menu.get())
+            return
+        # свой промпт — оставляем как есть
 
     def _read_donate_flag(self):
         """Флаг «к оплате уже переходили» — читается до сборки интерфейса."""

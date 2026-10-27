@@ -30,6 +30,10 @@ FAIR.bat
 fair_launcher.py
 blank.ico
 
+# Черновые и проверочные скрипты (в репозиторий не идут)
+_*.py
+voice_cmp.py
+
 # Дежурные мелочи: IDE, черновики, тестовые артефакты
 .idea/
 _files.json
