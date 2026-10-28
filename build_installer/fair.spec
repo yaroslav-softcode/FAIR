@@ -26,10 +26,9 @@ datas += [
     (os.path.join(SRC, "models", "ru_RU-irina-medium.onnx.json"), "piper"),
     (os.path.join(SRC, "models", "ru_RU-ruslan-medium.onnx"), "piper"),
     (os.path.join(SRC, "models", "ru_RU-ruslan-medium.onnx.json"), "piper"),
-    # встроенные образцы голосов Vox: «Алсу» (рус) и «Taylor» (англ) —
-    # приложение регистрирует их в слотах при первом запуске
+    # встроенный образец голоса Vox: «Алсу» —
+    # приложение регистрирует его в слоте при первом запуске
     (os.path.join(SRC, "voices_builtin", "alsu_ref.wav"), "voices_builtin"),
-    (os.path.join(SRC, "voices_builtin", "taylor_ref.wav"), "voices_builtin"),
 ]
 
 # у llama-cpp-python нет хука PyInstaller: без этих DLL импорт Llama падает
