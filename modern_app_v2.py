@@ -1124,14 +1124,31 @@ _PREFIX_PAIRS = [
     ("Не удалось открыть микрофон:\n", "Could not open the microphone:\n"),
     ("CUDA-сборка llama.cpp не найдена:\n", "The CUDA build of llama.cpp was not found:\n"),
     ("Нужна CUDA-сборка llama.cpp", "The CUDA build of llama.cpp is required"),
-    ("llama.cpp для видеокарт NVIDIA, ≈630 МБ — скачивается один раз с GitHub.\n"
-     "Дальше GPU-режим работает без интернета. Если прервать, докачается с места.",
-     "llama.cpp for NVIDIA graphics cards, ≈630 MB — downloaded once from GitHub.\n"
-     "After that the GPU mode works offline. If interrupted, it resumes where it stopped."),
+    ("llama.cpp для видеокарт NVIDIA, ≈630 МБ — докачивается автоматически и только один раз.\n"
+     "Можно отменить: тогда режим вернётся на процессор.",
+     "llama.cpp for NVIDIA graphics cards, ≈630 MB — downloaded automatically, only once.\n"
+     "You may cancel: the mode then returns to the processor."),
     ("Сборка не скачана", "The build is not downloaded"),
     ("Распаковка…", "Extracting…"),
     ("CUDA-сборка установлена", "The CUDA build is installed"),
     ("Сборка не найдена после распаковки", "The build was not found after extraction"),
+    ("Gemma 4 E4B и сборка для видеокарты NVIDIA, ≈5,6 ГБ — скачиваются один раз "
+     "(Hugging Face и GitHub).\nДальше приложение работает без интернета. "
+     "Если прервать, докачается с места.",
+     "Gemma 4 E4B plus the NVIDIA GPU build, ≈5.6 GB — downloaded once "
+     "(Hugging Face and GitHub).\nAfter that the app works offline. "
+     "If interrupted, it resumes where it stopped."),
+    ("Видеокарта · ", "GPU · "),
+    ("Модель скачана — докачиваю сборку видеокарты…",
+     "Model downloaded — fetching the GPU build…"),
+    ("Модель и сборка для видеокарты установлены", "The model and the GPU build are installed"),
+    ("Сборка видеокарты не докачана — приложение докачает её при включении GPU",
+     "The GPU build is incomplete — the app will fetch it when the GPU mode is switched on"),
+    ("Видеокарта", "Video card"),
+    ("Для режима «Видеокарта» нужна видеокарта NVIDIA — она не найдена.\n"
+     "Режим возвращён на процессор.",
+     "The “Video card” mode requires an NVIDIA graphics card — none was found.\n"
+     "The mode has been returned to the processor."),
     ("GPU-сервер завершился при загрузке модели.\n",
      "The GPU server stopped while loading the model.\n"),
     ("VoxCPM не установлен.\n\npip install voxcpm\n", "VoxCPM is not installed.\n\npip install voxcpm\n"),
@@ -1640,11 +1657,15 @@ class ModernTTSApp(ctk.CTk):
 
         ctk.CTkLabel(body, text=_tr("Нужна модель для анализа текста"), font=FONT_SUBHEADER,
                      text_color=COLOR_HEAD).pack(pady=(16, 4))
+        if self._cuda_wanted():
+            mtxt = _tr("Gemma 4 E4B и сборка для видеокарты NVIDIA, ≈5,6 ГБ — скачиваются один раз "
+                       "(Hugging Face и GitHub).\nДальше приложение работает без интернета. "
+                       "Если прервать, докачается с места.")
+        else:
+            mtxt = _tr("Gemma 4 E4B, ≈5 ГБ — скачивается один раз с Hugging Face.\n"
+                       "Дальше анализ идёт без интернета. Если прервать, докачается с места.")
         ctk.CTkLabel(body, justify="left", wraplength=470, font=FONT_TINY,
-                     text_color=COLOR_TEXT_SEC,
-                     text=_tr("Gemma 4 E4B, ≈5 ГБ — скачивается один раз с Hugging Face.\n"
-                              "Дальше анализ идёт без интернета. Если прервать, докачается с места.")
-                     ).pack(padx=16, anchor="w")
+                     text_color=COLOR_TEXT_SEC, text=mtxt).pack(padx=16, anchor="w")
 
         bar = ctk.CTkProgressBar(body, height=10, corner_radius=6, progress_color="#c6763a",
                                  fg_color=COLOR_CARD2)
@@ -1701,12 +1722,15 @@ class ModernTTSApp(ctk.CTk):
         self._dl_thread.start()
 
     def _download_model(self, dlg, bar, info, btn):
-        """Качает GGUF в models_llm/<имя>.part и переименовывает по завершении."""
+        """Качает GGUF в models_llm/<имя>.part, затем — сборку видеокарты (пакетом, один раз)."""
         pack = self.MODEL_PACK
         folder = os.path.join(self.BASE_DIR, "models_llm")
         os.makedirs(folder, exist_ok=True)
         final = os.path.join(folder, pack["name"])
         part = final + ".part"
+        zips = self.LLAMA_CUDA_ZIPS
+        cuda_approx = sum(a for _, _, a in zips)
+        need_cuda = self._cuda_wanted()
 
         def ui(fn, *args):
             try:
@@ -1731,41 +1755,69 @@ class ModernTTSApp(ctk.CTk):
         try:
             have = os.path.getsize(part) if os.path.exists(part) else 0
             total = pack["size"]
-            if have >= total:
-                os.replace(part, final)
-                self.after(0, self._model_ready, dlg, "Модель уже скачана")
-                return
-            headers = {"Range": f"bytes={have}-"} if have else {}
-            with _http_get(pack["url"], headers=headers, stream=True) as r:
-                r.raise_for_status()
-                if r.status_code == 206:
-                    total = have + int(r.headers.get("Content-Length") or 0)
-                else:
-                    have = 0
-                    total = int(r.headers.get("Content-Length") or pack["size"])
-                done = have
-                drawn = 0.0
-                ui(set_info, f"{done / 1048576:,.0f} / {total / 1048576:,.0f} " + _tr("МБ") + " · 0%")
-                with open(part, "ab" if have else "wb") as f:
-                    for chunk in r.iter_content(chunk_size=262144):
-                        if self._dl_cancel.is_set():
-                            ui(set_btn, _tr("Продолжить"))
-                            ui(set_info, _tr("Загрузка остановлена — можно продолжить позже"))
-                            return
-                        if not chunk:
-                            continue
-                        f.write(chunk)
-                        done += len(chunk)
-                        now = time.time()
-                        if now - drawn > 0.25:
-                            drawn = now
-                            pct = (done / total) if total else 0
-                            ui(bar.set, min(pct, 1.0))
-                            ui(set_info, f"{done / 1048576:,.0f} / {total / 1048576:,.0f} "
-                                         + _tr("МБ") + f" · {pct * 100:.0f}%")
-            ui(bar.set, 1.0)
+            if have < total:
+                headers = {"Range": f"bytes={have}-"} if have else {}
+                with _http_get(pack["url"], headers=headers, stream=True) as r:
+                    r.raise_for_status()
+                    if r.status_code == 206:
+                        total = have + int(r.headers.get("Content-Length") or 0)
+                    else:
+                        have = 0
+                        total = int(r.headers.get("Content-Length") or pack["size"])
+                    done = have
+                    grand = total + (cuda_approx if need_cuda else 0)
+                    drawn = 0.0
+                    ui(set_info, f"{done / 1048576:,.0f} / {grand / 1048576:,.0f} "
+                                 + _tr("МБ") + " · 0%")
+                    with open(part, "ab" if have else "wb") as f:
+                        for chunk in r.iter_content(chunk_size=262144):
+                            if self._dl_cancel.is_set():
+                                ui(set_btn, _tr("Продолжить"))
+                                ui(set_info, _tr("Загрузка остановлена — можно продолжить позже"))
+                                return
+                            if not chunk:
+                                continue
+                            f.write(chunk)
+                            done += len(chunk)
+                            now = time.time()
+                            if now - drawn > 0.25:
+                                drawn = now
+                                pct = (done / grand) if grand else 0
+                                ui(bar.set, min(pct, 1.0))
+                                ui(set_info, f"{done / 1048576:,.0f} / {grand / 1048576:,.0f} "
+                                             + _tr("МБ") + f" · {pct * 100:.0f}%")
             os.replace(part, final)
-            self.after(0, self._model_ready, dlg, "Модель скачана")
+            if not need_cuda:
+                self.after(0, self._model_ready, dlg, "Модель скачана")
+                return
+            # ---- этап 2: сборка для видеокарты — тот же пакет, тот же прогресс ----
+            ui(set_info, _tr("Модель скачана — докачиваю сборку видеокарты…"))
+            base0 = os.path.getsize(final)
+            grand = base0 + cuda_approx
+            drawn = [0.0]
+
+            def cb(i, d, t):
+                now = time.time()
+                if now - drawn[0] > 0.25 or d >= t:
+                    drawn[0] = now
+                    acc = base0 + sum(a for _, _, a in zips[:i]) + d
+                    pct = (acc / grand) if grand else 0
+                    ui(set_info, _tr("Видеокарта · ") + f"{acc / 1048576:,.0f} / "
+                                       f"{grand / 1048576:,.0f} " + _tr("МБ") +
+                         f" · {min(pct, 1.0) * 100:.0f}%")
+                    ui(bar.set, min(pct, 1.0))
+
+            ok_cuda = self._fetch_cuda_pack(cb, self._dl_cancel,
+                                            on_extract=lambda: ui(set_info, _tr("Распаковка…")))
+            ui(bar.set, 1.0)
+            if not ok_cuda:
+                if not self._dl_cancel.is_set():
+                    raise Exception(_tr("Сборка не найдена после распаковки"))
+                # Модель на месте, сборку отложили — докачаем при включении GPU
+                self.after(0, self._model_ready, dlg, "Модель скачана")
+                return
+            self.after(0, self._model_ready,
+                       dlg, "Модель и сборка для видеокарты установлены")
         except Exception as e:
             ui(set_info, f"{_tr('Ошибка загрузки')}: {e}")
             ui(set_btn, _tr("Повторить"))
@@ -4515,8 +4567,55 @@ class ModernTTSApp(ctk.CTk):
         self._update_gpu_labels()
         self.save_settings()
 
+    def _has_nvidia(self):
+        return bool(shutil.which("nvidia-smi"))
+
+    def _cuda_wanted(self):
+        """Нужна ли сборка видеокарты в пакет модели: NVIDIA есть, самой сборки нет."""
+        return self._has_nvidia() and not self._gpu_binary()
+
+    def _fetch_cuda_pack(self, cb, cancel, on_extract=None):
+        """Общее: качает оба архива в tools/ и распаковывает в tools/llama-cuda.
+        cb(номер_файла, скачано, всего) — прогресс. True — сборка на месте,
+        False — скачивание отменено. Оборванное продолжается с места (.part)."""
+        import zipfile
+        zips = self.LLAMA_CUDA_ZIPS
+        tools = os.path.join(self.BASE_DIR, "tools")
+        target = os.path.join(tools, "llama-cuda")
+        os.makedirs(target, exist_ok=True)
+        for i, (zname, url, _approx) in enumerate(zips):
+            if not self._fetch_file(url, os.path.join(tools, zname),
+                                    on_bytes=(lambda d, t, _i=i: cb(_i, d, t)),
+                                    cancel=cancel):
+                return False
+        if on_extract is not None:
+            try:
+                on_extract()
+            except Exception:
+                pass
+        for zname, _url, _approx in zips:
+            zp = os.path.join(tools, zname)
+            with zipfile.ZipFile(zp) as z:
+                for n in z.namelist():
+                    parts = n.replace("\\", "/").split("/")
+                    if not parts[-1] or ".." in parts:
+                        continue
+                    with z.open(n) as src, open(os.path.join(target, parts[-1]), "wb") as dst:
+                        shutil.copyfileobj(src, dst, 262144)
+            os.remove(zp)
+        return self._gpu_binary()
+
     def _offer_cuda_download(self):
-        """Нет CUDA-сборки — предлагаем докачать с GitHub (как модель ИИ)."""
+        """GPU включили, а сборки нет. NVIDIA есть — докачиваем сами сразу, без
+        предложений (сборка ставится один раз — она идёт в пакете вместе с моделью ИИ).
+        NVIDIA нет — докачка не поможет: возвращаем режим на процессор."""
+        if not self._has_nvidia():
+            messagebox.showwarning(
+                _tr("Видеокарта"),
+                _tr("Для режима «Видеокарта» нужна видеокарта NVIDIA — она не найдена.\n"
+                    "Режим возвращён на процессор."))
+            self._gpu_rollback()
+            return
         old = getattr(self, "_cuda_dialog", None)
         try:
             if old is not None and old.winfo_exists():
@@ -4553,8 +4652,8 @@ class ModernTTSApp(ctk.CTk):
                      text_color=COLOR_HEAD).pack(pady=(16, 4))
         ctk.CTkLabel(body, justify="left", wraplength=470, font=FONT_TINY,
                      text_color=COLOR_TEXT_SEC,
-                     text=_tr("llama.cpp для видеокарт NVIDIA, ≈630 МБ — скачивается один раз с GitHub.\n"
-                              "Дальше GPU-режим работает без интернета. Если прервать, докачается с места.")
+                     text=_tr("llama.cpp для видеокарт NVIDIA, ≈630 МБ — докачивается автоматически "
+                              "и только один раз.\nМожно отменить: тогда режим вернётся на процессор.")
                      ).pack(padx=16, anchor="w")
 
         bar = ctk.CTkProgressBar(body, height=10, corner_radius=6, progress_color="#c6763a",
@@ -4568,16 +4667,13 @@ class ModernTTSApp(ctk.CTk):
         row = ctk.CTkFrame(body, fg_color="transparent")
         row.pack(fill="x", padx=16, pady=(12, 14), side="bottom")
 
-        btn_go = ctk.CTkButton(row, text=_tr("Скачать"), width=150, height=34,
+        btn_go = ctk.CTkButton(row, text=_tr("Отмена"), width=150, height=34,
                                corner_radius=R_PANEL, font=FONT_SUBHEADER,
                                fg_color="#c6763a", hover_color="#a95f2c",
                                text_color="#ffffff",
                                command=lambda: self._start_cuda_download(dlg, bar, info, btn_go))
         btn_go.pack(side="left")
-        ctk.CTkButton(row, text=_tr("Позже"), width=110, height=34, corner_radius=R_PANEL,
-                      font=FONT_NORMAL, fg_color="transparent", border_width=1,
-                      border_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN,
-                      hover_color=COLOR_CARD, command=dlg.destroy).pack(side="left", padx=8)
+        self._start_cuda_download(dlg, bar, info, btn_go)
 
     def _start_cuda_download(self, dlg, bar, info, btn):
         if self._cuda_thread is not None and self._cuda_thread.is_alive():
@@ -4592,7 +4688,6 @@ class ModernTTSApp(ctk.CTk):
 
     def _download_cuda_pack(self, dlg, bar, info, btn):
         """Качает сборку и CUDA-рантайм в tools/, распаковывает в tools/llama-cuda."""
-        import zipfile
         zips = self.LLAMA_CUDA_ZIPS
         total_all = sum(a for _, _, a in zips)
 
@@ -4610,46 +4705,30 @@ class ModernTTSApp(ctk.CTk):
             except Exception:
                 pass
 
-        tools = os.path.join(self.BASE_DIR, "tools")
-        target = os.path.join(tools, "llama-cuda")
-        os.makedirs(target, exist_ok=True)
+        drawn = [0.0]
+
+        def cb(i, d, t):
+            now = time.time()
+            if now - drawn[0] > 0.25 or d >= t:
+                drawn[0] = now
+                acc = sum(a for _, _, a in zips[:i]) + d
+                pct = acc / total_all if total_all else 0
+                self._ui(set_info, f"{i + 1}/{len(zips)} · {d / 1048576:,.0f} / "
+                                   f"{t / 1048576:,.0f} " + _tr("МБ") +
+                         f" · {pct * 100:.0f}%")
+                self._ui(bar.set, min(pct, 1.0))
+
         try:
-            acc = 0
-            for i, (zname, url, approx) in enumerate(zips, 1):
-                dest = os.path.join(tools, zname)
-                drawn = [0.0]
-
-                def cb(done, total, _i=i, _acc=acc):
-                    now = time.time()
-                    if now - drawn[0] > 0.25 or done >= total:
-                        drawn[0] = now
-                        pct = (_acc + done) / total_all if total_all else 0
-                        self._ui(set_info, f"{_i}/{len(zips)} · {done / 1048576:,.0f} / "
-                                           f"{total / 1048576:,.0f} " + _tr("МБ") +
-                                 f" · {pct * 100:.0f}%")
-                        self._ui(bar.set, min(pct, 1.0))
-
-                if not self._fetch_file(url, dest, on_bytes=cb, cancel=self._cuda_cancel):
-                    self._ui(set_btn, _tr("Продолжить"))
-                    self._ui(set_info, _tr("Загрузка остановлена — можно продолжить позже"))
-                    self._gpu_rollback()
-                    return
-                acc += approx
+            if not self._fetch_cuda_pack(cb, self._cuda_cancel,
+                                         on_extract=lambda: self._ui(set_info,
+                                                                     _tr("Распаковка…"))):
+                if not self._cuda_cancel.is_set():
+                    raise Exception(_tr("Сборка не найдена после распаковки"))
+                self._ui(set_btn, _tr("Продолжить"))
+                self._ui(set_info, _tr("Загрузка остановлена — можно продолжить позже"))
+                self._gpu_rollback()
+                return
             self._ui(bar.set, 1.0)
-            self._ui(set_info, _tr("Распаковка…"))
-            self._ui(set_btn, _tr("Распаковка…"), "disabled")
-            for zname, _url, _approx in zips:
-                zp = os.path.join(tools, zname)
-                with zipfile.ZipFile(zp) as z:
-                    for n in z.namelist():
-                        parts = n.replace("\\", "/").split("/")
-                        if not parts[-1] or ".." in parts:
-                            continue
-                        with z.open(n) as src, open(os.path.join(target, parts[-1]), "wb") as dst:
-                            shutil.copyfileobj(src, dst, 262144)
-                os.remove(zp)
-            if not self._gpu_binary():
-                raise Exception(_tr("Сборка не найдена после распаковки"))
             try:
                 if dlg.winfo_exists():
                     dlg.destroy()
