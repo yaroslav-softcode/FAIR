@@ -23,6 +23,8 @@ _removed_voices/
 settings.json
 config.json
 *.wav
+# но встроенные образцы голосов (Алсу/Taylor) — часть дистрибутива
+!voices_builtin/*.wav
 
 # Не используется в v2 (старая версия приложения и лишние ассеты)
 modern_app.py

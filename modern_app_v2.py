@@ -831,7 +831,7 @@ class PresetDialog(ctk.CTkToplevel):
 # модели остаются без изменений.
 UI_LANG = "ru"
 
-_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку, текст или файл — либо наберите текст в поле справа.', 'Paste a link, text or file — or type in the field on the right.'), ('Вставьте текст статьи, ссылку или файл — или просто печатайте здесь.\n\n', 'Paste an article link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку, текст или файл.', '✅ Ready. Paste a link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, txt)', 'Choose a file (pdf, docx, txt)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку, текст или файл.', 'Text is required: paste a link, text or file.'), ('Хорошо', 'OK')]
+_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку, текст или файл — либо наберите текст в поле справа.', 'Paste a link, text or file — or type in the field on the right.'), ('Вставьте текст статьи, ссылку или файл — или просто печатайте здесь.\n\n', 'Paste an article link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку, текст или файл.', '✅ Ready. Paste a link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, txt)', 'Choose a file (pdf, docx, txt)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку, текст или файл.', 'Text is required: paste a link, text or file.'), ('Хорошо', 'OK'), ('Голоса Алсу и Taylor установлены', 'Alsu and Taylor voices installed'), ('Озвучка сохранена', 'Spoken audio saved'), ('Нет озвучки для сохранения — сначала нажмите «Озвучить».', 'Nothing to save yet — press “Speak” first.'), ('Сохранить озвучку', 'Save spoken audio'), ('⏳ Синтез речи…', '⏳ Synthesizing speech…')]
 
 _PAIRS += [
     # заголовки отдельных окон и динамические подписи (с образцом значений —
@@ -1831,6 +1831,41 @@ class ModernTTSApp(ctk.CTk):
         ("ru_RU-irina-medium", "/ru/ru_RU/irina/medium/ru_RU-irina-medium"),
         ("ru_RU-ruslan-medium", "/ru/ru_RU/ruslan/medium/ru_RU-ruslan-medium"),
     )
+
+    # встроенные образцы голосов Vox — лежат в voices_builtin/ (входят в установщик),
+    # регистрируются в слотах при первом запуске (_seed_builtin_vox_voices)
+    BUILTIN_VOX_VOICES = (
+        {"name": "Алсу", "file": "alsu_ref.wav",
+         "text": "Привет. Это образец моего голоса для синтеза речи."},
+        {"name": "Taylor", "file": "taylor_ref.wav",
+         "text": "Lots of preparation. I write a lot of my ideas down "
+                 "before I get in to the actual session."},
+    )
+
+    def _seed_builtin_vox_voices(self):
+        """Регистрирует встроенные голоса «Алсу» (рус) и «Taylor» (англ).
+        Имена уже занятые не дублирует; метка builtin_vox_seeded в settings.json
+        не даёт вернуть голоса, которые пользователь удалил сам."""
+        try:
+            if getattr(self, "builtin_vox_seeded", False):
+                return
+            have = {str(i.get("name", "")).strip().lower()
+                    for i in self.custom_voices.values() if isinstance(i, dict)}
+            added = []
+            for v in self.BUILTIN_VOX_VOICES:
+                if v["name"].strip().lower() in have:
+                    continue
+                wav = os.path.join(self._asset_path("voices_builtin"), v["file"])
+                if not os.path.isfile(wav):
+                    continue
+                slot = next(str(k) for k in range(1, 100) if str(k) not in self.custom_voices)
+                self.custom_voices[slot] = {"name": v["name"], "path": wav, "text": v["text"]}
+                added.append(v["name"])
+            self.builtin_vox_seeded = True
+            if added:
+                self.update_status(f"✅ {_tr('Голоса Алсу и Taylor установлены')}")
+        except Exception as e:
+            print(f"⚠️ Встроенные голоса: {e}")
 
     def _first_run_chain(self):
         """Первый запуск: голоса → дополнение Vox → модель анализа (по одному шагу)."""
@@ -2853,9 +2888,15 @@ class ModernTTSApp(ctk.CTk):
         self.progress_bar.grid(row=0, column=3, padx=14, pady=12, sticky="ew")
         self.progress_bar.set(0)
 
-        self.lbl_audio_status = ctk.CTkLabel(self.audio_control_frame, text="Готово", font=FONT_SMALL,
-                                             text_color=COLOR_TEXT_SEC)
-        self.lbl_audio_status.grid(row=0, column=4, padx=14, sticky="e")
+        # «Сохранить озвучку» — значок ⬇: сохраняет WAV последней озвучки в файл.
+        # Заменил собой строку состояния справа (её убрали по просьбе Ярослава).
+        self.btn_save_audio = ctk.CTkButton(self.audio_control_frame, text="",
+                                            image=self._save_icon,
+                                            width=44, height=36, corner_radius=3,
+                                            fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+                                            text_color=COLOR_TEXT_MAIN,
+                                            command=self._save_last_audio)
+        self.btn_save_audio.grid(row=0, column=4, padx=(6, 14), pady=12)
 
         self._update_ram_label()
 
@@ -4100,6 +4141,7 @@ class ModernTTSApp(ctk.CTk):
                 "donate_done": bool(getattr(self, "donate_done", False)),
                 "model_offer_muted": bool(getattr(self, "model_offer_muted", False)),
                 "voices_seeded": bool(getattr(self, "voices_seeded", False)),
+                "builtin_vox_seeded": bool(getattr(self, "builtin_vox_seeded", False)),
                 "vox_offer_done": bool(getattr(self, "vox_offer_done", False)),
             }
             tmp = self.SETTINGS_FILE + ".tmp"
@@ -4126,6 +4168,7 @@ class ModernTTSApp(ctk.CTk):
                 self._apply_engine("Piper")        # первый запуск — Piper по умолчанию
                 self.preset_menu.set("Кратко (50%)")
                 self.apply_preset("Кратко (50%)")
+                self._seed_builtin_vox_voices()    # «Алсу» и «Taylor» — сразу в слотах
                 self.update_status("✅ Готово. Вставьте ссылку, текст или файл.")
                 return
             with open(self.SETTINGS_FILE, "r", encoding="utf-8") as f:
@@ -4134,6 +4177,7 @@ class ModernTTSApp(ctk.CTk):
             self._apply_engine("Vox")
             self.preset_menu.set("Кратко (50%)")
             self.apply_preset("Кратко (50%)")
+            self._seed_builtin_vox_voices()
             return
 
         global UI_LANG
@@ -4163,6 +4207,11 @@ class ModernTTSApp(ctk.CTk):
                 if not info.get("name"):
                     info["name"] = f"Свой {slot}"  # старый формат — имя по номеру
                 self.custom_voices[str(slot)] = info
+
+        # встроенные «Алсу»/«Taylor»: добавляем в свободные слоты, если их ещё нет
+        # (до _apply_engine — список голосов он построит уже с ними)
+        self.builtin_vox_seeded = bool(data.get("builtin_vox_seeded", False))
+        self._seed_builtin_vox_voices()
 
         cc = data.get("ctx_choices")
         if isinstance(cc, dict):
@@ -4306,7 +4355,6 @@ class ModernTTSApp(ctk.CTk):
         self.after(0, self.progress_bar.stop)
         self.after(0, lambda: self.btn_process.configure(state="normal", text=_tr("Запустить анализ")))
         self.after(0, lambda: self.update_status("⏹ Остановлено"))
-        self.after(0, lambda: self.lbl_audio_status.configure(text=_tr("Отменено"), text_color=COLOR_RED))
 
     # ================= ОБРАБОТЧИКИ =================
 
@@ -5204,7 +5252,6 @@ class ModernTTSApp(ctk.CTk):
         self.btn_process.configure(state="disabled", text="Обработка…")
         self.progress_bar.stop()
         self.progress_bar.set(0)
-        self.lbl_audio_status.configure(text=_tr("Генерация текста…"), text_color=COLOR_ACCENT)
         self.update_status("⏳ Подготовка текста…")
         self.save_settings()
 
@@ -5320,7 +5367,6 @@ class ModernTTSApp(ctk.CTk):
                 self.after(0, lambda s=share: self.update_status(f"✅ Анализ завершён · {s}"))
             if ratio and pct > int(ratio * 100) + 15:
                 print(f"⚠️ Модель не уложилась в {int(ratio * 100)}%: получилось {pct}%")
-            self.after(0, lambda: self.lbl_audio_status.configure(text=_tr("Готово"), text_color=COLOR_GREEN))
             self.box_is_source = False
 
             if self.auto_play_var.get() and not self.cancel_event.is_set():
@@ -5407,6 +5453,14 @@ class ModernTTSApp(ctk.CTk):
                         d.rounded_rectangle([13, 13, 51, 51], radius=5, fill=col)
                     except AttributeError:
                         d.rectangle([13, 13, 51, 51], fill=col)
+                elif what == "save":
+                    # ⬇ стрелка вниз в поддон — «сохранить файл»
+                    d.rectangle([30, 6, 34, 33], fill=col)
+                    d.polygon([(17, 27), (47, 27), (32, 44)], fill=col)
+                    try:
+                        d.rounded_rectangle([13, 49, 51, 54], radius=2, fill=col)
+                    except AttributeError:
+                        d.rectangle([13, 49, 51, 54], fill=col)
                 else:
                     d.polygon([(8, 10), (38, 32), (8, 54)], fill=col)
                     d.rectangle([43, 10, 49, 54], fill=col)
@@ -5419,9 +5473,11 @@ class ModernTTSApp(ctk.CTk):
                                          dark_image=icon((31, 31, 31)), size=(16, 16))
             self._stop_icon = ctk.CTkImage(light_image=icon((34, 34, 34), "stop"),
                                            dark_image=icon((232, 232, 232), "stop"), size=(15, 15))
+            self._save_icon = ctk.CTkImage(light_image=icon((34, 34, 34), "save"),
+                                           dark_image=icon((232, 232, 232), "save"), size=(17, 17))
         except Exception as e:
             print(f"⚠️ Иконки Play/Pause: {e}")
-            self._pp_light = self._pp_dark = self._stop_icon = None
+            self._pp_light = self._pp_dark = self._stop_icon = self._save_icon = None
 
     def _pp_state(self, playing):
         """E-вариант: значок не меняется, состоянием управляет цвет кнопки."""
@@ -5451,12 +5507,9 @@ class ModernTTSApp(ctk.CTk):
             print(f"⚠️ Воспроизведение: {e}")
             self._playing = False
             self._play_done = True
-            self._safe_ui(lambda: self.lbl_audio_status.configure(text=_tr("Ошибка звука"),
-                                                                  text_color=COLOR_RED))
+            self._safe_ui(lambda: self._pp_state(False))
             return
         self._playing = True
-        self._safe_ui(lambda: self.lbl_audio_status.configure(text=_tr("Воспроизведение…"),
-                                                              text_color=COLOR_ACCENT))
         self._safe_ui(lambda: self._pp_state(True))
         threading.Thread(target=self._pump_playback, args=(stream, data, sr), daemon=True).start()
 
@@ -5486,12 +5539,8 @@ class ModernTTSApp(ctk.CTk):
         if self._playing and not self._play_done:
             self._play_paused = not self._play_paused
             if self._play_paused:
-                self._safe_ui(lambda: self.lbl_audio_status.configure(text=_tr("Пауза"),
-                                                                      text_color=COLOR_TEXT_SEC))
                 self._safe_ui(lambda: self._pp_state(False))
             else:
-                self._safe_ui(lambda: self.lbl_audio_status.configure(text=_tr("Воспроизведение…"),
-                                                                      text_color=COLOR_ACCENT))
                 self._pp_state(True)
             return
         # не играем или уже закончилось — играем готовый звук заново
@@ -5518,7 +5567,6 @@ class ModernTTSApp(ctk.CTk):
             self.progress_bar.stop()
         except Exception:
             pass
-        self.lbl_audio_status.configure(text=_tr("Остановлено"), text_color=COLOR_RED)
         self.update_status("⏹ Остановлено")
         self._safe_ui(lambda: self._pp_state(False))
 
@@ -5562,8 +5610,34 @@ class ModernTTSApp(ctk.CTk):
         self._last_pct = -1
         self.progress_bar.stop()
         self.progress_bar.set(0)
-        self.lbl_audio_status.configure(text=_tr("⏳ Синтез..."), text_color=COLOR_HEAD)
+        self.update_status("⏳ Синтез речи…")
         threading.Thread(target=self.generate_and_play, args=(text,), daemon=True).start()
+
+    def _save_last_audio(self):
+        """Кнопка ⬇: сохранить WAV последней озвучки в выбранный файл."""
+        src = None
+        cached = getattr(self, "_last_audio", None)
+        if cached:
+            try:
+                src = cached[4]
+            except Exception:
+                src = None
+        if not src or not os.path.isfile(src):
+            src = os.path.join(BASE_DIR, "temp_output_pro.wav")
+        if not os.path.isfile(src):
+            messagebox.showwarning("Внимание", "Нет озвучки для сохранения — сначала нажмите «Озвучить».")
+            return
+        try:
+            out = filedialog.asksaveasfilename(
+                parent=self, title="Сохранить озвучку",
+                defaultextension=".wav", filetypes=[("WAV", "*.wav"), ("Все файлы", "*.*")],
+                initialfile=time.strftime("FAIR_озвучка_%Y-%m-%d_%H-%M.wav"))
+            if not out:
+                return
+            shutil.copyfile(src, out)
+            self.update_status(f"✅ {_tr('Озвучка сохранена')}: {os.path.basename(out)}")
+        except Exception as e:
+            messagebox.showerror("Ошибка TTS", str(e))
 
     # ================= СИНТЕЗ =================
 
@@ -5703,21 +5777,16 @@ class ModernTTSApp(ctk.CTk):
                                 rate, temp_file)
             self._safe_ui(lambda: self.set_progress(100, "Синтез завершён"))
             self.after(0, self.progress_bar.stop)
-            final_rate = rate * (VOX_BASE_SPEED if self.current_engine == "Vox" else 1.0)
-            self.after(0, lambda: self.lbl_audio_status.configure(
-                text=f"✅ Воспроизводится ({self.current_engine}, ×{final_rate:.2f})", text_color=COLOR_GREEN))
 
         except Cancelled:
             print("⏹ Синтез отменён")
             self.after(0, self.progress_bar.stop)
-            self.after(0, lambda: self.lbl_audio_status.configure(text=_tr("Отменено"), text_color=COLOR_RED))
 
         except Exception as e:
             msg = str(e)
             print(f"❌ Ошибка синтеза: {msg}")
             self.after(0, lambda: messagebox.showerror("Звук", msg))
             self.after(0, self.progress_bar.stop)
-            self.after(0, lambda: self.lbl_audio_status.configure(text=_tr("❌ Ошибка"), text_color=COLOR_RED))
 
 
 if __name__ == "__main__":
