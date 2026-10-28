@@ -1123,6 +1123,15 @@ _PREFIX_PAIRS = [
     ("Файл не найден: ", "File not found: "),
     ("Не удалось открыть микрофон:\n", "Could not open the microphone:\n"),
     ("CUDA-сборка llama.cpp не найдена:\n", "The CUDA build of llama.cpp was not found:\n"),
+    ("Нужна CUDA-сборка llama.cpp", "The CUDA build of llama.cpp is required"),
+    ("llama.cpp для видеокарт NVIDIA, ≈630 МБ — скачивается один раз с GitHub.\n"
+     "Дальше GPU-режим работает без интернета. Если прервать, докачается с места.",
+     "llama.cpp for NVIDIA graphics cards, ≈630 MB — downloaded once from GitHub.\n"
+     "After that the GPU mode works offline. If interrupted, it resumes where it stopped."),
+    ("Сборка не скачана", "The build is not downloaded"),
+    ("Распаковка…", "Extracting…"),
+    ("CUDA-сборка установлена", "The CUDA build is installed"),
+    ("Сборка не найдена после распаковки", "The build was not found after extraction"),
     ("GPU-сервер завершился при загрузке модели.\n",
      "The GPU server stopped while loading the model.\n"),
     ("VoxCPM не установлен.\n\npip install voxcpm\n", "VoxCPM is not installed.\n\npip install voxcpm\n"),
@@ -4483,14 +4492,174 @@ class ModernTTSApp(ctk.CTk):
             self.update_status("Режим: процессор (CUDA выключена)")
             return
         if not self._gpu_binary():
-            messagebox.showwarning("Видеокарта",
-                                   "Не найдена CUDA-сборка llama.cpp:\n"
-                                   + os.path.join(self.BASE_DIR, "tools", "llama-cuda"))
-            self.llm_gpu_var.set(False)
-            self._update_gpu_labels()
-            self.save_settings()
+            self._offer_cuda_download()
             return
         self.update_status("Режим: видеокарта (CUDA)")
+
+    # ---------------- CUDA-сборка llama.cpp: авто-докачка ----------------
+    # Та же сборка, что лежит в dev-папке tools/llama-cuda (проверена на NVIDIA RTX).
+    # Сборка и CUDA-рантайм (cublas/cudart) — два отдельных архива на GitHub.
+    LLAMA_CUDA_TAG = "b11829"
+    LLAMA_CUDA_ZIPS = (
+        ("llama-cuda-main.zip",
+         "https://github.com/ggml-org/llama.cpp/releases/download/b11829/"
+         "llama-b11829-bin-win-cuda-12.4-x64.zip", 273_000_000),
+        ("llama-cuda-cudart.zip",
+         "https://github.com/ggml-org/llama.cpp/releases/download/b11829/"
+         "cudart-llama-bin-win-cuda-12.4-x64.zip", 391_000_000),
+    )
+
+    def _gpu_rollback(self):
+        """CUDA-сборка не получена — переключаем режим обратно на процессор."""
+        self.llm_gpu_var.set(False)
+        self._update_gpu_labels()
+        self.save_settings()
+
+    def _offer_cuda_download(self):
+        """Нет CUDA-сборки — предлагаем докачать с GitHub (как модель ИИ)."""
+        old = getattr(self, "_cuda_dialog", None)
+        try:
+            if old is not None and old.winfo_exists():
+                old.lift()
+                old.focus_force()
+                return
+        except Exception:
+            pass
+
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Видеокарта"))
+        dlg.geometry("540x330")
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        dlg.configure(fg_color=COLOR_BG)
+        _apply_dialog_icon(dlg)
+        dlg.after(150, lambda: _apply_dialog_icon(dlg))
+        self._cuda_dialog = dlg
+        self._cuda_cancel = threading.Event()
+        self._cuda_thread = None
+
+        def _on_close(event=None):
+            if event is None or getattr(event, "widget", None) is dlg:
+                self._cuda_cancel.set()
+                if not self._gpu_binary():
+                    self._gpu_rollback()
+
+        dlg.bind("<Destroy>", _on_close)
+
+        body = ctk.CTkFrame(dlg, fg_color=COLOR_PANEL, corner_radius=R_PANEL)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+
+        ctk.CTkLabel(body, text=_tr("Нужна CUDA-сборка llama.cpp"), font=FONT_SUBHEADER,
+                     text_color=COLOR_HEAD).pack(pady=(16, 4))
+        ctk.CTkLabel(body, justify="left", wraplength=470, font=FONT_TINY,
+                     text_color=COLOR_TEXT_SEC,
+                     text=_tr("llama.cpp для видеокарт NVIDIA, ≈630 МБ — скачивается один раз с GitHub.\n"
+                              "Дальше GPU-режим работает без интернета. Если прервать, докачается с места.")
+                     ).pack(padx=16, anchor="w")
+
+        bar = ctk.CTkProgressBar(body, height=10, corner_radius=6, progress_color="#c6763a",
+                                 fg_color=COLOR_CARD2)
+        bar.set(0)
+        bar.pack(fill="x", padx=16, pady=(16, 6))
+        info = ctk.CTkLabel(body, text=_tr("Сборка не скачана"), font=FONT_TINY,
+                            text_color=COLOR_TEXT_SEC)
+        info.pack(anchor="w", padx=16)
+
+        row = ctk.CTkFrame(body, fg_color="transparent")
+        row.pack(fill="x", padx=16, pady=(12, 14), side="bottom")
+
+        btn_go = ctk.CTkButton(row, text=_tr("Скачать"), width=150, height=34,
+                               corner_radius=R_PANEL, font=FONT_SUBHEADER,
+                               fg_color="#c6763a", hover_color="#a95f2c",
+                               text_color="#ffffff",
+                               command=lambda: self._start_cuda_download(dlg, bar, info, btn_go))
+        btn_go.pack(side="left")
+        ctk.CTkButton(row, text=_tr("Позже"), width=110, height=34, corner_radius=R_PANEL,
+                      font=FONT_NORMAL, fg_color="transparent", border_width=1,
+                      border_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN,
+                      hover_color=COLOR_CARD, command=dlg.destroy).pack(side="left", padx=8)
+
+    def _start_cuda_download(self, dlg, bar, info, btn):
+        if self._cuda_thread is not None and self._cuda_thread.is_alive():
+            self._cuda_cancel.set()
+            btn.configure(text=_tr("Отмена…"), state="disabled")
+            return
+        self._cuda_cancel = threading.Event()
+        btn.configure(text=_tr("Отмена"))
+        self._cuda_thread = threading.Thread(target=self._download_cuda_pack,
+                                             args=(dlg, bar, info, btn), daemon=True)
+        self._cuda_thread.start()
+
+    def _download_cuda_pack(self, dlg, bar, info, btn):
+        """Качает сборку и CUDA-рантайм в tools/, распаковывает в tools/llama-cuda."""
+        import zipfile
+        zips = self.LLAMA_CUDA_ZIPS
+        total_all = sum(a for _, _, a in zips)
+
+        def set_info(text):
+            try:
+                if dlg.winfo_exists():
+                    info.configure(text=text)
+            except Exception:
+                pass
+
+        def set_btn(text, state="normal"):
+            try:
+                if dlg.winfo_exists():
+                    btn.configure(text=text, state=state)
+            except Exception:
+                pass
+
+        tools = os.path.join(self.BASE_DIR, "tools")
+        target = os.path.join(tools, "llama-cuda")
+        os.makedirs(target, exist_ok=True)
+        try:
+            acc = 0
+            for i, (zname, url, approx) in enumerate(zips, 1):
+                dest = os.path.join(tools, zname)
+                drawn = [0.0]
+
+                def cb(done, total, _i=i, _acc=acc):
+                    now = time.time()
+                    if now - drawn[0] > 0.25 or done >= total:
+                        drawn[0] = now
+                        pct = (_acc + done) / total_all if total_all else 0
+                        self._ui(set_info, f"{_i}/{len(zips)} · {done / 1048576:,.0f} / "
+                                           f"{total / 1048576:,.0f} " + _tr("МБ") +
+                                 f" · {pct * 100:.0f}%")
+                        self._ui(bar.set, min(pct, 1.0))
+
+                if not self._fetch_file(url, dest, on_bytes=cb, cancel=self._cuda_cancel):
+                    self._ui(set_btn, _tr("Продолжить"))
+                    self._ui(set_info, _tr("Загрузка остановлена — можно продолжить позже"))
+                    self._gpu_rollback()
+                    return
+                acc += approx
+            self._ui(bar.set, 1.0)
+            self._ui(set_info, _tr("Распаковка…"))
+            self._ui(set_btn, _tr("Распаковка…"), "disabled")
+            for zname, _url, _approx in zips:
+                zp = os.path.join(tools, zname)
+                with zipfile.ZipFile(zp) as z:
+                    for n in z.namelist():
+                        parts = n.replace("\\", "/").split("/")
+                        if not parts[-1] or ".." in parts:
+                            continue
+                        with z.open(n) as src, open(os.path.join(target, parts[-1]), "wb") as dst:
+                            shutil.copyfileobj(src, dst, 262144)
+                os.remove(zp)
+            if not self._gpu_binary():
+                raise Exception(_tr("Сборка не найдена после распаковки"))
+            try:
+                if dlg.winfo_exists():
+                    dlg.destroy()
+            except Exception:
+                pass
+            self.after(0, lambda: self.update_status("✅ " + _tr("CUDA-сборка установлена")))
+        except Exception as e:
+            self._ui(set_info, f"{_tr('Ошибка загрузки')}: {e}")
+            self._ui(set_btn, _tr("Повторить"))
+            self._gpu_rollback()
 
     def load_vox_threaded(self):
         self._stop_gpu_server()  # освобождаем VRAM: модель анализа не должна мешать Vox
