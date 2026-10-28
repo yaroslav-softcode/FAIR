@@ -32,7 +32,9 @@ License: GPL-3.0 · UI: English / Russian
    required — it installs to `%LOCALAPPDATA%\Programs\Free AI Reader`.
 3. On first launch the app offers to **download the Gemma model (≈5 GB)** —
    with progress and resume. Voices **Irina, Ruslan** and `en_US-ljspeech-high`
-   are bundled in the installer. With **Piper** selected, the button
+   are bundled in the installer, and with **Vox** selected two sample voices —
+   **Alsu** (Russian) and **Taylor** (English) — are pre-registered in the voice
+   list. With **Piper** selected, the button
    **📂 Your Piper voice…** under the voice list imports any Piper voice from your
    computer — pick `name.onnx` (with `name.onnx.json` next to it): the voice is
    copied into the app folder and appears in the list. If a bundled Irina/Ruslan
@@ -75,7 +77,8 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
    администратора: ставится в `%LOCALAPPDATA%\Programs\Free AI Reader`.
 3. При первом запуске приложение само предложит **скачать модель Gemma (≈5 ГБ)** —
    с прогрессом и докачкой. Голоса **Ирина, Руслан** и `en_US-ljspeech-high`
-   уже входят в установщик. При движке **Piper** под списком голосов есть кнопка
+   уже входят в установщик, а при движке **Vox** в списке голосов сразу готовы
+   образцы **Алсу** (русский) и **Taylor** (английский). При движке **Piper** под списком голосов есть кнопка
    **📂 Свой голос Piper…** — импорт любого Piper-голоса с компьютера: выбираешь
    `name.onnx` (рядом должен лежать `name.onnx.json`), голос копируется в папку
    приложения и появляется в списке. Если файлы Ирины или Руслана пропадут —
