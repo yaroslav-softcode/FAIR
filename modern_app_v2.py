@@ -5863,22 +5863,71 @@ class ModernTTSApp(ctk.CTk):
     # задаёт инструкция, а не правило «пиши по-русски».
     TRANSLATE_MARKERS = ("перевед", "перевод", "перевест", "переведи", "translate", "translation")
 
-    def _system_rules(self, instruction):
-        """Системные правила для модели. Язык ответа определяет инструкция, не правило.
+    # названия языков в промпте и в правилах
+    LANG_NAMES = {"ru": "русском", "en": "английском", "de": "немецком",
+                  "fr": "французском", "es": "испанском", "it": "итальянском"}
+    LANG_MARKERS = {
+        "ru": ("по-русски", "на русском", "русск", "russian"),
+        "en": ("по-английски", "на английском", "английск", "english"),
+        "de": ("по-немецки", "на немецком", "немецк", "german", "deutsch"),
+        "fr": ("по-французски", "на французском", "французск", "french", "français"),
+        "es": ("по-испански", "на испанском", "испанск", "spanish", "español"),
+        "it": ("по-итальянски", "на итальянском", "итальянск", "italian", "italiano"),
+    }
 
-        Раньше здесь жёстко стояло «отвечай на русском, английские слова заменяй русскими»,
-        и просьба «переведи на английский» проигрывала этому правилу — модель отвечала
-        по-русски (или смешивала языки).
+    @staticmethod
+    def _detect_text_lang(text):
+        """Язык исходного текста по алфавиту и частым словам (ru/en/de/fr/es/it)."""
+        sample = (text or "")[:3000].lower().replace("ё", "е")
+        cyr = sum(1 for ch in sample if "а" <= ch <= "я")
+        lat = sum(1 for ch in sample if "a" <= ch <= "z")
+        if cyr > 3 and cyr >= lat * 0.5:
+            return "ru"
+        if lat < 5:
+            return ""
+        words = set(re.findall(r"[a-z']+", sample))
+        hints = {
+            "en": ("the", "and", "of", "to", "in", "is", "that", "for", "with", "was"),
+            "de": ("der", "die", "und", "ist", "den", "von", "mit", "nicht", "auf", "das"),
+            "fr": ("les", "des", "une", "est", "pour", "dans", "avec", "pas", "sur", "qui"),
+            "es": ("los", "las", "una", "para", "con", "por", "del", "que", "como", "más"),
+            "it": ("gli", "della", "sono", "per", "con", "non", "che", "una", "del", "come"),
+        }
+        scores = {code: sum(w in words for w in ws) for code, ws in hints.items()}
+        best = max(scores, key=scores.get)
+        return best if scores[best] >= 2 else ""
+
+    def _lang_in_instruction(self, instruction):
+        low = (instruction or "").lower().replace("ё", "е")
+        for code, keys in self.LANG_MARKERS.items():
+            if any(k in low for k in keys):
+                return code
+        return ""
+
+    def _system_rules(self, instruction, source_text=""):
+        """Системные правила для модели. Язык ответа определяет инструкция, а не правило.
+
+        Раньше здесь жёстко стояло «отвечай на русском, английские слова заменяй русскими»:
+        просьба «переведи на английский» проигрывала этому правилу, а английский текст
+        при просьбе «сократи» пересказывался по-русски. Поэтому язык берём из инструкции,
+        а если она его не называет — определяем по самому исходному тексту и называем явно
+        (малая модель слушает «пиши по-английски», но игнорирует «на языке исходного текста»).
         """
         low = (instruction or "").lower().replace("ё", "е")
-        translate = any(marker in low for marker in self.TRANSLATE_MARKERS)
-        if translate:
+        if any(marker in low for marker in self.TRANSLATE_MARKERS):
             language_rule = ("Язык результата задаёт ИНСТРУКЦИЯ: переведи на требуемый ею язык и верни "
                              "только перевод — без исходного текста, пояснений, вариантов и комментариев. "
                              "Не оставляй в ответе слов языка оригинала, кроме имён собственных. ")
         else:
-            language_rule = ("Язык результата задаёт ИНСТРУКЦИЯ: если она называет язык — пиши на нём, "
-                             "если нет — на языке исходного текста. ")
+            code = self._lang_in_instruction(instruction) or self._detect_text_lang(source_text)
+            if code in self.LANG_NAMES:
+                language_rule = (f"Язык ответа — {self.LANG_NAMES[code]}: текст написан на этом языке, "
+                                 f"поэтому и результат должен быть на нём. Не переводи текст на другой "
+                                 f"язык и не меняй язык, если инструкция прямо не просит перевода. ")
+            else:
+                language_rule = ("Язык ответа — язык исходного текста. Не переводи текст, не меняй "
+                                 "язык и не пересказывай его по-русски, если инструкция прямо не просит "
+                                 "перевода. ")
         return ("Ты профессиональный редактор, готовящий текст для озвучки диктором. "
                 "Отвечай ТОЛЬКО готовым текстом, без вступлений и пояснений. "
                 + language_rule +
@@ -5904,7 +5953,7 @@ class ModernTTSApp(ctk.CTk):
     def summarize_text(self, raw_text, instruction, server_url=None, expected_chars=None):
         if not self.llm_model and not server_url:
             raise Exception("Модель ИИ не загружена.")
-        system_rules = self._system_rules(instruction)
+        system_rules = self._system_rules(instruction, raw_text)
         user_content = f"ИНСТРУКЦИЯ: {instruction}\nТЕКСТ: {raw_text}"
 
         # --- Модель на видеокарте: локальный CUDA-сервер llama.cpp ---

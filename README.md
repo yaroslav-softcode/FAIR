@@ -23,7 +23,8 @@ License: GPL-3.0 · UI: English / Russian
   with your own prompt.
 - **Translation**: the result can be in another language — say so in the prompt
   (“translate into English”, “into German”) and the model returns only the
-  translation, without the original text.
+  translation, without the original text. If the prompt does not ask for another
+  language, the result stays in the language of the source text.
 - **Speech**: Piper (fast, CPU) or VOX (high quality, clone your own voice from a
   5–15 s mic sample; the VOX voices **Alsu** (Russian) and **John** ship built in). Speech rate,
   pause between chunks, autoplay after analysis. The ⏯ button pauses playback
@@ -77,7 +78,8 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
   с собственным промтом.
 - **Перевод**: результат может быть на другом языке — скажи это в промте
   («переведи на английский», «на немецкий»), и модель вернёт только перевод,
-  без исходного текста.
+  без исходного текста. Если язык в промте не назван, результат остаётся
+  на языке исходного текста.
 - **Озвучка**: Piper (быстрая, на процессоре) или VOX (качественная; возможна
   озвучка твоим голосом — VOX клонирует его по образцу 5–15 секунд с микрофона;
   в комплекте уже есть готовые голоса **Алсу** (русский) и **Джон**). Скорость речи, пауза между
