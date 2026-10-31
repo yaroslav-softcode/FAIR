@@ -837,7 +837,7 @@ class PresetDialog(ctk.CTkToplevel):
 # модели остаются без изменений.
 UI_LANG = "ru"
 
-_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку на статью или видео, текст или файл — либо наберите текст в поле справа.', 'Paste an article or video link, text or file — or type in the field on the right.'), ('Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n', 'Paste an article or video link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку на статью или видео, текст или файл.', '✅ Ready. Paste an article or video link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, epub, fb2, rtf, html, txt, md)', 'Choose a file (pdf, docx, epub, fb2, rtf, html, txt, md)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку на статью или видео, текст или файл.', 'Text is required: paste an article or video link, text or file.'), ('Хорошо', 'OK'), ('Голос Алсу установлен', 'Alsu voice installed'), ('Озвучка сохранена', 'Spoken audio saved'), ('Нет озвучки для сохранения — сначала нажмите «Озвучить».', 'Nothing to save yet — press “Speak” first.'), ('Сохранить озвучку', 'Save spoken audio'), ('⏳ Синтез речи…', '⏳ Synthesizing speech…'),
+_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку на статью или видео, текст или файл — либо наберите текст в поле справа.', 'Paste an article or video link, text or file — or type in the field on the right.'), ('Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n', 'Paste an article or video link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку на статью или видео, текст или файл.', '✅ Ready. Paste an article or video link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, epub, fb2, rtf, html, txt, md)', 'Choose a file (pdf, docx, epub, fb2, rtf, html, txt, md)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку на статью или видео, текст или файл.', 'Text is required: paste an article or video link, text or file.'), ('Хорошо', 'OK'), ('Голос Алсу установлен', 'Alsu voice installed'), ('Встроенный голос добавлен', 'Built-in voice added'), ('Озвучка сохранена', 'Spoken audio saved'), ('Нет озвучки для сохранения — сначала нажмите «Озвучить».', 'Nothing to save yet — press “Speak” first.'), ('Сохранить озвучку', 'Save spoken audio'), ('⏳ Синтез речи…', '⏳ Synthesizing speech…'),
 ('Ссылка на статью или видео (YouTube, Rutube, VK)', 'Article or video link (YouTube, Rutube, VK)'),
 ('⏳ Загрузка субтитров видео…', '⏳ Loading video subtitles…'),
 ('Видео', 'Video'),
@@ -1579,6 +1579,7 @@ class ModernTTSApp(ctk.CTk):
         self.llm_model_path = None
         self.llm_model_ctx = None
         self.is_processing = False
+        self._analysis_thread = None
         self.tts_models = {}
         self.llm_models = {}
         self.llm_display = {}
@@ -1948,30 +1949,47 @@ class ModernTTSApp(ctk.CTk):
     BUILTIN_VOX_VOICES = (
         {"name": "Алсу", "file": "alsu_ref.wav",
          "text": "Привет. Это образец моего голоса для синтеза речи."},
+        {"name": "Джон", "file": "john_ref.wav",
+         "text": "What is something that recently moved you?"},
     )
 
     def _seed_builtin_vox_voices(self):
-        """Регистрирует встроенный голос «Алсу».
-        Имена уже занятые не дублирует; метка builtin_vox_seeded в settings.json
-        не даёт вернуть голоса, которые пользователь удалил сам."""
+        """Регистрирует встроенные голоса («Алсу», «Джон»).
+
+        Учёт по ИМЕНАМ в seeded_builtin_voices: новый встроенный голос доезжает
+        к существующему пользователю при обновлении, а голос, который он удалил
+        сам, обратно не возвращается. Старый общий флаг builtin_vox_seeded читается
+        как «Алсу уже сеялась» — так настройки прежних версий не ломаются.
+        """
         try:
-            if getattr(self, "builtin_vox_seeded", False):
-                return
+            seeded = [str(n).strip() for n in (getattr(self, "seeded_builtin_voices", None) or [])
+                      if str(n).strip()]
+            if not seeded and getattr(self, "builtin_vox_seeded", False):
+                seeded = ["Алсу"]          # миграция со старого флага
+            low = {s.lower() for s in seeded}
             have = {str(i.get("name", "")).strip().lower()
                     for i in self.custom_voices.values() if isinstance(i, dict)}
             added = []
             for v in self.BUILTIN_VOX_VOICES:
-                if v["name"].strip().lower() in have:
+                name = v["name"].strip()
+                if name.lower() in low:
+                    continue
+                if name.lower() in have:   # у пользователя уже есть голос с таким именем
+                    seeded.append(name)
+                    low.add(name.lower())
                     continue
                 wav = os.path.join(self._asset_path("voices_builtin"), v["file"])
                 if not os.path.isfile(wav):
                     continue
                 slot = next(str(k) for k in range(1, 100) if str(k) not in self.custom_voices)
-                self.custom_voices[slot] = {"name": v["name"], "path": wav, "text": v["text"]}
-                added.append(v["name"])
+                self.custom_voices[slot] = {"name": name, "path": wav, "text": v["text"]}
+                seeded.append(name)
+                low.add(name.lower())
+                added.append(name)
+            self.seeded_builtin_voices = seeded
             self.builtin_vox_seeded = True
             if added:
-                self.update_status(f"✅ {_tr('Голос Алсу установлен')}")
+                self.update_status(f"✅ {_tr('Встроенный голос добавлен')}: {', '.join(added)}")
         except Exception as e:
             print(f"⚠️ Встроенные голоса: {e}")
 
@@ -4727,6 +4745,7 @@ class ModernTTSApp(ctk.CTk):
                 "model_offer_muted": bool(getattr(self, "model_offer_muted", False)),
                 "voices_seeded": bool(getattr(self, "voices_seeded", False)),
                 "builtin_vox_seeded": bool(getattr(self, "builtin_vox_seeded", False)),
+                "seeded_builtin_voices": list(getattr(self, "seeded_builtin_voices", None) or []),
                 "vox_offer_done": bool(getattr(self, "vox_offer_done", False)),
             }
             tmp = self.SETTINGS_FILE + ".tmp"
@@ -4793,9 +4812,11 @@ class ModernTTSApp(ctk.CTk):
                     info["name"] = f"Свой {slot}"  # старый формат — имя по номеру
                 self.custom_voices[str(slot)] = info
 
-        # встроенная «Алсу»: добавляем в свободный слот, если её ещё нет
+        # встроенные голоса («Алсу», «Джон»): добавляем в свободные слоты, если их ещё нет
         # (до _apply_engine — список голосов он построит уже с ними)
         self.builtin_vox_seeded = bool(data.get("builtin_vox_seeded", False))
+        self.seeded_builtin_voices = [str(x) for x in (data.get("seeded_builtin_voices") or [])
+                                      if str(x).strip()]
         self._seed_builtin_vox_voices()
 
         cc = data.get("ctx_choices")
@@ -4936,10 +4957,11 @@ class ModernTTSApp(ctk.CTk):
 
     def cancel_processes(self):
         self.cancel_event.set()
-        self.is_processing = False
+        # is_processing НЕ снимаем: рабочий поток ещё в цикле. Если разрешить запуск
+        # сразу, второй поток дёрнет ту же модель — llama.cpp падает с GGML_ASSERT
+        # (проверено: два потока на одном Llama = SIGSEGV). Флаг снимет finally потока.
         self.after(0, self.progress_bar.stop)
-        self.after(0, lambda: self.btn_process.configure(state="normal", text=_tr("Запустить анализ")))
-        self.after(0, lambda: self.update_status("⏹ Остановлено"))
+        self.after(0, lambda: self.update_status("⏹ Останавливаю…"))
 
     # ================= ОБРАБОТЧИКИ =================
 
@@ -5769,7 +5791,7 @@ class ModernTTSApp(ctk.CTk):
 
     # ================= СЕРВЕР МОДЕЛИ (llama.cpp CUDA, OpenAI-совместимый API) =================
 
-    def summarize_via_server(self, system_rules, user_content, url):
+    def summarize_via_server(self, system_rules, user_content, url, expected_chars=None):
         headers = {"Content-Type": "application/json"}
         payload = {
             "messages": [
@@ -5777,7 +5799,11 @@ class ModernTTSApp(ctk.CTk):
                 {"role": "user", "content": user_content}
             ],
             "temperature": 0.35,
-            "stream": True
+            "stream": True,
+            # Gemma 4 и другие reasoning-модели по умолчанию «думают» вслух: весь ответ
+            # уходит в reasoning_content, а content приходит пустым или обрезанным.
+            # Шаблон чата понимает этот флаг; обычные модели его просто игнорируют.
+            "chat_template_kwargs": {"enable_thinking": False}
         }
 
         full_text = ""
@@ -5808,7 +5834,10 @@ class ModernTTSApp(ctk.CTk):
                             if piece:
                                 full_text += piece
                                 tokens_generated += 1
-                                pct = 15 + min(80, tokens_generated // 6)
+                                # Прогресс по реальному объёму текста, а не по числу
+                                # кусков: иначе 95% набегает в начале генерации.
+                                pct = self._progress_pct(len(full_text), expected_chars,
+                                                         tokens_generated)
                                 self.after(0, lambda p=pct: self.set_progress(p, "Анализ (видеокарта)"))
                     except json.JSONDecodeError:
                         print(f"⚠️ Ошибка парсинга строки сервера: {line_str}")
@@ -5823,26 +5852,66 @@ class ModernTTSApp(ctk.CTk):
         self._gen_stats = {"tokens": tokens_generated, "elapsed": elapsed,
                            "tps": tokens_generated / elapsed if elapsed > 0 else 0}
 
-        if not full_text:
-            print("⚠️ Сервер модели вернул пустой ответ.")
+        if not full_text.strip() and not self.cancel_event.is_set():
+            # Раньше здесь молча возвращался пустой текст: при включённых «размышлениях»
+            # модель тратила на них весь лимит токенов, а content приходил пустым.
+            raise Exception("Модель не вернула текст — попробуйте запустить анализ ещё раз.")
 
         return full_text.strip()
 
-    def summarize_text(self, raw_text, instruction, server_url=None):
+    # Слова, которыми инструкция просит перевести текст. Если они есть, язык результата
+    # задаёт инструкция, а не правило «пиши по-русски».
+    TRANSLATE_MARKERS = ("перевед", "перевод", "перевест", "переведи", "translate", "translation")
+
+    def _system_rules(self, instruction):
+        """Системные правила для модели. Язык ответа определяет инструкция, не правило.
+
+        Раньше здесь жёстко стояло «отвечай на русском, английские слова заменяй русскими»,
+        и просьба «переведи на английский» проигрывала этому правилу — модель отвечала
+        по-русски (или смешивала языки).
+        """
+        low = (instruction or "").lower().replace("ё", "е")
+        translate = any(marker in low for marker in self.TRANSLATE_MARKERS)
+        if translate:
+            language_rule = ("Язык результата задаёт ИНСТРУКЦИЯ: переведи на требуемый ею язык и верни "
+                             "только перевод — без исходного текста, пояснений, вариантов и комментариев. "
+                             "Не оставляй в ответе слов языка оригинала, кроме имён собственных. ")
+        else:
+            language_rule = ("Язык результата задаёт ИНСТРУКЦИЯ: если она называет язык — пиши на нём, "
+                             "если нет — на языке исходного текста. ")
+        return ("Ты профессиональный редактор, готовящий текст для озвучки диктором. "
+                "Отвечай ТОЛЬКО готовым текстом, без вступлений и пояснений. "
+                + language_rule +
+                "Все цифры, даты и проценты пиши словами; пиши связной речью, "
+                "без списков, маркеров, ссылок и скобок. "
+                "Используй только факты из исходного текста — ничего не додумывай и не добавляй. "
+                "Если задан лимит объёма — соблюдай его строго.")
+
+    @staticmethod
+    def _progress_pct(produced, expected_chars=None, chunks=0):
+        """Прогресс анализа: 15% — старт, 95% — предел до финального «Готово».
+
+        Считается по объёму готового текста относительно ожидаемого (лимит пресета
+        или длина исходника), а не по числу пришедших кусков: иначе 95% набегало
+        в начале генерации и последние 5% тянулись половину времени.
+        """
+        if expected_chars:
+            share = produced / max(1, int(expected_chars))
+        else:
+            share = chunks / 480.0
+        return 15 + min(80, int(80 * share))
+
+    def summarize_text(self, raw_text, instruction, server_url=None, expected_chars=None):
         if not self.llm_model and not server_url:
             raise Exception("Модель ИИ не загружена.")
-        system_rules = ("Ты профессиональный редактор, готовящий текст для озвучки диктором. "
-                        "Отвечай ТОЛЬКО готовым текстом выжимки на русском языке, без вступлений и пояснений. "
-                        "Все цифры, даты и проценты пиши словами; английские слова заменяй русскими аналогами; "
-                        "пиши связной речью, без списков, маркеров, ссылок и скобок. "
-                        "Используй только факты из исходного текста — ничего не додумывай и не добавляй. "
-                        "Если задан лимит объёма — соблюдай его строго.")
+        system_rules = self._system_rules(instruction)
         user_content = f"ИНСТРУКЦИЯ: {instruction}\nТЕКСТ: {raw_text}"
 
         # --- Модель на видеокарте: локальный CUDA-сервер llama.cpp ---
         if server_url:
             print(f"📡 Запрос к GPU-серверу: {server_url}")
-            server_text = self.summarize_via_server(system_rules, user_content, server_url)
+            server_text = self.summarize_via_server(system_rules, user_content, server_url,
+                                                    expected_chars=expected_chars)
             return self.clean_summary(server_text)
 
         full_text = ""
@@ -5854,7 +5923,8 @@ class ModernTTSApp(ctk.CTk):
             if piece:
                 full_text += piece
                 tokens_generated += 1
-                pct = 15 + min(80, tokens_generated // 6)
+                # Прогресс по объёму готового текста: 95% больше не набегает в начале.
+                pct = self._progress_pct(len(full_text), expected_chars, tokens_generated)
                 self.after(0, lambda p=pct: self.set_progress(p, "Анализ"))
 
         stop_tokens = ["<|eot_id|>", "<|im_end|>", "</s>"]
@@ -5893,7 +5963,10 @@ class ModernTTSApp(ctk.CTk):
             tokens_generated = max(1, int(len(full_text) / 1.5))
         self._gen_stats = {"tokens": tokens_generated, "elapsed": elapsed,
                            "tps": tokens_generated / elapsed if elapsed > 0 else 0}
-        return self.clean_summary(full_text.strip())
+        result = self.clean_summary(full_text.strip())
+        if not result and not self.cancel_event.is_set():
+            raise Exception("Модель не вернула текст — попробуйте запустить анализ ещё раз.")
+        return result
 
     def _fit_to_limit(self, summary, target, server_url=None, max_passes=3):
         """Если модель не уложилась в лимит — дожимаем повторным проходом."""
@@ -5910,7 +5983,7 @@ class ModernTTSApp(ctk.CTk):
                     f"(сейчас {len(summary)} знаков). Отбрось детали и примеры, оставь только "
                     f"главную мысль и ключевые факты. Верни только готовый текст, без пояснений "
                     f"и вступлений.",
-                    server_url=server_url)
+                    server_url=server_url, expected_chars=need)
             except Exception as e:
                 print(f"⚠️ Добивка не удалась: {e}")
                 break
@@ -5927,7 +6000,10 @@ class ModernTTSApp(ctk.CTk):
 
     def clean_summary(self, text):
         junk_starts = ["Вот сокращенный вариант", "Вот краткое содержание", "Вот выжимка", "Вам нужно", "Конечно",
-                       "Хорошо"]
+                       "Хорошо",
+                       # английские вступления того же рода (перевод и EN-интерфейс)
+                       "Here is", "Here's", "Here’s", "Sure", "Certainly", "Of course",
+                       "Translation", "Translated"]
         lines = text.split("\n")
         while lines:
             first = lines[0].strip()
@@ -6025,7 +6101,9 @@ class ModernTTSApp(ctk.CTk):
         self._launch_analysis(url, source_text)
 
     def _launch_analysis(self, url, source_text):
-        if self.is_processing:
+        # Живой поток анализа — стоп: две генерации на одной модели роняют llama.cpp.
+        if self.is_processing or (self._analysis_thread is not None
+                                  and self._analysis_thread.is_alive()):
             return
 
         llm_name = self.llm_combo.get()
@@ -6049,7 +6127,9 @@ class ModernTTSApp(ctk.CTk):
         self.update_status("⏳ Подготовка текста…")
         self.save_settings()
 
-        threading.Thread(target=self.process_pipeline, args=(url, llm_name, source_text), daemon=True).start()
+        self._analysis_thread = threading.Thread(target=self.process_pipeline,
+                                                 args=(url, llm_name, source_text), daemon=True)
+        self._analysis_thread.start()
 
     def process_pipeline(self, url: str, llm_name: str, source_text: str):
         gpu_url = None  # адрес CUDA-сервера анализа (если модель считает на видеокарте)
@@ -6128,7 +6208,8 @@ class ModernTTSApp(ctk.CTk):
                                f"если не укладываешься, сокращай дальше, сохраняя главное.")
                 print(f"📏 Целевой объём: {target} знаков ({int(ratio * 100)}% от {len(text)})")
 
-            summary = self.summarize_text(text, instruction, server_url=gpu_url)
+            summary = self.summarize_text(text, instruction, server_url=gpu_url,
+                                          expected_chars=target or len(text))
 
             if target:
                 summary = self._fit_to_limit(summary, target, server_url=gpu_url)
@@ -6171,6 +6252,7 @@ class ModernTTSApp(ctk.CTk):
             self.after(0, lambda: self.update_status("⚠️ Текст длиннее контекста модели"))
         except Cancelled:
             print("⏹ Анализ отменён")
+            self.after(0, lambda: self.update_status("⏹ Анализ отменён"))
         except Exception as e:
             error_msg = str(e)
             print(f"❌ Ошибка анализа: {error_msg}")

@@ -26,9 +26,10 @@ datas += [
     (os.path.join(SRC, "models", "ru_RU-irina-medium.onnx.json"), "piper"),
     (os.path.join(SRC, "models", "ru_RU-ruslan-medium.onnx"), "piper"),
     (os.path.join(SRC, "models", "ru_RU-ruslan-medium.onnx.json"), "piper"),
-    # встроенный образец голоса Vox: «Алсу» —
-    # приложение регистрирует его в слоте при первом запуске
+    # встроенные образцы голосов Vox: «Алсу» и «Джон» —
+    # приложение регистрирует их в слотах при первом запуске
     (os.path.join(SRC, "voices_builtin", "alsu_ref.wav"), "voices_builtin"),
+    (os.path.join(SRC, "voices_builtin", "john_ref.wav"), "voices_builtin"),
     # MCP-мост к Гермесу: исходник кладём рядом с exe (отладка; рабочий — fair_mcp.exe)
     (os.path.join(SRC, "fair_mcp.py"), "."),
     # инструкция «как подключить FAIR к Hermes по MCP» — для другого компьютера

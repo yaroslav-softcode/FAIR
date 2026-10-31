@@ -21,8 +21,11 @@ License: GPL-3.0 · UI: English / Russian
   multi-chapter FB2/EPUB books the app asks which chapter to narrate.
 - **Condensing**: ready profiles (10 %, 30 %, 50 %, 100 %) and custom levels
   with your own prompt.
+- **Translation**: the result can be in another language — say so in the prompt
+  (“translate into English”, “into German”) and the model returns only the
+  translation, without the original text.
 - **Speech**: Piper (fast, CPU) or VOX (high quality, clone your own voice from a
-  5–15 s mic sample; the Russian VOX voice **Alsu** ships built in). Speech rate,
+  5–15 s mic sample; the VOX voices **Alsu** (Russian) and **John** ship built in). Speech rate,
   pause between chunks, autoplay after analysis. The ⏯ button pauses playback
   mid-sentence and resumes exactly where you left off; after the clip ends it
   plays from the start. Finished narration can be **saved to an audio file**.
@@ -40,8 +43,8 @@ License: GPL-3.0 · UI: English / Russian
    with progress and resume. On a PC with NVIDIA the CUDA build of llama.cpp is
    fetched in the same one-shot download (≈5.6 GB total), so the GPU mode just
    works. Voices **Irina, Ruslan** and `en_US-ljspeech-high`
-   are bundled in the installer, and with **Vox** selected the sample voice
-   **Alsu** (Russian) is pre-registered in the voice
+   are bundled in the installer, and with **Vox** selected the sample voices
+   **Alsu** (Russian) and **John** are pre-registered in the voice
    list. With **Piper** selected, the button
    **📂 Your Piper voice…** under the voice list imports any Piper voice from your
    computer — pick `name.onnx` (with `name.onnx.json` next to it): the voice is
@@ -72,9 +75,12 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
   rtf / html). Для многотомных FB2/EPUB приложение спросит, какую главу озвучить.
 - **Сжатие**: готовые профили (10 %, 30 %, 50 %, 100 %) и свои уровни
   с собственным промтом.
+- **Перевод**: результат может быть на другом языке — скажи это в промте
+  («переведи на английский», «на немецкий»), и модель вернёт только перевод,
+  без исходного текста.
 - **Озвучка**: Piper (быстрая, на процессоре) или VOX (качественная; возможна
   озвучка твоим голосом — VOX клонирует его по образцу 5–15 секунд с микрофона;
-  в комплекте уже есть готовый русский голос **Алсу**). Скорость речи, пауза между
+  в комплекте уже есть готовые голоса **Алсу** (русский) и **Джон**). Скорость речи, пауза между
   фрагментами, автоплей после анализа. Кнопка ⏯ ставит воспроизведение на паузу
   посреди фразы и продолжает с того же места; после конца — играет сначала.
   Готовую озвучку можно **сохранить в аудиофайл**.
@@ -93,8 +99,8 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
    с прогрессом и докачкой. На ПК с NVIDIA тем же скачиванием сразу догружается
    CUDA-сборка llama.cpp (≈5,6 ГБ суммарно) — режим «Видеокарта» работает сразу.
    Голоса **Ирина, Руслан** и `en_US-ljspeech-high`
-   уже входят в установщик, а при движке **Vox** в списке голосов сразу готов
-   образец **Алсу** (русский). При движке **Piper** под списком голосов есть кнопка
+   уже входят в установщик, а при движке **Vox** в списке голосов сразу готовы
+   образцы **Алсу** (русский) и **Джон**. При движке **Piper** под списком голосов есть кнопка
    **📂 Свой голос Piper…** — импорт любого Piper-голоса с компьютера: выбираешь
    `name.onnx` (рядом должен лежать `name.onnx.json`), голос копируется в папку
    приложения и появляется в списке. Если файлы Ирины или Руслана пропадут —
