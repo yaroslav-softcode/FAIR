@@ -1,7 +1,8 @@
 # Free AI Reader (FAIR)
 
-Offline AI reader for Windows. Paste an article link or any text — a local AI model
-condenses it to the length you choose, and the app reads the result aloud.
+Offline AI reader for Windows. Paste an article or video link (YouTube / Rutube /
+VK) or any text — a local AI model condenses it to the length you choose, and the
+app reads the result aloud.
 Everything runs on your machine: analysis via llama.cpp (GGUF), speech via
 **Piper (fast)** or **VOX (high quality) — VOX can also clone your own voice**
 from a 5–15 s microphone sample. No cloud, no subscription.
@@ -14,15 +15,20 @@ License: GPL-3.0 · UI: English / Russian
 
 ### Features
 
-- **Source**: article link (text extracted automatically), pasted text, or a file
-  (pdf / docx / txt).
+- **Source**: article link (text extracted automatically), **video link** (YouTube,
+  Rutube, VK — narration is built from the subtitle track; language selectable),
+  pasted text, or a file (pdf / docx / txt / md / fb2 / epub / rtf / html). For
+  multi-chapter FB2/EPUB books the app asks which chapter to narrate.
 - **Condensing**: ready profiles (10 %, 30 %, 50 %, 100 %) and custom levels
   with your own prompt.
 - **Speech**: Piper (fast, CPU) or VOX (high quality, clone your own voice from a
-  5–15 s mic sample). Speech rate, pause between chunks, autoplay after analysis.
-  The ⏯ button pauses playback mid-sentence and resumes exactly where you left off;
-  after the clip ends it plays from the start.
+  5–15 s mic sample; the Russian VOX voice **Alsu** ships built in). Speech rate,
+  pause between chunks, autoplay after analysis. The ⏯ button pauses playback
+  mid-sentence and resumes exactly where you left off; after the clip ends it
+  plays from the start. Finished narration can be **saved to an audio file**.
 - **Analysis model**: any GGUF; Gemma 4 E4B Q4_K_M (≈5 GB) is offered by default.
+- **Integration**: local API + MCP bridge (`fair_status`, `fair_speak`) so AI
+  assistants can start narration from the command line — no Python required.
 - Copy the result, Stop at any moment, a calm paper-and-gold “old book” colour scheme.
 
 ### Install
@@ -31,7 +37,9 @@ License: GPL-3.0 · UI: English / Russian
 2. Run it, pick a folder, optionally create a desktop shortcut. No admin rights
    required — it installs to `%LOCALAPPDATA%\Programs\Free AI Reader`.
 3. On first launch the app offers to **download the Gemma model (≈5 GB)** —
-   with progress and resume. Voices **Irina, Ruslan** and `en_US-ljspeech-high`
+   with progress and resume. On a PC with NVIDIA the CUDA build of llama.cpp is
+   fetched in the same one-shot download (≈5.6 GB total), so the GPU mode just
+   works. Voices **Irina, Ruslan** and `en_US-ljspeech-high`
    are bundled in the installer, and with **Vox** selected the sample voice
    **Alsu** (Russian) is pre-registered in the voice
    list. With **Piper** selected, the button
@@ -58,16 +66,22 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
 
 ### Что умеет
 
-- **Источник**: ссылка на статью (текст вытаскивается автоматически), вставленный
-  текст или файл (pdf / docx / txt).
+- **Источник**: ссылка на статью (текст вытаскивается автоматически), **ссылка на
+  видео** (YouTube, Rutube, VK — озвучка строится по субтитрам, язык дорожки
+  выбирается), вставленный текст или файл (pdf / docx / txt / md / fb2 / epub /
+  rtf / html). Для многотомных FB2/EPUB приложение спросит, какую главу озвучить.
 - **Сжатие**: готовые профили (10 %, 30 %, 50 %, 100 %) и свои уровни
   с собственным промтом.
 - **Озвучка**: Piper (быстрая, на процессоре) или VOX (качественная; возможна
-  озвучка твоим голосом — VOX клонирует его по образцу 5–15 секунд с микрофона).
-  Скорость речи, пауза между
+  озвучка твоим голосом — VOX клонирует его по образцу 5–15 секунд с микрофона;
+  в комплекте уже есть готовый русский голос **Алсу**). Скорость речи, пауза между
   фрагментами, автоплей после анализа. Кнопка ⏯ ставит воспроизведение на паузу
   посреди фразы и продолжает с того же места; после конца — играет сначала.
+  Готовую озвучку можно **сохранить в аудиофайл**.
 - **Модель анализа**: любая GGUF; по умолчанию предлагается Gemma 4 E4B Q4_K_M (≈5 ГБ).
+- **Интеграция**: локальный API + MCP-мост (`fair_status`, `fair_speak`) —
+  ИИ-ассистенты могут запускать озвучку из командной строки, Python на машине
+  не нужен.
 - Копирование результата, «Стоп» в любой момент, спокойная «книжная» гамма — бумага, кожа, золото.
 
 ### Установка
@@ -76,7 +90,9 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
 2. Запустить, выбрать папку, при желании — ярлык на рабочем столе. Без прав
    администратора: ставится в `%LOCALAPPDATA%\Programs\Free AI Reader`.
 3. При первом запуске приложение само предложит **скачать модель Gemma (≈5 ГБ)** —
-   с прогрессом и докачкой. Голоса **Ирина, Руслан** и `en_US-ljspeech-high`
+   с прогрессом и докачкой. На ПК с NVIDIA тем же скачиванием сразу догружается
+   CUDA-сборка llama.cpp (≈5,6 ГБ суммарно) — режим «Видеокарта» работает сразу.
+   Голоса **Ирина, Руслан** и `en_US-ljspeech-high`
    уже входят в установщик, а при движке **Vox** в списке голосов сразу готов
    образец **Алсу** (русский). При движке **Piper** под списком голосов есть кнопка
    **📂 Свой голос Piper…** — импорт любого Piper-голоса с компьютера: выбираешь
