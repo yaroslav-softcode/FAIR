@@ -29,6 +29,10 @@ datas += [
     # встроенный образец голоса Vox: «Алсу» —
     # приложение регистрирует его в слоте при первом запуске
     (os.path.join(SRC, "voices_builtin", "alsu_ref.wav"), "voices_builtin"),
+    # MCP-мост к Гермесу: исходник кладём рядом с exe (отладка; рабочий — fair_mcp.exe)
+    (os.path.join(SRC, "fair_mcp.py"), "."),
+    # инструкция «как подключить FAIR к Hermes по MCP» — для другого компьютера
+    (os.path.join(SRC, "MCP.md"), "."),
 ]
 
 # у llama-cpp-python нет хука PyInstaller: без этих DLL импорт Llama падает
@@ -36,12 +40,16 @@ _LLAMA_LIB = os.path.join(SRC, ".venv", "Lib", "site-packages", "llama_cpp", "li
 binaries = [(p, "llama_cpp/lib") for p in glob.glob(os.path.join(_LLAMA_LIB, "*.dll"))]
 
 hiddenimports = ["llama_cpp", "piper", "onnxruntime", "sounddevice", "pyperclip", "psutil",
+                 # MCP-API для Гермеса (вшивается в сборку, поднимается из окна приложения)
+                 "fair_api",
                  # стандартная библиотека, до которой тяжёлые пакеты дополнения Vox
                  # (torch, transformers) дотягиваются в рантайме — иначе ModuleNotFoundError
                  "unittest", "unittest.mock", "filecmp", "difflib", "pydoc", "doctest",
                  "pickle", "csv", "sqlite3", "cgi", "multiprocessing", "concurrent.futures",
                  "xml.etree.ElementTree", "email.mime.text", "http.cookiejar",
-                 "urllib.request", "urllib.parse", "json", "argparse", "ast", "inspect"]
+                 "urllib.request", "urllib.parse", "json", "argparse", "ast", "inspect",
+                 # субтитры видео: YouTube и ВК/Rutube-запасной путь
+                 "youtube_transcript_api", "yt_dlp", "defusedxml"]
 
 excludes = [
     # piper содержит подпакет обучения (piper.train) — он тянет torch на 600 МБ,

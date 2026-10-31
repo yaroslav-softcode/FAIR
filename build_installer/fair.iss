@@ -5,7 +5,7 @@
 
 #define AppName "Free AI Reader"
 #define AppShortName "FAIR"
-#define AppVersion "1.2"
+#define AppVersion "1.3"
 #define AppPublisher "Yaroslav Khmelev"
 #define AppExe "FAIR.exe"
 
@@ -47,6 +47,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "..\dist_installer\FAIR\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\THIRD-PARTY.md"; DestDir: "{app}"; Flags: ignoreversion
+; инструкция MCP — на виду, в корне установки (копия есть и в _internal как datas)
+Source: "..\MCP.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"

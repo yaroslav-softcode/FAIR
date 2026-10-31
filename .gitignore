@@ -48,5 +48,7 @@ _mockups/
 
 # runtime/local noise
 fair_log.txt
+fair_api_endpoint.json
+mcp_smoke.log
 *.bak
 vox/

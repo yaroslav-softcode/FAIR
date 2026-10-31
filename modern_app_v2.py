@@ -21,6 +21,8 @@ import subprocess
 import tempfile
 import pyperclip
 import shutil
+import zipfile
+import xml.etree.ElementTree as ET
 
 ssl._create_default_https_context = ssl._create_unverified_context
 import warnings
@@ -639,10 +641,14 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         self.destroy()
 
 
+class _SubCancelled(Exception):
+    """Пользователь отменил выбор дорожки субтитров."""
+
+
 class PdfArticlesDialog(ctk.CTkToplevel):
-    def __init__(self, parent, articles, on_pick):
+    def __init__(self, parent, articles, on_pick, win_title=None, count_text=None):
         super().__init__(parent)
-        self.title("Статьи в журнале")
+        self.title(win_title or "Статьи в журнале")
         self.geometry("600x540")
         self.transient(parent)
         self.grab_set()
@@ -655,7 +661,7 @@ class PdfArticlesDialog(ctk.CTkToplevel):
                             border_width=1, border_color=COLOR_BORDER)
         body.pack(fill="both", expand=True, padx=12, pady=12)
 
-        ctk.CTkLabel(body, text=f"Найдено статей: {len(articles)}", font=(FONT_FAMILY, 16, "bold"),
+        ctk.CTkLabel(body, text=count_text or f"Найдено статей: {len(articles)}", font=(FONT_FAMILY, 16, "bold"),
                      text_color=COLOR_TEXT_MAIN, anchor="w").pack(fill="x", padx=18, pady=(16, 2))
         ctk.CTkLabel(body, text="Выберите, что вставить в поле текста", font=FONT_SMALL,
                      text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=18, pady=(0, 10))
@@ -831,7 +837,29 @@ class PresetDialog(ctk.CTkToplevel):
 # модели остаются без изменений.
 UI_LANG = "ru"
 
-_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку, текст или файл — либо наберите текст в поле справа.', 'Paste a link, text or file — or type in the field on the right.'), ('Вставьте текст статьи, ссылку или файл — или просто печатайте здесь.\n\n', 'Paste an article link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку, текст или файл.', '✅ Ready. Paste a link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, txt)', 'Choose a file (pdf, docx, txt)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку, текст или файл.', 'Text is required: paste a link, text or file.'), ('Хорошо', 'OK'), ('Голос Алсу установлен', 'Alsu voice installed'), ('Озвучка сохранена', 'Spoken audio saved'), ('Нет озвучки для сохранения — сначала нажмите «Озвучить».', 'Nothing to save yet — press “Speak” first.'), ('Сохранить озвучку', 'Save spoken audio'), ('⏳ Синтез речи…', '⏳ Synthesizing speech…')]
+_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку на статью или видео, текст или файл — либо наберите текст в поле справа.', 'Paste an article or video link, text or file — or type in the field on the right.'), ('Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n', 'Paste an article or video link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку на статью или видео, текст или файл.', '✅ Ready. Paste an article or video link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, epub, fb2, rtf, html, txt, md)', 'Choose a file (pdf, docx, epub, fb2, rtf, html, txt, md)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку на статью или видео, текст или файл.', 'Text is required: paste an article or video link, text or file.'), ('Хорошо', 'OK'), ('Голос Алсу установлен', 'Alsu voice installed'), ('Озвучка сохранена', 'Spoken audio saved'), ('Нет озвучки для сохранения — сначала нажмите «Озвучить».', 'Nothing to save yet — press “Speak” first.'), ('Сохранить озвучку', 'Save spoken audio'), ('⏳ Синтез речи…', '⏳ Synthesizing speech…'),
+('Ссылка на статью или видео (YouTube, Rutube, VK)', 'Article or video link (YouTube, Rutube, VK)'),
+('⏳ Загрузка субтитров видео…', '⏳ Loading video subtitles…'),
+('Видео', 'Video'),
+('Субтитры — выберите язык', 'Subtitles — choose a language'),
+('Субтитры пустые или слишком короткие — озвучивать нечего.',
+ 'Subtitles are empty or too short — nothing to speak.'),
+('YouTube не отдал субтитры: у видео их нет, оно приватное или с возрастным ограничением.',
+ 'YouTube returned no subtitles: the video has none, is private or age-restricted.'),
+('У этого видео на YouTube нет субтитров.', 'This YouTube video has no subtitles.'),
+('Не найден модуль youtube-transcript-api. Установите: pip install youtube-transcript-api',
+ 'The youtube-transcript-api module is missing. Install: pip install youtube-transcript-api'),
+('На Rutube у этого видео нет субтитров — Rutube почти не отдаёт субтитры. Попробуйте ссылку на этот же ролик с YouTube.',
+ 'This Rutube video has no subtitles — Rutube rarely provides them. Try the same clip on YouTube.'),
+('Rutube: видео не найдено или недоступно.', 'Rutube: video not found or unavailable.'),
+('Rutube: сервис недоступен.', 'Rutube: service unavailable.'),
+('Для ВК нужен модуль yt-dlp. Установите: pip install yt-dlp',
+ 'VK needs the yt-dlp module. Install: pip install yt-dlp'),
+('ВК: не удалось получить данные видео — ссылка неверная, ролик приватный или сервис недоступен.',
+ 'VK: could not fetch the video — bad link, private video, or the service is down.'),
+('На ВК у этого видео нет доступных субтитров. Попробуйте ссылку на этот же ролик с YouTube.',
+ 'This VK video has no available subtitles. Try the same clip on YouTube.'),
+('ВК: не удалось скачать файл субтитров.', 'VK: could not download the subtitle file.')]
 
 _PAIRS += [
     # заголовки отдельных окон и динамические подписи (с образцом значений —
@@ -882,6 +910,15 @@ _PAIRS += [
     ("Все файлы", "All files"),
     ("WAV-файлы", "WAV files"),
     ("Модель ИИ", "AI model"),
+    ("Главы книги", "Book chapters"),
+    ("📖 Вся книга целиком", "📖 The whole book"),
+    ("Найдено глав: 3", "Chapters found: 3"),
+    ("В файле EPUB не найдено текста глав.", "No chapter text found in the EPUB file."),
+    ("Файл EPUB повреждён: не читается ZIP-контейнер.", "The EPUB file is damaged: the ZIP container cannot be opened."),
+    ("Файл EPUB повреждён: не найден контейнер.", "The EPUB file is damaged: container not found."),
+    ("Файл EPUB повреждён: ошибка разбора OPF.", "The EPUB file is damaged: error parsing OPF."),
+    ("В файле FB2 не найдено текста глав.", "No chapter text found in the FB2 file."),
+    ("Файл FB2 повреждён: ошибка разбора XML.", "The FB2 file is damaged: XML parsing error."),
 ]
 
 # —— названия уровней сжатия, слоты голосов, пример текста образца ——
@@ -927,10 +964,10 @@ _PAIRS += [
      "✅ Settings restored: Piper (CPU), “Masha”."),
     ("✅ Настройки восстановлены: Vox (GPU), «Маша».",
      "✅ Settings restored: Vox (GPU), “Masha”."),
-    ("Вставьте текст статьи, ссылку или файл — или просто печатайте здесь.\n\n"
+    ("Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n"
      "Ctrl+V — вставить из буфера. Всё, что есть в этом поле, считается источником:\n"
      "анализ пойдёт по нему, а не по ссылке.",
-     "Paste an article link, text or file — or just type here.\n\n"
+     "Paste an article or video link, text or file — or just type here.\n\n"
      "Ctrl+V — paste from the clipboard. Whatever is in this box is the source:\n"
      "the analysis uses it, not the link."),
     ("Модель для анализа: model.gguf — загрузится при запуске анализа.",
@@ -1357,10 +1394,10 @@ class ModernTTSApp(ctk.CTk):
     REF_TEXT = "Привет! Это образец голоса для синтеза речи."
     ENGINE_VALUES = ["Piper (CPU)", "Vox (GPU)"]
     SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
-    PLACEHOLDER = ("Вставьте текст статьи, ссылку или файл — или просто печатайте здесь.\n\n"
+    PLACEHOLDER = ("Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n"
                    "Ctrl+V — вставить из буфера. Всё, что есть в этом поле, считается источником:\n"
                    "анализ пойдёт по нему, а не по ссылке.")
-    PLACEHOLDER_EN = ("Paste an article link, text or file — or just type here.\n\n"
+    PLACEHOLDER_EN = ("Paste an article or video link, text or file — or just type here.\n\n"
                       "Ctrl+V — paste from the clipboard. Whatever is in this box is the source:\n"
                       "the analysis uses it, not the link.")
     PRESET_VALUES = ["Только суть (10%)", "Очень кратко (30%)", "Кратко (50%)", "Подробно (80%)",
@@ -1575,6 +1612,19 @@ class ModernTTSApp(ctk.CTk):
         self._show_placeholder()
         self._update_char_count()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # ---- MCP: локальный HTTP API для Гермеса (мост fair_mcp.py) ----
+        self._mcp_busy = False
+        self._api_server = None
+        self.after(1500, self._start_api_server)
+
+    def _start_api_server(self):
+        """Поднимает fair_api: Гермес ходит в приложение по 127.0.0.1 через MCP-мост."""
+        try:
+            import fair_api
+            fair_api.start(self, log=print)
+        except Exception as e:
+            print(f"⚠️ MCP API не поднят: {e}")
 
     def _early_lang(self):
         """Язык интерфейса из прошлого запуска — читаем ДО сборки окна.
@@ -2248,6 +2298,11 @@ class ModernTTSApp(ctk.CTk):
         except Exception:
             pass
         try:
+            if getattr(self, "_api_server", None):
+                self._api_server.shutdown()
+        except Exception:
+            pass
+        try:
             self._close_stream()
             self.unload_llm()
         except Exception:
@@ -2615,7 +2670,7 @@ class ModernTTSApp(ctk.CTk):
         url_row.pack(fill="x", padx=12, pady=(0, 7))
         url_row.grid_columnconfigure(0, weight=1)
 
-        self.url_entry = ctk.CTkEntry(url_row, placeholder_text="Ссылка на статью",
+        self.url_entry = ctk.CTkEntry(url_row, placeholder_text="Ссылка на статью или видео (YouTube, Rutube, VK)",
                                       font=FONT_NORMAL, height=32, corner_radius=3,
                                       fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
                                       text_color=COLOR_TEXT_MAIN)
@@ -2629,7 +2684,7 @@ class ModernTTSApp(ctk.CTk):
 
         try:
             # add="+" обязателен: без него перетирается обработчик customtkinter,
-            # который убирает placeholder «Ссылка на статью» при фокусе
+            # который убирает placeholder «Ссылка на статью или видео» при фокусе
             self.url_entry._entry.bind("<FocusIn>", self._url_select_all, add="+")
             self.url_entry._entry.bind("<Button-1>", self._url_select_all, add="+")
             self._bind_ctrl_v(self.url_entry._entry, self._url_paste)
@@ -3333,15 +3388,16 @@ class ModernTTSApp(ctk.CTk):
         self._set_box_text(text, generated=False)
         self.update_status(f"✅ Вставлено: {name[:40]}. Анализ пойдёт по этому тексту.")
 
-    # ================= ФАЙЛЫ PDF/DOC =================
+    # ============= ФАЙЛЫ PDF/DOC/MD/FB2/EPUB/RTF/HTML =============
 
     def insert_file(self):
         path = filedialog.askopenfilename(
-            title="Выберите файл (pdf, docx, txt)",
-            filetypes=[("Документы", "*.pdf *.docx *.doc *.txt"), ("All files", "*.*")])
+            title="Выберите файл (pdf, docx, epub, fb2, rtf, html, txt, md)",
+            filetypes=[("Документы", "*.pdf *.docx *.doc *.txt *.md *.fb2 *.epub *.rtf *.html *.htm"), ("All files", "*.*")])
         if not path:
             return
         ext = os.path.splitext(path)[1].lower()
+        src_name = None
         try:
             if ext == ".pdf":
                 if not PYPDF_AVAILABLE:
@@ -3358,6 +3414,22 @@ class ModernTTSApp(ctk.CTk):
                 text = "\n".join(p.text for p in Document(path).paragraphs)
             elif ext == ".doc":
                 raise Exception("Старый формат .doc не поддерживается.\nСохраните документ как .docx.")
+            elif ext == ".md":
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    text = self._clean_markdown(f.read())
+            elif ext in (".fb2", ".epub"):
+                chapters, book_title = (self._parse_fb2 if ext == ".fb2" else self._parse_epub)(path)
+                if not chapters:
+                    raise Exception("В файле EPUB не найдено текста глав." if ext == ".epub" else "В файле FB2 не найдено текста глав.")
+                if len(chapters) > 2:
+                    self._book_dialog(chapters, book_title, path)
+                    return
+                text = "\n\n".join(c["text"] for c in chapters).strip()
+                src_name = book_title or os.path.basename(path)
+            elif ext == ".rtf":
+                text = self._rtf_to_text(path)
+            elif ext in (".html", ".htm"):
+                text = self._html_to_text(path)
             else:
                 with open(path, "r", encoding="utf-8", errors="ignore") as f:
                     text = f.read()
@@ -3365,12 +3437,467 @@ class ModernTTSApp(ctk.CTk):
             text = re.sub(r"\n{3,}", "\n\n", text).strip()
             if len(text) < 100:
                 raise Exception("В файле не найден текст (возможно, скан без текстового слоя).")
-            self._put_source_text(text, os.path.basename(path))
+            self._put_source_text(text, src_name or os.path.basename(path))
         except Exception as e:
             messagebox.showerror("Файл", str(e))
 
     def _pick_article(self, article):
         self._put_source_text(article["text"], article["title"])
+
+    # ---------------- видео: YouTube / Rutube / VK ----------------
+    _YT_HOSTS = ("youtube.com", "youtu.be", "m.youtube.com", "www.youtube.com",
+                 "music.youtube.com", "youtube-nocookie.com")
+
+    def _video_kind(self, url):
+        """Видеоссылка? -> (платформа, id/ссылка), иначе None."""
+        try:
+            from urllib.parse import urlparse, parse_qs
+            p = urlparse(url if "://" in url else "https://" + url)
+            host = (p.netloc or "").lower()
+            if any(host == h or host.endswith("." + h) for h in self._YT_HOSTS):
+                vid = (parse_qs(p.query).get("v") or [None])[0]
+                if not vid:
+                    m = re.match(r"^/(?:shorts|live|embed|v)/([A-Za-z0-9_-]{6,20})", p.path)
+                    if m: vid = m.group(1)
+                if not vid and "youtu.be" in host:
+                    vid = p.path.strip("/").split("/")[0]
+                if vid and re.fullmatch(r"[A-Za-z0-9_-]{11}", vid):
+                    return ("youtube", vid)
+            elif "rutube" in host:
+                m = re.search(r"/(?:video|embed|play)/([a-f0-9]{32})", p.path)
+                if m: return ("rutube", m.group(1))
+            elif any(s in host for s in ("vk.com", "vkvideo.ru", "vk.ru")):
+                if re.search(r"/(video-?\d+_\d+|clip-?\d+_\d+)", p.path):
+                    return ("vk", url)
+        except Exception:
+            pass
+        return None
+
+    def _ask_choice(self, title, subtitle, labels):
+        """Модальный выбор одной строки из списка; None — отмена."""
+        box = ctk.CTkToplevel(self)
+        box.title(title); box.geometry("480x430"); box.transient(self); box.grab_set()
+        self.after(0, lambda: _apply_lang(box))
+        _apply_dialog_icon(box)
+        box.configure(fg_color=COLOR_BG)
+        body = ctk.CTkFrame(box, fg_color=COLOR_PANEL, corner_radius=R_PANEL,
+                            border_width=1, border_color=COLOR_BORDER)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        ctk.CTkLabel(body, text=title, font=(FONT_FAMILY, 16, "bold"),
+                     text_color=COLOR_TEXT_MAIN, anchor="w").pack(fill="x", padx=18, pady=(16, 2))
+        ctk.CTkLabel(body, text=subtitle, font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
+                     anchor="w").pack(fill="x", padx=18, pady=(0, 10))
+        scroll = ctk.CTkScrollableFrame(body, fg_color=COLOR_CARD, corner_radius=4,
+                                        border_width=1, border_color=COLOR_BORDER,
+                                        scrollbar_button_color=COLOR_BORDER)
+        scroll.pack(fill="both", expand=True, padx=18, pady=(0, 10))
+        result = {"i": None}
+        for i, lab in enumerate(labels):
+            ctk.CTkButton(scroll, text=lab[:110], anchor="w", height=34, corner_radius=3,
+                          fg_color="transparent", hover_color=COLOR_ACCENT_SOFT,
+                          text_color=COLOR_TEXT_MAIN, font=FONT_SMALL,
+                          command=lambda i=i: (result.update(i=i), box.destroy())).pack(fill="x", pady=2)
+        ctk.CTkButton(body, text="Отмена", height=30, width=120, corner_radius=3,
+                      fg_color="transparent", border_width=1, border_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_SEC, font=FONT_SMALL,
+                      command=box.destroy).pack(pady=(0, 12))
+        self.wait_window(box)
+        return result["i"]
+
+    def _fetch_video_transcript(self, kind, ident):
+        """Текст субтитров видео -> (text, title). Отмена выбора -> _SubCancelled."""
+        if kind == "youtube":
+            return self._youtube_transcript(ident)
+        if kind == "rutube":
+            return self._rutube_transcript(ident)
+        return self._ytdlp_transcript(ident, "ВК")
+
+    def _youtube_title(self, vid):
+        try:
+            r = requests.get("https://www.youtube.com/oembed",
+                             params={"url": f"https://www.youtube.com/watch?v={vid}", "format": "json"},
+                             timeout=10)
+            if r.ok: return (r.json().get("title") or "").strip()
+        except Exception:
+            pass
+        return ""
+
+    def _youtube_transcript(self, vid):
+        try:
+            from youtube_transcript_api import YouTubeTranscriptApi
+        except ImportError:
+            raise Exception("Не найден модуль youtube-transcript-api. "
+                            "Установите: pip install youtube-transcript-api")
+        try:
+            tracks = list(YouTubeTranscriptApi().list(vid))
+        except Exception:
+            raise Exception("YouTube не отдал субтитры: у видео их нет, оно приватное "
+                            "или с возрастным ограничением.")
+        if not tracks:
+            raise Exception("У этого видео на YouTube нет субтитров.")
+        uniq = {}
+        for t in sorted(tracks, key=lambda t: bool(t.is_generated)):  # авторские вперёд
+            uniq.setdefault(t.language_code or "?", t)
+        cand = sorted(uniq.values(),
+                      key=lambda t: (0 if (t.language_code or "").split("-")[0] == "ru" else 1))
+        if len(cand) == 1:
+            tr = cand[0]
+        else:
+            labels = [f"{t.language or t.language_code}" +
+                      (" — автосубтитры" if t.is_generated else " — авторские") for t in cand]
+            i = self._ask_choice("Субтитры — выберите язык",
+                                 f"У видео {len(cand)} дорожек субтитров", labels)
+            if i is None:
+                raise _SubCancelled()
+            tr = cand[i]
+        got = tr.fetch()
+        text = self._vtt_to_text("\n".join((s.text or "").strip() for s in got))
+        return text, (self._youtube_title(vid) or f"YouTube {vid}")
+
+    def _rutube_transcript(self, vid):
+        try:
+            r = requests.get(f"https://rutube.ru/api/play/options/{vid}/",
+                             params={"no_404": "true"},
+                             headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+        except Exception:
+            raise Exception("Rutube: сервис недоступен.")
+        if not r.ok:
+            raise Exception("Rutube: видео не найдено или недоступно.")
+        j = r.json()
+        raw = j.get("subtitles") or {}
+        items = []
+        if isinstance(raw, dict):
+            items = [(str(c), u) for c, u in raw.items() if isinstance(u, str) and u]
+        elif isinstance(raw, list):
+            items = [(str(x.get("code") or x.get("language_code") or ""),
+                      x.get("file") or x.get("url") or "")
+                     for x in raw if isinstance(x, dict)]
+            items = [(c, u) for c, u in items if u]
+        if not items:
+            raise Exception("На Rutube у этого видео нет субтитров — Rutube почти не отдаёт субтитры. "
+                            "Попробуйте ссылку на этот же ролик с YouTube.")
+        cand = sorted(items, key=lambda it: (0 if it[0].split("-")[0] == "ru" else 1))
+        if len(cand) == 1:
+            code, u = cand[0]
+        else:
+            i = self._ask_choice("Субтитры — выберите язык",
+                                 f"У видео {len(cand)} дорожки субтитров", [c for c, _ in cand])
+            if i is None:
+                raise _SubCancelled()
+            code, u = cand[i]
+        txt = requests.get(u, headers={"User-Agent": "Mozilla/5.0"}, timeout=20).text
+        return self._vtt_to_text(txt), (j.get("title") or f"Rutube {vid[:8]}")
+
+    def _ytdlp_transcript(self, url, platform="ВК"):
+        try:
+            import yt_dlp
+        except ImportError:
+            raise Exception(f"Для {platform} нужен модуль yt-dlp. Установите: pip install yt-dlp")
+        try:
+            with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True,
+                                   "socket_timeout": 25, "noplaylist": True}) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except Exception:
+            raise Exception(f"{platform}: не удалось получить данные видео — ссылка неверная, "
+                            "ролик приватный или сервис недоступен.")
+        if info.get("_type") == "playlist":
+            info = (info.get("entries") or [{}])[0] or {}
+        pool = info.get("subtitles") or info.get("automatic_captions") or {}
+
+        def pick_fmt(fmts):
+            for ext in ("vtt", "srv3", "srv1", "ttml"):
+                for f in fmts:
+                    if f.get("ext") == ext or f.get("format_id") == ext:
+                        return f.get("url")
+            return (fmts[0].get("url") if fmts else None)
+
+        items = []
+        for code, fmts in pool.items():
+            if code in ("live_chat", "json3"): continue
+            u = pick_fmt(fmts or [])
+            if u: items.append((str(code), u))
+        if not items:
+            raise Exception(f"На {platform} у этого видео нет доступных субтитров. "
+                            "Попробуйте ссылку на этот же ролик с YouTube.")
+        cand = sorted(items, key=lambda it: (0 if it[0].split("-")[0] == "ru" else 1))[:12]
+        if len(cand) == 1:
+            code, u = cand[0]
+        else:
+            i = self._ask_choice("Субтитры — выберите язык",
+                                 f"У видео {len(cand)} дорожек субтитров", [c for c, _ in cand])
+            if i is None:
+                raise _SubCancelled()
+            code, u = cand[i]
+        try:
+            txt = requests.get(u, headers={"User-Agent": "Mozilla/5.0"}, timeout=30).text
+        except Exception:
+            raise Exception(f"{platform}: не удалось скачать файл субтитров.")
+        return self._vtt_to_text(txt), (info.get("title") or platform)
+
+    def _vtt_to_text(self, raw):
+        """WebVTT / SRV3 / список реплик -> чистый текст с дедупликацией бегущих строк."""
+        raw = (raw or "").replace("\r\n", "\n").replace("\r", "\n")
+        if re.search(r"<(?:transcript|tt|webvtt)[ >]", raw[:500], re.I):
+            raw = re.sub(r"<[^>]+>", "\n", raw)
+        out, prev = [], None
+        for ln in raw.split("\n"):
+            ln = re.sub(r"<[^>]+>", "", ln).strip()
+            if not ln or "-->" in ln or re.fullmatch(r"\d+", ln): continue
+            if ln == "WEBVTT" or ln.split(" ")[0] in ("Kind:", "Language:", "NOTE", "STYLE", "region") \
+                    or ln.startswith(("/*", "}", "region ")):
+                continue
+            if prev is not None:
+                if ln == prev: continue
+                if ln.startswith(prev):
+                    tail = ln[len(prev):].strip()
+                    if tail:
+                        out.append(tail); prev = ln
+                    continue
+            out.append(ln); prev = ln
+        return re.sub(r"\s{2,}", " ", " ".join(out)).strip()
+
+    def _clean_markdown(self, text):
+        """Markdown в обычный текст для озвучки: разметка убрана, текст (и код) остались."""
+        text = re.sub(r"^\s*(?:```|~~~)[^\n]*$", "", text, flags=re.M)          # строки-ограничители код-блоков
+        text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)               # картинки -> подпись
+        text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)                # ссылки -> текст ссылки
+        text = re.sub(r"\[([^\]]+)\]\[[^\]]*\]", r"\1", text)              # ссылки по сноскам
+        text = re.sub(r"^[ \t]{0,3}#{1,6}[ \t]+", "", text, flags=re.M)        # заголовки
+        text = re.sub(r"^[ \t]*(?:[-*_][ \t]*){3,}[ \t]*$", "", text, flags=re.M)  # разделители ---
+        text = re.sub(r"^[ \t]*\|?[ \t:|-]*-{2,}[ \t:|-]*\|?[ \t]*$", "", text, flags=re.M)  # строка |---|---|
+        text = re.sub(r"^[ \t]*\|(.*)\|[ \t]*$",
+                      lambda m: "  ".join(c.strip() for c in m.group(1).split("|") if c.strip()),
+                      text, flags=re.M)                                          # таблица -> строки слов
+        text = re.sub(r"^[ \t]*>[ \t]?", "", text, flags=re.M)                 # цитаты
+        text = re.sub(r"^([ \t]*)[-*+][ \t]+", r"\1", text, flags=re.M)       # маркеры списков
+        text = re.sub(r"^([ \t]*)\d{1,3}[.)][ \t]+", r"\1", text, flags=re.M)  # нумерованные списки
+        text = re.sub(r"`([^`\n]+)`", r"\1", text)                             # инлайн-код
+        text = re.sub(r"<(https?://[^>\s]+)>", r"\1", text)                    # авто-ссылки <url>
+        text = re.sub(r"\*\*\*(.+?)\*\*\*", r"\1", text)
+        text = re.sub(r"___(.+?)___", r"\1", text)
+        text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+        text = re.sub(r"__(.+?)__", r"\1", text)
+        text = re.sub(r"~~(.+?)~~", r"\1", text)
+        text = re.sub(r"(?<!\w)\*(?=\S)(.+?)(?<=\S)\*(?!\w)", r"\1", text)
+        text = re.sub(r"(?<!\w)_(?=\S)(.+?)(?<=\S)_(?!\w)", r"\1", text)
+        return text
+
+    def _parse_fb2(self, path):
+        """FB2 -> (главы [{"title","text"}], заголовок книги). Только <body>: без аннотаций, эпиграфов и сносок."""
+        try:
+            with open(path, "rb") as f:
+                raw = f.read()
+            # защитный разбор: обычный FB2 не содержит DTD/сущностей — их присутствие признак вредоносного XML (XXE, billion laughs)
+            head = raw[:4096] + raw[-4096:] if len(raw) > 8192 else raw
+            if re.search(rb"(?i)<!(DOCTYPE|ENTITY)", head) or re.search(rb"(?i)<!ENTITY", raw):
+                raise Exception("Файл FB2 повреждён: ошибка разбора XML.")
+            root = ET.fromstring(raw)
+        except ET.ParseError:
+            raise Exception("Файл FB2 повреждён: ошибка разбора XML.")
+
+        def loc(el):
+            return el.tag.split("}")[-1].lower()
+
+        def flat(el):
+            return re.sub(r"\s+", " ", "".join(el.itertext())).strip()
+
+        book_title = ""
+        for el in root:
+            if loc(el) != "description":
+                continue
+            for ti in el:                                  # description -> title-info -> book-title
+                if loc(ti) != "title-info":
+                    continue
+                for t in ti:
+                    if loc(t) == "book-title":
+                        book_title = flat(t)
+
+        def own_text(sec, skip_title=False, fold_sections=True):
+            parts = []
+            for el in sec:
+                tag = loc(el)
+                if tag == "section":
+                    if not fold_sections:                  # для body: разделы считаются главами отдельно
+                        continue
+                                                           # подраздел -> его заголовок + текст внутрь главы
+                    t = next((x for x in el if loc(x) == "title"), None)
+                    sub = flat(t) if t is not None else ""
+                    sub_txt = own_text(el, skip_title=True)
+                    if sub_txt:
+                        parts.append((sub + "\n\n" + sub_txt) if sub else sub_txt)
+                    continue
+                if tag == "epigraph" or (skip_title and tag == "title"):
+                    continue
+                if tag == "empty-line":
+                    parts.append("")
+                    continue
+                t = flat(el)
+                if t:
+                    parts.append(t)
+            return "\n".join(parts).strip()
+
+        chapters = []
+        for body in [el for el in root if loc(el) == "body"]:
+            has_secs = any(loc(s) == "section" for s in body)
+            # преамбула level-body (автор, реклама библиотеки) берётся только если разделов нет вовсе
+            intro = "" if has_secs else own_text(body, fold_sections=False)
+            if len(intro) >= 100:
+                chapters.append({"title": "", "text": intro})
+            for sec in body:
+                if loc(sec) != "section":
+                    continue
+                t = next((x for x in sec if loc(x) == "title"), None)
+                title = flat(t) if t is not None else ""
+                txt = own_text(sec, skip_title=True)
+                if len(txt) < 50:
+                    continue
+                chapters.append({"title": title, "text": (title + "\n\n" + txt) if title else txt})
+        for i, c in enumerate(chapters, 1):
+            if not c["title"]:
+                c["title"] = f"Глава {i}"
+        return chapters, book_title
+
+
+    def _book_dialog(self, chapters, book_title, path):
+        """Диалог выбора глав для книг (FB2/EPUB): вся книга целиком или одна глава."""
+        base = book_title or os.path.basename(path)
+        whole = "\n\n".join(c["text"] for c in chapters).strip()
+        items = [{"title": "📖 Вся книга целиком", "text": whole, "name": base}]
+        for i, c in enumerate(chapters, 1):
+            t = c["title"]
+            lab = t if re.match(r"^(\d+[.)\s]|глав[аы]\b)", t, re.I) else f"{i}. {t}"
+            items.append({"title": lab, "text": c["text"], "name": f"{base} — {t}"})
+        PdfArticlesDialog(self, items, lambda a: self._put_source_text(a["text"], a["name"]),
+                          win_title="Главы книги",
+                          count_text=f"Найдено глав: {len(chapters)}")
+
+    def _parse_epub(self, path):
+        """EPUB -> (главы [{"title","text"}], заголовок книги); главы в порядке spine, навигация пропущена."""
+        from urllib.parse import unquote
+        try:
+            z = zipfile.ZipFile(path)
+        except Exception:
+            raise Exception("Файл EPUB повреждён: не читается ZIP-контейнер.")
+        try:
+            cont = z.read("META-INF/container.xml").decode("utf-8", "ignore")
+        except KeyError:
+            raise Exception("Файл EPUB повреждён: не найден контейнер.")
+        m = re.search(r'full-path="([^"]+)"', cont)
+        if not m:
+            raise Exception("Файл EPUB повреждён: не найден контейнер.")
+        opf_name = unquote(m.group(1)).lstrip("/")
+        opf_dir = opf_name.rsplit("/", 1)[0] if "/" in opf_name else ""
+        try:
+            opf_bytes = z.read(opf_name)
+            if re.search(rb"(?i)<!(DOCTYPE|ENTITY)", opf_bytes):   # как в FB2: чистый OPF без DTD/сущностей
+                raise Exception("Файл EPUB повреждён: ошибка разбора OPF.")
+            opf = ET.fromstring(opf_bytes)
+        except ET.ParseError:
+            raise Exception("Файл EPUB повреждён: ошибка разбора OPF.")
+
+        def loc(el):
+            return el.tag.split("}")[-1].lower()
+
+        book_title = ""
+        manifest, spine = {}, []
+        for el in opf.iter():
+            tag = loc(el)
+            if tag == "title":
+                if not book_title:
+                    book_title = (el.text or "").strip()
+            elif tag == "item":
+                manifest[el.get("id")] = (el.get("href") or "", (el.get("properties") or ""))
+            elif tag == "itemref":
+                spine.append(el.get("idref") or "")
+
+        chapters = []
+        for rid in spine:
+            href, props = manifest.get(rid, ("", ""))
+            href = unquote(href)
+            if "nav" in props.split() or not href.lower().rsplit(".", 1)[-1] in ("xhtml", "html", "htm"):
+                continue
+            full = (opf_dir + "/" + href.split("#")[0]) if opf_dir else href.split("#")[0]
+            segs = []
+            for p in full.split("/"):                       # нормализация ./ и ../ внутри архива
+                if p == "..":
+                    if segs:
+                        segs.pop()
+                elif p not in (".", ""):
+                    segs.append(p)
+            try:
+                raw = z.read("/".join(segs))
+            except KeyError:
+                continue
+            soup = BeautifulSoup(raw, "html.parser")
+            for bad in soup(["script", "style", "head"]):
+                bad.decompose()
+            h = soup.find(re.compile(r"^h[1-3]$"))
+            title = re.sub(r"\s+", " ", h.get_text()).strip() if h else ""
+            txt = soup.get_text("\n")
+            txt = re.sub(r"[ \t]+", " ", txt)
+            txt = re.sub(r"\n\s*\n+", "\n\n", txt).strip()
+            if len(txt) < 100:
+                continue
+            chapters.append({"title": title, "text": (title + "\n\n" + txt) if title else txt})
+        for i, c in enumerate(chapters, 1):
+            if not c["title"]:
+                c["title"] = f"Глава {i}"
+        return chapters, book_title
+
+    def _rtf_to_text(self, path):
+        r"""RTF -> текст: группы-приёмники {\*…}, управляемые слова/символы убраны, \'hh и \uN раскодированы."""
+        with open(path, "rb") as f:
+            s = f.read()
+        prev = None
+        while prev != s:                                   # {\* …} и известные служебные группы: шрифты, стили,
+            prev = s                                       # колонтитулы, списки, картинки — всё мимо текста
+            s = re.sub(rb"\{\\\*[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", b"", s)
+            s = re.sub(rb"\{\\(?:fonttbl|stylesheet|info|colortbl|filetbl|listtable|listtemplate\w*|list\w*"
+                       rb"|pict|shppict|nonshppict|xmlsect\w*|themedata|colorschememapping|latentstyles|datastore"
+                       rb"|header\d*|footer\d*|bkmk\w+|generator|template|mmask)\b[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", b"", s)
+        s = re.sub(rb"\\par[d]?\s?", b"\n", s)
+        s = re.sub(rb"\\(line|nestcell|nestrow|row|cell)\d?\s?", b"\n", s)
+        s = re.sub(rb"\\tab\s?", b"\t", s)
+        s = re.sub(rb"\\'([0-9a-fA-F]{2})", lambda mo: bytes([int(mo.group(1), 16)]), s)
+
+        def _u(mo):                                        # \uNNNN — юникод; байт-фолбэк после него съедается общим правилом ниже
+            v = int(mo.group(1))
+            if v < 0:
+                v += 65536
+            try:
+                b = chr(v).encode("cp1251", "ignore")
+            except Exception:
+                b = b""
+            return b or b"?"
+        s = re.sub(rb"\\u(-?\d+)\s?", _u, s)
+        s = re.sub(rb"\\[a-zA-Z]{1,32}\s?", b"", s)
+        s = re.sub(rb"\\.", b"", s)
+        s = s.replace(b"{", b"").replace(b"}", b"")
+        t = s.decode("cp1251", "ignore")
+        t = re.sub(r"[ \t]+", " ", t)
+        t = re.sub(r"\n\s*\n+", "\n\n", t)
+        return t.strip()
+
+    def _html_to_text(self, path):
+        """HTML/HTM -> текст: скрипты/стили/теги убраны, сущности раскодированы, кодировка из meta."""
+        with open(path, "rb") as f:
+            raw = f.read()
+        enc = "utf-8"
+        m = re.search(rb'charset\s*=\s*["\']?\s*([A-Za-z0-9_-]+)', raw[:3000])
+        if m:
+            cand = m.group(1).decode("ascii", "ignore")
+            try:
+                "".encode(cand)
+                enc = cand
+            except LookupError:
+                pass
+        soup = BeautifulSoup(raw.decode(enc, "ignore"), "html.parser")
+        for bad in soup(["script", "style"]):
+            bad.decompose()
+        t = soup.get_text("\n")
+        t = re.sub(r"[ \t]+", " ", t)
+        t = re.sub(r"\n\s*\n+", "\n\n", t)
+        return t.strip()
 
     def _segment_articles(self, full):
         full = re.sub(r"\n{3,}", "\n\n", full)
@@ -4227,7 +4754,7 @@ class ModernTTSApp(ctk.CTk):
                 self.preset_menu.set("Кратко (50%)")
                 self.apply_preset("Кратко (50%)")
                 self._seed_builtin_vox_voices()    # «Алсу» — сразу в слоте
-                self.update_status("✅ Готово. Вставьте ссылку, текст или файл.")
+                self.update_status("✅ Готово. Вставьте ссылку на статью или видео, текст или файл.")
                 return
             with open(self.SETTINGS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -5467,8 +5994,30 @@ class ModernTTSApp(ctk.CTk):
 
         if not url and not source_text:
             messagebox.showwarning("Нечего анализировать",
-                                   "Вставьте ссылку, текст или файл — либо наберите текст в поле справа.")
+                                   "Вставьте ссылку на статью или видео, текст или файл — либо наберите текст в поле справа.")
             return
+
+        # видеоссылки (YouTube / Rutube / VK) — сначала берём субтитры как текст
+        if url and not source_text:
+            video = self._video_kind(url)
+            if video:
+                self.update_status("⏳ Загрузка субтитров видео…")
+                self.update_idletasks()
+                try:
+                    text, vtitle = self._fetch_video_transcript(*video)
+                except _SubCancelled:
+                    self.update_status("✅ Готово. Вставьте ссылку на статью или видео, текст или файл.")
+                    return
+                except Exception as e:
+                    messagebox.showerror("Видео", str(e))
+                    self.update_status("✅ Готово. Вставьте ссылку на статью или видео, текст или файл.")
+                    return
+                if len(text) < 40:
+                    messagebox.showwarning("Видео", "Субтитры пустые или слишком короткие — озвучивать нечего.")
+                    return
+                self._put_source_text(text, vtitle)
+                source_text = text
+                url = ""
 
         if source_text:
             self._last_source = source_text
@@ -5886,7 +6435,7 @@ class ModernTTSApp(ctk.CTk):
 
     # ================= СИНТЕЗ =================
 
-    def generate_and_play(self, text: str):
+    def generate_and_play(self, text: str, play: bool = True):
         temp_file = os.path.join(self.BASE_DIR, "temp_output_pro.wav")
         try:
             orig_text = text
@@ -5958,7 +6507,8 @@ class ModernTTSApp(ctk.CTk):
                 if self.cancel_event.is_set():
                     raise Cancelled()
 
-                self._play_wav(temp_file)
+                if play:
+                    self._play_wav(temp_file)
 
             elif self.current_engine == "Piper":  # Piper (CPU)
                 cfg = None
@@ -6012,7 +6562,8 @@ class ModernTTSApp(ctk.CTk):
                 if self.cancel_event.is_set():
                     raise Cancelled()
 
-                self._play_wav(temp_file)
+                if play:
+                    self._play_wav(temp_file)
 
             if self.cancel_event.is_set():
                 raise Cancelled()
@@ -6022,16 +6573,19 @@ class ModernTTSApp(ctk.CTk):
                                 rate, temp_file)
             self._safe_ui(lambda: self.set_progress(100, "Синтез завершён"))
             self.after(0, self.progress_bar.stop)
+            return temp_file
 
         except Cancelled:
             print("⏹ Синтез отменён")
             self.after(0, self.progress_bar.stop)
+            return None
 
         except Exception as e:
             msg = str(e)
             print(f"❌ Ошибка синтеза: {msg}")
             self.after(0, lambda: messagebox.showerror("Звук", msg))
             self.after(0, self.progress_bar.stop)
+            return None
 
 
 if __name__ == "__main__":
