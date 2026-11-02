@@ -216,9 +216,12 @@ def _speak(app, p):
             target = None
             if isinstance(ratio, (int, float)) and 0 < ratio < 1:
                 target = max(60, int(len(text) * ratio))
-                instruction += (f"\n\nОГРАНИЧЕНИЕ ОБЪЁМА: не более {target} знаков "
-                                f"(около {int(ratio * 100)}% исходного текста). Это жёсткий лимит — "
-                                f"если не укладываешься, сокращай дальше, сохраняя главное.")
+                floor = max(40, int(target * 0.8))
+                instruction += (f"\n\nОГРАНИЧЕНИЕ ОБЪЁМА: от {floor} до {target} знаков "
+                                f"(около {int(ratio * 100)}% исходного текста). Это жёсткие границы: "
+                                f"не укладываешься в верхнюю — сокращай дальше, сохраняя главное; "
+                                f"не добираешь нижнюю — возвращай пропущенные значимые детали, "
+                                f"цифры и имена.")
             _status(app, "🤖 MCP: анализ нейросетью…")
             out_text = app.summarize_text(text, instruction, server_url=gpu_url)
             if target:

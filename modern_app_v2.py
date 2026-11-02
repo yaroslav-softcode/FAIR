@@ -5934,7 +5934,8 @@ class ModernTTSApp(ctk.CTk):
                 "Все цифры, даты и проценты пиши словами; пиши связной речью, "
                 "без списков, маркеров, ссылок и скобок. "
                 "Используй только факты из исходного текста — ничего не додумывай и не добавляй. "
-                "Если задан лимит объёма — соблюдай его строго.")
+                "Если задан диапазон объёма — соблюдай его строго: не больше верхней "
+                "границы и не меньше нижней.")
 
     @staticmethod
     def _progress_pct(produced, expected_chars=None, chunks=0):
@@ -6252,10 +6253,13 @@ class ModernTTSApp(ctk.CTk):
             target = None
             if ratio:
                 target = max(60, int(len(text) * ratio))
-                instruction = (instruction + f"\n\nОГРАНИЧЕНИЕ ОБЪЁМА: не более {target} знаков "
-                               f"(около {int(ratio * 100)}% исходного текста). Это жёсткий лимит — "
-                               f"если не укладываешься, сокращай дальше, сохраняя главное.")
-                print(f"📏 Целевой объём: {target} знаков ({int(ratio * 100)}% от {len(text)})")
+                floor = max(40, int(target * 0.8))
+                instruction = (instruction + f"\n\nОГРАНИЧЕНИЕ ОБЪЁМА: от {floor} до {target} знаков "
+                               f"(около {int(ratio * 100)}% исходного текста). Это жёсткие границы: "
+                               f"не укладываешься в верхнюю — сокращай дальше, сохраняя главное; "
+                               f"не добираешь нижнюю — возвращай пропущенные значимые детали, "
+                               f"цифры и имена.")
+                print(f"📏 Целевой объём: {floor}–{target} знаков ({int(ratio * 100)}% от {len(text)})")
 
             summary = self.summarize_text(text, instruction, server_url=gpu_url,
                                           expected_chars=target or len(text))
