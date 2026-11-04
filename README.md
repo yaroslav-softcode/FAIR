@@ -30,6 +30,13 @@ License: GPL-3.0 · UI: English / Russian
   pause between chunks, autoplay after analysis. The ⏯ button pauses playback
   mid-sentence and resumes exactly where you left off; after the clip ends it
   plays from the start. Finished narration can be **saved to an audio file**.
+- **Emotions**: a voice can carry its own emotional samples — 26 ready
+  emotion prompts, recorded by microphone or synthesized by VOX itself in one
+  click. A marker like `(joyful)` in the narration switches the voice to that
+  emotion for its own sentence; with the “Add emotions” switch on, the AI places
+  those markers itself and uses only the emotions the voice really has. Emotion
+  lines follow the language of the voice sample (an English voice gets English
+  emotion lines).
 - **Analysis model**: any GGUF; Gemma 4 E4B Q4_K_M (≈5 GB) is offered by default.
 - **Integration**: local API + MCP bridge (`fair_status`, `fair_speak`) so AI
   assistants can start narration from the command line — no Python required.
@@ -86,6 +93,12 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
   фрагментами, автоплей после анализа. Кнопка ⏯ ставит воспроизведение на паузу
   посреди фразы и продолжает с того же места; после конца — играет сначала.
   Готовую озвучку можно **сохранить в аудиофайл**.
+- **Эмоции**: у голоса могут быть свои эмоциональные образцы — 26 готовых
+  фраз-подсказок, запись с микрофона или синтез самим VOX в один клик. Маркер
+  вида `(радостный)` в тексте озвучки переключает голос на эту эмоцию для своей
+  фразы; с тумблером «Добавить эмоции» нейросеть расставляет такие маркеры сама
+  и берёт только те эмоции, что у голоса реально записаны. Язык эмоциональных
+  фраз повторяет язык образца голоса (английский голос — английские фразы).
 - **Модель анализа**: любая GGUF; по умолчанию предлагается Gemma 4 E4B Q4_K_M (≈5 ГБ).
 - **Интеграция**: локальный API + MCP-мост (`fair_status`, `fair_speak`) —
   ИИ-ассистенты могут запускать озвучку из командной строки, Python на машине

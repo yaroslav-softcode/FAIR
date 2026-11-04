@@ -50,5 +50,8 @@ _mockups/
 fair_log.txt
 fair_api_endpoint.json
 mcp_smoke.log
+build1.log
+build2.log
+iscc.log
 *.bak
 vox/

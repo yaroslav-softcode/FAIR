@@ -94,6 +94,94 @@ FALLBACK_CHARS = 6000
 MIN_CTX = 2048
 VOX_BASE_SPEED = 2.0  # базовое ускорение VoxCPM2 через ресемпл
 
+# ---------------------------------------------------------------------------
+# Эмоции для правки голоса (VoxCPM2 Style Control).
+# name -> (инструкция для Vox на английском, фраза для записи образца).
+# Официальной схеме тегов эмоций у VoxCPM2 нет: в docs Style Control управляется
+# свободным описанием на естественном языке в скобках перед текстом. Значит
+# «поддерживается» та эмоция, для которой у нас подобрана внятная инструкция;
+# список в интерфейсе строится ровно из этих названий -> выбрать
+# нерабочее нельзя.
+# ---------------------------------------------------------------------------
+def _emo_key(word):
+    """Основа названия эмоции: «радостный», «радостно», «радость» -> «радос»."""
+    w = re.sub(r"[^а-яёa-z]", "", (word or "").lower().replace("ё", "е"))
+    return w[:5] if len(w) >= 5 else w
+
+
+EMOTION_TAB = {
+    # --- светлая часть ---
+    "радостный": ("very cheerful, joyful, excited tone, almost laughing",
+                  "Ура! Наконец-то получилось! Это же здорово, правда?"),
+    "весёлый": ("cheerful, upbeat, smiling, energetic tone",
+                "Ой, как здорово! Обожаю такие дни, просто праздник какой-то!"),
+    "восторженный": ("deeply delighted and amazed, wonder-filled tone",
+                     "Невероятно! Это лучшая новость за весь месяц!"),
+    "нежный": ("gentle, soft, affectionate and warm tone",
+               "Как же я тебя люблю… Ты мой самый родной человек."),
+    "заботливый": ("caring, warm, protective tone",
+                   "Ты поел? Надень шапку, на улице холодно. И шарф не забудь."),
+    # --- тёмная часть ---
+    "грустный": ("very sad, sorrowful, quiet tone, on the verge of tears",
+                 "Мне так грустно… Всё как будто потухло, и ничего не радует."),
+    "печальный": ("melancholic, wistful, slow and quiet tone",
+                  "Как же это всё печально… Ничего уже не вернуть."),
+    "плачущий": ("crying, tearful, voice breaking with tears",
+                 "Ну как же так… Я не могу, я просто плачу от этого."),
+    "злой": ("angry, sharp, irritated tone",
+             "Сколько можно! Я уже сто раз это повторял!"),
+    "гневный": ("furious, forceful tone, almost shouting",
+                "Это возмутительно! Так с людьми поступать нельзя!"),
+    "испуганный": ("frightened, scared, shaky voice",
+                   "Господи… Что это было? Там кто-то есть, я слышала!"),
+    "тревожный": ("nervous, anxious, slightly trembling tone",
+                  "А вдруг не получится? Мне правда очень неспокойно."),
+    # --- деловая и нейтральная часть ---
+    "строгий": ("strict, stern, commanding, teacher-like tone",
+                "Проверь за собой. Сделай как следует, потом я проверю."),
+    "серьёзный": ("serious, firm, businesslike tone",
+                  "Давай по делу. Вопрос серьёзный, и решать его будем сейчас."),
+    "командный": ("firm commanding tone, decisive and authoritative",
+                  "Все остановились и слушают. Работаем по плану, время пошло."),
+    "спокойный": ("calm, relaxed, steady tone",
+                  "Так. Спокойно. Всё под контролем, всё будет хорошо."),
+    "монотонный": ("bored, flat, monotone delivery",
+                   "Сегодня обычный день. Утро, работа, вечер. Всё своим чередом."),
+    "усталый": ("tired, slow, drained tone",
+                "Я выжат полностью… Давай отложим это до завтра."),
+    "шёпотом": ("quiet whispering, intimate tone",
+                "Тссс… Говорю совсем тихо, чтобы никто случайно не услышал."),
+    # --- окраска речи ---
+    "удивлённый": ("surprised, astonished, expressive tone",
+                   "Не может быть! Это правда ты? Вот так сюрприз!"),
+    "саркастичный": ("sarcastic, mocking, ironical tone",
+                     "Ну конечно. Гениально. Как же я сразу не догадался."),
+    "драматичный": ("dramatic, expressive storytelling tone",
+                    "И тогда всё рухнуло… Осталось только ждать, что будет дальше."),
+    # синонимы той же окраски — чтобы привычные названия не терялись
+    "ироничный": ("sarcastic, mocking, ironical tone",
+                  "Отличная работа. Просто идеально. В следующий раз будет лучше."),
+    "ласковый": ("affectionate, warm, loving tone",
+                 "Иди ко мне, родной. Я согрею тебя, всё уже хорошо."),
+    "тоскливый": ("heavy-hearted, longing, mournful tone",
+                  "Эх… Так не хватает прошлого вечера, всё как будто не так."),
+    "возмущённый": ("indignant, outraged, firm disapproving tone",
+                    "Это ни в какие ворота! Так поступать просто недопустимо."),
+}
+
+# названия для раскрывающихся списков в панели эмоций
+EMOTION_NAMES = list(EMOTION_TAB)
+
+
+def emotion_marker_rule(names):
+    """Просьба к модели разметить текст эмоциями: только те имена, что есть у голоса."""
+    return ("РАЗМЕТКА ЭМОЦИЯМИ: перед фразами, которые нужно прочитать с чувством, ставь маркер "
+            "в круглых скобках и пробел: (имя_эмоции) текст. "
+            "Разрешены ТОЛЬКО эти имена: " + ", ".join(names) + ". "
+            "Ставь один-два маркера на абзац и только там, где эмоция уместна по смыслу; "
+            "маркер действует до конца предложения. Придумывать другие имена в скобках нельзя.")
+
+
 # CUDA-колесо torch для дополнения Vox: качаем сами, чтобы видеть проценты
 TORCH_CU_WHL_NAME = "torch-2.5.1+cu121-cp312-cp312-win_amd64.whl"
 TORCH_CU_WHL_URL = ("https://download.pytorch.org/whl/cu121/"
@@ -341,6 +429,17 @@ class DonateDialog(ctk.CTkToplevel):
         self.on_pay()
 
 
+class _EmoCombo(ctk.CTkComboBox):
+    """Название эмоции: выбор из списка ИЛИ свой текст. CTkComboBox в 6.0 не умеет
+    insert/delete — добавляю, чтобы строки эмоций работали как раньше."""
+
+    def insert(self, index, text):
+        self._entry.insert(index, text)
+
+    def delete(self, first=0, last="end"):
+        self._entry.delete(first, last)
+
+
 class VoiceRecorderDialog(ctk.CTkToplevel):
     """Запись/выбор образца голоса с сохранением в слот.
 
@@ -349,17 +448,100 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
     """
 
     DEFAULT_TEXT = "Привет! Это образец моего голоса для синтеза речи."
+    # фразы для записи эмоции: не общие, а сразу с нужной интонацией
+    EMOTION_SAMPLE_TEXT = {_emo_key(n): p for n, (_, p) in EMOTION_TAB.items()}
+    # те же фразы по-английски: если нейтральный образец голоса на английском,
+    # эмоциональные образцы тоже пишем по-английски — так Vox передаёт эмоцию точнее
+    EMOTION_SAMPLE_TEXT_EN = {_emo_key(n): p for n, p in (
+        ("радостный", "We actually did it! I still can't believe how happy I am."),
+        ("весёлый", "Ha! You really should have seen your own face then."),
+        ("восторженный", "This is the most incredible thing I have ever seen!"),
+        ("нежный", "Come here, everything is going to be all right."),
+        ("заботливый", "Did you eat anything today? Please take care of yourself."),
+        ("грустный", "I miss him so much that it actually hurts."),
+        ("печальный", "It's over now, and nothing will ever be the same."),
+        ("плачущий", "I'm sorry, I just can't stop crying about this."),
+        ("тоскливый", "Another grey day, and nothing ever happens here."),
+        ("злой", "How could you do this to me? Look at me and answer!"),
+        ("гневный", "I am furious, and you deserve every single word."),
+        ("возмущённый", "This is absolutely unacceptable, do you understand me?"),
+        ("испуганный", "Please don't come any closer, I'm really scared."),
+        ("тревожный", "Something is wrong, and I can't stop worrying."),
+        ("строгий", "Sit down, stay quiet, and listen to me carefully."),
+        ("серьёзный", "We need to talk about this, right now, seriously."),
+        ("командный", "Everyone out through the side exit. Move, now!"),
+        ("спокойный", "Let's take a breath and sort this out calmly."),
+        ("монотонный", "The report is due on monday, the review on tuesday, then lunch."),
+        ("усталый", "I'm so tired I can barely keep my eyes open."),
+        ("шёпотом", "Keep your voice down, they might be listening to us."),
+        ("удивлённый", "Wait, you actually remembered my birthday?"),
+        ("саркастичный", "Oh, brilliant. Exactly what we needed more of."),
+        ("ироничный", "Well, that went exactly as planned. Not at all."),
+        ("ласковый", "Hey you, my favourite person in the entire world."),
+        ("драматичный", "And then, in one awful moment, everything was gone."),
+    )}
+    _EMO_FALLBACK_RU = ("Вот так я говорю, когда во мне слышится эта эмоция. "
+                        "Повтори эту фразу своей интонацией.")
+    _EMO_FALLBACK_EN = ("This is how my voice sounds when it carries this feeling. "
+                        "Say it your own way.")
 
-    def __init__(self, parent, on_save, slot_id=None, initial_name=None, existing=None):
+    @staticmethod
+    def _is_english(text):
+        """Английский ли текст: примитив, но надёжный — латиницы больше, чем кириллицы."""
+        text = text or ""
+        cyr = sum(1 for ch in text if "а" <= ch.lower() <= "я" or ch.lower() == "ё")
+        lat = sum(1 for ch in text if ch.lower() in "abcdefghijklmnopqrstuvwxyz")
+        return lat > cyr and lat >= 3
+
+    def _sample_lang(self):
+        """Язык нейтрального образца текущего голоса: по нему подбираем и фразы эмоций."""
+        try:
+            info = self._cur_info() or {}
+        except Exception:
+            info = {}
+        return "en" if self._is_english(info.get("text")) else "ru"
+
+    @classmethod
+    def _emo_sample_text(cls, label, lang="ru"):
+        """Фраза для записи эмоции — под подобранную эмоцию, а не общая."""
+        table = cls.EMOTION_SAMPLE_TEXT_EN if lang == "en" else cls.EMOTION_SAMPLE_TEXT
+        low = (label or "").lower().replace("ё", "е")
+        for stem, phrase in table.items():
+            if stem in low:
+                return phrase
+        return cls._EMO_FALLBACK_EN if lang == "en" else cls._EMO_FALLBACK_RU
+
+    @staticmethod
+    def _emotion_filename(slot_id, label):
+        """Отдельный файл образца эмоции — нейтральный my_voice_<слот>.wav не перезаписываем."""
+        slug = re.sub(r"[^\w.-]+", "_", (label or "").strip().lower()).strip("_")[:24] or "emotion"
+        return f"my_voice_{slot_id}_{slug}.wav"
+
+    def __init__(self, parent, on_save, slot_id=None, initial_name=None, existing=None,
+                 emotion_mode=False, voice_label=None, initial_text=None):
         super().__init__(parent)
-        self.title("Свой голос")
-        self.geometry("470x612")
+        self.emotion_mode = bool(emotion_mode)
+        self.voice_label = voice_label or ""
+        self._pending_text = (initial_text or "").strip()
+        # в режиме эмоции initial_name — это название эмоции, voice_label — имя голоса
+        self._emo_hint_label = (initial_name or "") if self.emotion_mode and initial_name else (voice_label or "")
+        self.title("Эмоция голоса" if emotion_mode else "Свой голос")
+        self._emo_open = False    # раскрыта ли правая колонка эмоций
+        self._emo_frame = None
+        self._emo_rows = []
+        self._emo_need = 0
+        self._base_geo = "470x656" if not emotion_mode else "470x612"
+        self.geometry(self._base_geo)
         self.resizable(False, False)
         self.transient(parent)
         self.grab_set()
         self.after(0, lambda: _apply_lang(self))
         _apply_dialog_icon(self)                       # сразу, чтобы не мигал системный
         self.after(150, lambda: _apply_dialog_icon(self))
+        _p = parent
+        while getattr(_p, "master", None) is not None:
+            _p = _p.master
+        self.app = _p if hasattr(_p, "emotion_synth") else None
         self.configure(fg_color=COLOR_BG)
 
         self.on_save = on_save
@@ -375,17 +557,29 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
 
         body = ctk.CTkFrame(self, fg_color=COLOR_PANEL, corner_radius=R_PANEL,
                             border_width=1, border_color=COLOR_BORDER)
-        body.pack(fill="both", expand=True, padx=12, pady=12)
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=0, minsize=470)   # левая часть не сжимается
+        self.grid_columnconfigure(1, weight=1)
+        body.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+        self._body = body
 
-        ctk.CTkLabel(body, text="Образец голоса", font=(FONT_FAMILY, 16, "bold"),
+        ctk.CTkLabel(body, text=("Эмоция голоса" if self.emotion_mode else "Образец голоса"),
+                     font=(FONT_FAMILY, 16, "bold"),
                      text_color=COLOR_TEXT_MAIN, anchor="w").pack(fill="x", padx=18, pady=(16, 2))
-        ctk.CTkLabel(body, text="5–15 секунд чистой речи. Образец и текст сохраняются в слоте.",
-                     font=FONT_SMALL, text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=18, pady=(0, 12))
+        _sub = ("5–15 секунд чистой речи. Образец добавится к голосу."
+                if self.emotion_mode and not voice_label else
+                (f"5–15 секунд чистой речи. Образец добавится к голосу «{voice_label}»."
+                 if self.emotion_mode else
+                 "5–15 секунд чистой речи. Образец и текст сохраняются в слоте."))
+        ctk.CTkLabel(body, text=_sub, font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
+                     anchor="w", wraplength=360).pack(fill="x", padx=18, pady=(0, 12))
 
-        ctk.CTkLabel(body, text="Название голоса", font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
+        ctk.CTkLabel(body, text=("Название эмоции" if self.emotion_mode else "Название голоса"),
+                     font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
                      anchor="w").pack(fill="x", padx=18)
         self.entry_name = ctk.CTkEntry(body, height=32, corner_radius=3, font=FONT_NORMAL,
-                                       placeholder_text="Например: Мой голос",
+                                       placeholder_text=("Например: радостный" if self.emotion_mode
+                                                         else "Например: Мой голос"),
                                        fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
                                        text_color=COLOR_TEXT_MAIN)
         self.entry_name.pack(fill="x", padx=18, pady=(4, 10))
@@ -401,7 +595,8 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         sample_card.pack(fill="x", padx=18, pady=(0, 10))
 
         self.lbl_sample = ctk.CTkLabel(sample_card, text="Образец ещё не записан", font=FONT_SMALL,
-                                       text_color=COLOR_TEXT_SEC, anchor="w")
+                                       text_color=COLOR_TEXT_SEC, anchor="w",
+                                       wraplength=360)
         self.lbl_sample.pack(fill="x", padx=14, pady=(10, 6))
 
         row = ctk.CTkFrame(sample_card, fg_color="transparent")
@@ -435,10 +630,10 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                                          fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
                                          text_color=COLOR_TEXT_MAIN)
         self.entry_text.pack(fill="x", padx=18, pady=(4, 14))
-        self.entry_text.insert("1.0", _tr(self.DEFAULT_TEXT))
+        self.entry_text.insert("1.0", self._sample_hint())
 
         btns = ctk.CTkFrame(body, fg_color="transparent")
-        btns.pack(fill="x", padx=18, pady=(0, 16))
+        btns.pack(fill="x", padx=18, pady=(0, 10))
         btns.grid_columnconfigure((0, 1), weight=1)
         ctk.CTkButton(btns, text="Сохранить", command=self.save_voice, height=36, corner_radius=3,
                       font=(FONT_FAMILY, 12, "bold"), fg_color=COLOR_ACCENT,
@@ -447,6 +642,8 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         ctk.CTkButton(btns, text="Отмена", command=self.destroy, height=36, corner_radius=3,
                       font=FONT_NORMAL, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                       text_color=COLOR_TEXT_MAIN).grid(row=0, column=1, sticky="ew", padx=(5, 0))
+
+        self._build_emotion_column(body)   # доп. опция под «Сохранить»: кнопка + выезжающая колонка
 
         tb = self.entry_text._textbox
         tb.configure(selectbackground="#e0ac42", selectforeground="#2b231c",
@@ -459,6 +656,282 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         self._load_slot()
         self.after(120, self._focus_text)
 
+    # ---------- правая колонка эмоций ----------
+
+    def _sample_hint(self):
+        """Фраза-подсказка в поле текста: для эмоции — подобранная под эмоцию."""
+        if self.emotion_mode:
+            return self._pending_text or self._emo_sample_text(self._emo_hint_label,
+                                                               lang=self._sample_lang())
+        return _tr(self.DEFAULT_TEXT)
+
+    _EMO_COL_W = 470        # сколько добавляем справа при раскрытии колонки
+    _EMO_MAX_ROWS = 10      # максимум эмоций на один голос
+    _EMO_MIN_ROWS = 4       # три основные уже вписаны + одна пустая под свою
+    EMO_PRESETS = ("радостный", "строгий", "грустный")
+    # что можно выбрать в раскрывающемся списке: каждое имя подбирает свою фразу-образец
+    EMO_CHOICES = EMOTION_NAMES  # из справочника EMOTION_TAB
+
+    @staticmethod
+    def _emo_btn_text(is_open):
+        return "😊  " + _tr("Эмоции") + ("   ▾" if is_open else "   ▸")
+
+    def _build_emotion_column(self, parent):
+        """Компактная кнопка под «Сохранить» + правая колонка эмоций."""
+        if self.emotion_mode:
+            return
+        self.btn_emos = ctk.CTkButton(
+            parent, text=self._emo_btn_text(False), width=260, height=32, corner_radius=4,
+            font=(FONT_FAMILY, 11, "bold"), fg_color=COLOR_BRAND,
+            hover_color=COLOR_BRAND_HOVER, text_color="#ffffff",
+            command=self._toggle_emotions)
+        self.btn_emos.pack(anchor="center", pady=(14, 20))
+        self._emo_frame = ctk.CTkFrame(self, width=self._EMO_COL_W, fg_color=COLOR_PANEL,
+                                       corner_radius=R_PANEL, border_width=1,
+                                       border_color=COLOR_BORDER)
+        self._emo_frame.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(self._emo_frame, text="😊  " + _tr("Эмоции голоса"),
+                     font=(FONT_FAMILY, 15, "bold"), text_color=COLOR_TEXT_MAIN).grid(
+            row=0, column=0, sticky="w", padx=16, pady=(14, 2))
+        ctk.CTkLabel(self._emo_frame,
+                     text=_tr("Маркер в тексте: (радостный) фраза.\n"
+                              "Без маркера — нейтральный голос. Запиши или синтезируй."),
+                     font=FONT_TINY, text_color=COLOR_TEXT_SEC, justify="left").grid(
+            row=1, column=0, sticky="w", padx=16, pady=(0, 10))
+        # строк может быть до 10 — площадь с прокруткой, чтобы окно оставалось прежней высоты
+        self._emo_rows_box = ctk.CTkScrollableFrame(self._emo_frame, fg_color="transparent",
+                                                    height=524)
+        self._emo_rows_box.grid(row=2, column=0, sticky="nsew", padx=(10, 4), pady=(0, 6))
+        self._emo_rows_box.grid_columnconfigure(0, weight=1)
+        self._emo_frame.grid_rowconfigure(2, weight=1)
+        self._emo_rows = []
+        for i in range(self._EMO_MAX_ROWS):
+            rowf = ctk.CTkFrame(self._emo_rows_box, fg_color=COLOR_CARD, corner_radius=8)
+            rowf.grid(row=i, column=0, sticky="ew", padx=6, pady=(0, 10))
+            self._emo_rows_box.grid_rowconfigure(i, weight=0)
+            ent = _EmoCombo(
+                rowf, values=list(self.EMO_CHOICES), font=FONT_SMALL, height=32,
+                corner_radius=3, border_width=1, border_color=COLOR_BORDER,
+                fg_color="#ffffff", button_color=COLOR_BRAND,
+                button_hover_color=COLOR_BRAND_HOVER, dropdown_fg_color="#ffffff",
+                dropdown_hover_color=COLOR_SELECT, dropdown_text_color=COLOR_TEXT_MAIN,
+                text_color=COLOR_TEXT_MAIN,
+                command=lambda val, i=i: self._combo_pick(i))
+            try:    # подсказка как у остальных полей окна
+                ent._entry.configure(
+                    placeholder_text=_tr("название эмоции (например: радостный)"))
+            except Exception:
+                pass
+            ent.pack(fill="x", padx=10, pady=(10, 4))
+            stat = ctk.CTkLabel(rowf, text="— " + _tr("не задана"), font=FONT_TINY,
+                                text_color=COLOR_TEXT_SEC, anchor="w")
+            stat.pack(fill="x", padx=12)
+            brow = ctk.CTkFrame(rowf, fg_color="transparent")
+            brow.pack(fill="x", padx=10, pady=(4, 10))
+            brow.grid_columnconfigure(1, weight=1)
+            rec = ctk.CTkButton(brow, text="🎙  " + _tr("Записать"), width=104, height=30,
+                                corner_radius=3, font=FONT_SMALL,
+                                fg_color=COLOR_FILL_SOFT, hover_color=COLOR_SELECT,
+                                text_color=COLOR_TEXT_MAIN,
+                                command=lambda i=i: self._emo_record(i))
+            rec.grid(row=0, column=0, padx=(0, 6))
+            syn = ctk.CTkButton(brow, text="✨  " + _tr("Синтезировать"), height=30,
+                                corner_radius=3, font=FONT_SMALL,
+                                fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                                text_color="#ffffff",
+                                command=lambda i=i: self._emo_synth(i))
+            syn.grid(row=0, column=1, sticky="ew")
+            dlt = ctk.CTkButton(brow, text="🗑", width=36, height=30, corner_radius=3,
+                                fg_color="transparent", hover_color=COLOR_SELECT,
+                                border_width=1, border_color=COLOR_BORDER,
+                                text_color=COLOR_TEXT_SEC,
+                                command=lambda i=i: self._emo_delete(i))
+            dlt.grid(row=0, column=2, padx=(6, 0))
+            if i < len(self.EMO_PRESETS):
+                ent.insert(0, self.EMO_PRESETS[i])   # три основные эмоции уже вписаны
+            ent.bind("<KeyRelease>", lambda e: (self._rows_visibility(),
+                                                self._refresh_emotions()))
+            self._emo_rows.append({"frame": rowf, "ent": ent, "stat": stat, "rec": rec,
+                                   "syn": syn, "del": dlt, "label": ""})
+        ctk.CTkLabel(self._emo_frame,
+                     text=_tr("Запись с микрофона в этот же голос.") + "\n"
+                          + _tr("Нейросинтез эмоции из нейтрального образца этого голоса.") + "\n"
+                          + _tr("Максимум 10 эмоций на голос."),
+                     font=FONT_TINY, text_color=COLOR_TEXT_SEC, justify="left").grid(
+            row=3, column=0, sticky="w", padx=16, pady=(0, 6))
+        self._fill_existing_labels()
+        self._rows_visibility()
+        try:    # стрелка раскрывающегося списка подсвечивается при наведении, как в окне
+            if self.app and hasattr(self.app, "_polish_cursors"):
+                self.app._polish_cursors(self)
+        except Exception:
+            pass
+
+    def _fill_existing_labels(self):
+        """Уже записанные эмоции этого голоса — в первые строки, основные — следом за ними."""
+        have = list((self._cur_info().get("samples") or {}).keys())
+        names = have + [p for p in self.EMO_PRESETS if p not in have]
+        for row in self._emo_rows:      # иначе в скрытых строках остаются прошлые имена
+            row["ent"].delete(0, "end")
+            row["label"] = ""
+        for i, nm in enumerate(names[:self._EMO_MAX_ROWS]):
+            row = self._emo_rows[i]
+            row["ent"].delete(0, "end")
+            row["ent"].insert(0, nm)
+            row["label"] = nm
+
+    def _rows_visibility(self):
+        """Строк ровно столько, сколько вписано, плюс одна пустая (минимум — 4)."""
+        if not self._emo_rows:
+            self._emo_need = 0
+            return
+        filled = sum(1 for r in self._emo_rows if (r["ent"].get() or "").strip())
+        self._emo_need = min(self._EMO_MAX_ROWS, max(self._EMO_MIN_ROWS, filled + 1))
+        for i, r in enumerate(self._emo_rows):
+            if i < self._emo_need:
+                r["frame"].grid()
+            else:
+                r["frame"].grid_remove()
+        self._update_combo_values()
+        try:    # подсвечиваем только что появившуюся пустую строку
+            if self._emo_need > 4:
+                self._emo_rows_box._parent_canvas.yview_moveto(1.0)
+        except Exception:
+            pass
+
+    def _visible_rows(self):
+        return self._emo_rows[:getattr(self, "_emo_need", 0)]
+
+    def _combo_pick(self, i):
+        """Выбрали эмоцию из списка: пересобираем списки и проверяем новую строку."""
+        self._rows_visibility()
+        self._refresh_emotions()
+
+    def _update_combo_values(self):
+        """В каждом раскрывающемся списке свои варианты: уже занятые в других строках скрыты."""
+        if not self._emo_rows:
+            return
+        for i, r in enumerate(self._emo_rows):
+            mine = (r["ent"].get() or "").strip()
+            used = set()
+            for j, o in enumerate(self._emo_rows):
+                if j != i:
+                    nm = (o["ent"].get() or "").strip()
+                    if nm:
+                        used.add(nm)
+            vals = [c for c in self.EMO_CHOICES if c not in used]
+            if mine and mine not in vals:
+                vals.insert(0, mine)      # своё значение всегда видно
+            try:
+                r["ent"].configure(values=vals)
+            except Exception:
+                pass
+
+    def _geo_now(self):
+        """(ширина, высота) текущего окна — без позиции."""
+        m = re.fullmatch(r"(\d+)x(\d+)(?:([+-]\d+)([+-]\d+))?", (self.geometry() or "").strip())
+        if m:
+            return int(m.group(1)), int(m.group(2))
+        bw, bh = self._base_geo.split("x")
+        return int(bw), int(bh)
+
+    def _set_width(self, target):
+        """Меняем ширину окна сразу: колонка появляется мгновенно, рекордер не меняется."""
+        try:
+            self.geometry(f"{int(target)}x{self._geo_now()[1]}")
+        except Exception:
+            pass
+
+    def _toggle_emotions(self):
+        """Развернуть/свернуть правую колонку эмоций — окно плавно выезжает вправо."""
+        if self._emo_frame is None:
+            self._build_emotion_column(self._body)
+        base_w = int(self._base_geo.split("x")[0])
+        if self._emo_open:
+            self._emo_open = False
+            self.btn_emos.configure(text=self._emo_btn_text(False))
+            self._emo_frame.grid_forget()
+            self._set_width(base_w)
+        else:
+            self._emo_frame.grid(row=0, column=1, sticky="nsew", padx=(0, 12), pady=12)
+            self._emo_open = True
+            self.btn_emos.configure(text=self._emo_btn_text(True))
+            self._refresh_emotions()
+            self._set_width(min(base_w + self._EMO_COL_W,
+                                int(self.winfo_screenwidth()) - 40))
+
+    def _refresh_emotions(self):
+        if self.app and self._emo_rows and hasattr(self.app, "refresh_emotion_rows"):
+            self.app.refresh_emotion_rows(self._visible_rows(), self.slot_id)
+
+    def _cur_info(self):
+        """Инфо слота в этом окне: ключи custom_voices — строки, slot_id — число."""
+        return (self.existing.get(self.slot_id)
+                or self.existing.get(str(self.slot_id)) or {})
+
+    def _emo_has_neutral(self):
+        info = self._cur_info()
+        return bool(info.get("path")) and os.path.exists(info.get("path") or "")
+
+    def _emo_record(self, idx):
+        """Запись эмоции с микрофона — в тот же слот голоса."""
+        if not self._emo_has_neutral():
+            messagebox.showinfo(_tr("Внимание"),
+                                _tr("Сначала запишите нейтральный образец голоса."),
+                                parent=self)
+            return
+        info = self._cur_info()
+        row = self._emo_rows[idx]
+        pre = (row["ent"].get() or "").strip() or row["label"] or ""
+        VoiceRecorderDialog(self, self._emotion_saved, self.slot_id, pre or None,
+                            self.existing, emotion_mode=True,
+                            voice_label=info.get("name") or "",
+                            initial_text=self._emo_sample_text(pre, lang=self._sample_lang()))
+
+    def _emotion_saved(self, path, text, slot_id, label):
+        """Колонка обновляется после сохранения эмоции."""
+        if self.app:
+            self.existing = self.app.custom_voices
+        row = next((r for r in self._emo_rows if (r["ent"].get() or "").strip() == label), None)
+        if row is None:      # новой эмоции может и не быть в списке строк — берём первую пустую
+            row = next((r for r in self._emo_rows if not (r["ent"].get() or "").strip()), None)
+        if row is not None:
+            row["ent"].delete(0, "end")
+            row["ent"].insert(0, label)
+        self._rows_visibility()
+        self._refresh_emotions()
+
+    def _emo_synth(self, idx):
+        row = self._emo_rows[idx]
+        label = (row["ent"].get() or "").strip()
+        if not label:
+            messagebox.showinfo(_tr("Внимание"),
+                                _tr("Сначала выберите голос и впишите название эмоции."),
+                                parent=self)
+            return
+        if self.app is None:
+            return
+        if not self._emo_has_neutral():
+            messagebox.showinfo(
+                _tr("Внимание"),
+                _tr("Нейтральный образец не записан — не из чего синтезировать эмоцию."),
+                parent=self)
+            return
+        self.app.emotion_synth(self.slot_id, label)
+
+    def _emo_delete(self, idx):
+        row = self._emo_rows[idx]
+        label = (row["ent"].get() or "").strip()
+        if not label or self.app is None:
+            return
+        if not messagebox.askyesno(_tr("Удалить"),
+                                   _tr("Удалить") + f" «{label}»? "
+                                   + _tr("Образец эмоции будет стёрт с диска."), parent=self):
+            return
+        self.app.delete_emotion(self.slot_id, label)
+        self._refresh_emotions()
+
+
     # ---------- слоты и образец ----------
 
     @staticmethod
@@ -469,6 +942,20 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         except Exception:
             return 0.0
 
+    @staticmethod
+    def _short_name(name, keep=46):
+        """Имя файла для подписи: у длинных режем середину, иначе карточка растягивает окно
+        и кнопки «▶» / «Отмена» уезжают за его край."""
+        name = name or ""
+        if len(name) <= keep:
+            return name
+        stem, ext = os.path.splitext(name)
+        if len(ext) > 8:
+            ext = ext[:8]
+        room = max(12, keep - len(ext) - 1)
+        head, tail = (room + 1) // 2, room // 2
+        return f"{stem[:head]}…{stem[-tail:]}{ext}"
+
     def _load_slot(self):
         self._stop_recording()
         self.audio_int16 = None
@@ -476,20 +963,22 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         self._loaded_path = None
 
         info = self.existing.get(self.slot_id) or {}
-        path = info.get("path")
+        path = None if self.emotion_mode else info.get("path")
 
         if path and os.path.exists(path):
             self._loaded_path = path
             self.lbl_sample.configure(
-                text=f"Текущий образец: {os.path.basename(path)} · {self._duration(path):.1f} с",
+                text=f"Текущий образец: {self._short_name(os.path.basename(path))} · {self._duration(path):.1f} с",
                 text_color=COLOR_TEXT_MAIN)
         elif path:
-            self.lbl_sample.configure(text=_tr(f"Файл не найден: {os.path.basename(path)}"), text_color=COLOR_RED)
+            self.lbl_sample.configure(
+                text=_tr(f"Файл не найден: {self._short_name(os.path.basename(path))}"), text_color=COLOR_RED)
         else:
             self.lbl_sample.configure(text=_tr("Образец ещё не записан"), text_color=COLOR_TEXT_SEC)
 
         self.entry_text.delete("1.0", "end")
-        self.entry_text.insert("1.0", info.get("text") or _tr(self.DEFAULT_TEXT))
+        self.entry_text.insert("1.0", self._sample_hint() if self.emotion_mode
+                             else (info.get("text") or _tr(self.DEFAULT_TEXT)))
         self.btn_rec.configure(text=_tr("●  Начать запись"))
         self.lbl_rec_time.configure(text=_tr("Нажмите и говорите 5–15 секунд"))
 
@@ -545,8 +1034,9 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         if path:
             self.selected_path = path
             self.audio_int16 = None
-            self.lbl_sample.configure(text=_tr(f"Файл: {os.path.basename(path)} · {self._duration(path):.1f} с"),
-                                      text_color=COLOR_TEXT_MAIN)
+            self.lbl_sample.configure(
+                text=_tr(f"Файл: {self._short_name(os.path.basename(path))} · {self._duration(path):.1f} с"),
+                text_color=COLOR_TEXT_MAIN)
 
     def play_sample(self):
         path = self.selected_path or self._loaded_path
@@ -615,7 +1105,9 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
 
         name = (self.entry_name.get() or "").strip()
         if not name:
-            messagebox.showwarning("Внимание", "Введите название голоса.", parent=self)
+            messagebox.showwarning("Внимание",
+                                   "Введите название эмоции." if self.emotion_mode
+                                   else "Введите название голоса.", parent=self)
             return
 
         if self.selected_path:
@@ -625,7 +1117,9 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
             if secs < 2:
                 messagebox.showwarning("Внимание", "Запись слишком короткая — нужно 5–15 секунд речи.", parent=self)
                 return
-            final_path = os.path.join(BASE_DIR, f"my_voice_{self.slot_id}.wav")
+            fn = (self._emotion_filename(self.slot_id, name) if self.emotion_mode
+                  else f"my_voice_{self.slot_id}.wav")
+            final_path = os.path.join(BASE_DIR, fn)
             with wave.open(final_path, "wb") as f:
                 f.setnchannels(1)
                 f.setsampwidth(2)
@@ -837,7 +1331,7 @@ class PresetDialog(ctk.CTkToplevel):
 # модели остаются без изменений.
 UI_LANG = "ru"
 
-_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку на статью или видео, текст или файл — либо наберите текст в поле справа.', 'Paste an article or video link, text or file — or type in the field on the right.'), ('Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n', 'Paste an article or video link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку на статью или видео, текст или файл.', '✅ Ready. Paste an article or video link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, epub, fb2, rtf, html, txt, md)', 'Choose a file (pdf, docx, epub, fb2, rtf, html, txt, md)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку на статью или видео, текст или файл.', 'Text is required: paste an article or video link, text or file.'), ('Хорошо', 'OK'), ('Голос Алсу установлен', 'Alsu voice installed'), ('Встроенный голос добавлен', 'Built-in voice added'), ('Озвучка сохранена', 'Spoken audio saved'), ('Нет озвучки для сохранения — сначала нажмите «Озвучить».', 'Nothing to save yet — press “Speak” first.'), ('Сохранить озвучку', 'Save spoken audio'), ('⏳ Синтез речи…', '⏳ Synthesizing speech…'),
+_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку на статью или видео, текст или файл — либо наберите текст в поле справа.', 'Paste an article or video link, text or file — or type in the field on the right.'), ('Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n', 'Paste an article or video link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('Добавить эмоции', 'Add emotions'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку на статью или видео, текст или файл.', '✅ Ready. Paste an article or video link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, epub, fb2, rtf, html, txt, md)', 'Choose a file (pdf, docx, epub, fb2, rtf, html, txt, md)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку на статью или видео, текст или файл.', 'Text is required: paste an article or video link, text or file.'), ('Хорошо', 'OK'), ('Голос Алсу установлен', 'Alsu voice installed'), ('Встроенный голос добавлен', 'Built-in voice added'), ('Озвучка сохранена', 'Spoken audio saved'), ('Нет озвучки для сохранения — сначала нажмите «Озвучить».', 'Nothing to save yet — press “Speak” first.'), ('Сохранить озвучку', 'Save spoken audio'), ('⏳ Синтез речи…', '⏳ Synthesizing speech…'),
 ('Ссылка на статью или видео (YouTube, Rutube, VK)', 'Article or video link (YouTube, Rutube, VK)'),
 ('⏳ Загрузка субтитров видео…', '⏳ Loading video subtitles…'),
 ('Видео', 'Video'),
@@ -1023,6 +1517,44 @@ _PAIRS += [
 
 _PAIRS += [
     ("🎙 Образец голоса", "🎙 Voice sample"),
+    # ---- эмоции образцов голоса ----
+    ("Эмоция голоса", "Voice emotion"),
+    ("Название эмоции", "Emotion name"),
+    ("Например: радостный", "e.g. cheerful"),
+    ("5–15 секунд чистой речи. Образец добавится к голосу.", "5–15 seconds of clean speech. The sample is added to the voice."),
+    ("Введите название эмоции.", "Enter the emotion name."),
+    ("Сначала выберите голос, к которому добавить эмоцию.", "Select a voice first to add an emotion to."),
+    ("Сначала запишите нейтральный образец голоса.", "Record the neutral voice sample first."),
+    # ---- колонка эмоций в окне «Образец голоса» ----
+    ("Эмоции синтезирует движок Vox — переключитесь на него.", "Emotions are synthesized by the Vox engine — switch to it."),
+    ("Не знаю такую эмоцию. Напиши: радостный, грустный, злой…", "Unknown emotion. Try: joyful, sad, angry…"),
+    ("Эмоция не синтезирована", "Emotion not synthesized"),
+    ("Сначала выберите голос и впишите название эмоции.", "Choose the voice first and type an emotion name."),
+    ("Нейтральный образец не записан — не из чего синтезировать эмоцию.", "No neutral sample recorded — nothing to synthesize an emotion from."),
+    ("Запись с микрофона в этот же голос.", "Microphone recording into the same voice."),
+    ("Нейросинтез эмоции из нейтрального образца этого голоса.", "Neural synthesis of the emotion from this voice's neutral sample."),
+    ("Максимум 10 эмоций на голос.", "Up to 10 emotions per voice."),
+    ("не записана", "not recorded"),
+    ("удалена", "deleted"),
+    ("Маркер в тексте: (радостный) фраза.\nБез маркера — нейтральный голос. Запиши или синтезируй.", "Marker in text: (joyful) phrase.\nWithout a marker — neutral voice. Record or synthesize."),
+    ("Эмоции голоса", "Voice emotions"),
+    ("Эмоции", "Emotions"),
+    ("Записать эмоцию нейросинтезом из нейтрального образца.",
+     "Synthesize an emotion sample from the neutral sample."),
+    ("Синтезировать", "Synthesize"),
+    ("Записать", "Record"),
+    ("название эмоции (например: радостный)", "emotion name (e.g. cheerful)"),
+    ("не задана", "not set"),
+    ("записана", "recorded"),
+    ("синтезирована", "synthesized"),
+    ("Синтез идёт — подожди.", "Synthesis is running — wait."),
+    ("Синтез эмоции доступен для движка Vox.", "Emotion synthesis works with the Vox engine."),
+    ("Название эмоции не в словаре. Опиши эмоцию по-английски для нейросети\n(например: very cheerful tone):",
+     "The emotion name is unknown. Describe the emotion in English for the model\n(e.g. very cheerful tone):"),
+    ("Описание эмоции", "Emotion description"),
+    ("Удалить эмоцию", "Delete the emotion"),
+    ("Синтез эмоции...", "Synthesizing emotion..."),
+    ("VoxCPM2 недоступна", "VoxCPM2 is unavailable"),
     # ---- диалог загрузки модели Gemma ----
     ("Модель ИИ", "AI model"),
     ("Нужна модель для анализа текста", "A model is needed for text analysis"),
@@ -1565,6 +2097,9 @@ class ModernTTSApp(ctk.CTk):
         self._last_preset = "Кратко (50%)"
         self.box_is_source = False
         self.auto_play_var = ctk.BooleanVar(value=False)
+        self.emo_auto_var = ctk.BooleanVar(value=False)   # «Добавить эмоции» (работает на Vox)
+        self._emo_pref = False       # что выбрал пользователь, когда движок Vox
+        self._emo_markers_on = False
         self.llm_gpu_var = ctk.BooleanVar(value=False)
         self._gpu_server = None
         self._gpu_server_port = None
@@ -2557,7 +3092,7 @@ class ModernTTSApp(ctk.CTk):
                 elif cls == "CTkSegmentedButton":
                     for seg_btn in child._buttons_dict.values():  # внутренние кнопки
                         seg_btn.configure(cursor="hand2")
-                elif cls == "CTkComboBox":
+                elif isinstance(child, ctk.CTkComboBox):
                     child._canvas.configure(cursor="hand2")
                     child._entry.configure(cursor="xterm")
                     self._attach_combo_hover(child)
@@ -2566,7 +3101,7 @@ class ModernTTSApp(ctk.CTk):
             self._polish_cursors(child)
 
     def _show_custom_voice(self, show):
-        """Большая кнопка «Образец голоса» — показать/скрыть."""
+        """Большая кнопка «Образец голоса». Эмоции — внутри окна образца."""
         try:
             if show:
                 self.btn_add_voice.pack(fill="x", padx=12, pady=(0, 10), before=self.rate_row)
@@ -2770,7 +3305,16 @@ class ModernTTSApp(ctk.CTk):
                                           progress_color=COLOR_BRAND, fg_color=COLOR_SWITCH_OFF,
                                           button_color="#fffdf6", button_hover_color="#fffdf6",
                                           command=self.save_settings)
-        self.auto_play_cb.pack(fill="x", padx=12, pady=(0, 9))
+        self.auto_play_cb.pack(fill="x", padx=12, pady=(0, 0))
+
+        # Разметка эмоциями нужна только движку Vox (образцы эмоций живут в его голосе),
+        # поэтому на Piper переключатель гаснет — см. _sync_emo_auto().
+        self.emo_auto_cb = ctk.CTkSwitch(src, text="Добавить эмоции", variable=self.emo_auto_var,
+                                         font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
+                                         progress_color="#F2C94C", fg_color=COLOR_SWITCH_OFF,
+                                         button_color="#fffdf6", button_hover_color="#fffdf6",
+                                         command=self._on_emo_auto_toggle)
+        self.emo_auto_cb.pack(fill="x", padx=12, pady=(0, 9))
 
         # ----- Модель ИИ -----
         ai = make_card("МОДЕЛЬ ИИ")
@@ -4021,14 +4565,74 @@ class ModernTTSApp(ctk.CTk):
         self.custom_voices[vid] = info
         return vid, info
 
-    def get_ref(self, speaker):
+    # --- эмоции образцов: маркер (эмоция) переключает образец голоса на ОДНО предложение ---
+
+    @staticmethod
+    def _emo_stem(word):
+        """Основа названия эмоции — то же правило, что у справочника EMOTION_TAB."""
+        return _emo_key(word)
+
+    def _emotion_samples(self, speaker):
+        """{основа: (название, путь, текст)} — образцы эмоций выбранного голоса."""
+        out = {}
+        _, info = self._find_voice(speaker)
+        if isinstance(info, dict):
+            for label, smp in (info.get("samples") or {}).items():
+                path = (smp or {}).get("path") if isinstance(smp, dict) else ""
+                if path and os.path.exists(path):
+                    out[self._emo_stem(label)] = (
+                        label, path, smp.get("text") or info.get("text") or self.REF_TEXT)
+        return out
+
+    def _split_emotion_segments(self, text, speaker):
+        """[(эмоция|None, кусок текста)] — маркер (эмоция) окрашивает ТОЛЬКО своё
+        предложение; со следующего предложения снова нейтральный голос."""
+        emos = self._emotion_samples(speaker)
+        if not emos:
+            return [(None, text)]
+        parts, pos, cur = [], 0, None
+        for m in re.finditer(r"\(([^()]{1,40})\)", text):
+            word = (re.split(r"[\s,;:]+", m.group(1).strip()) or [""])[0]
+            hit = emos.get(self._emo_stem(word)) if word else None
+            if not hit:
+                continue                     # не наша эмоция — скобки остаются в тексте
+            frag = text[pos:m.start()]
+            if frag.strip():
+                parts.append((cur, frag))
+            cur, pos = hit[0], m.end()
+        rest = text[pos:]
+        if rest.strip():
+            parts.append((cur, rest))
+        if not parts:
+            return [(None, text)]
+        # эмоция живёт только до конца предложения
+        out = []
+        for emo, frag in parts:
+            if not emo:
+                out.append((None, frag))
+                continue
+            sentences = [s for s in re.split(r"(?<=[.!?…])[ \t]+", frag) if s.strip()]
+            if sentences:
+                out.append((emo, sentences[0]))
+                out.extend((None, s) for s in sentences[1:])
+        return out or [(None, text)]
+
+    def get_ref(self, speaker, emotion=None):
         vid, info = self._find_voice(speaker)
         if info is None:
             raise Exception(f"Голос «{speaker}» не найден. Нажмите «🎙 Образец голоса».")
+        text = info.get("text") or self.REF_TEXT
+        if emotion:
+            smp = (info.get("samples") or {}).get(emotion) or {}
+            if isinstance(smp, dict) and smp.get("path") and os.path.exists(smp.get("path") or ""):
+                return smp["path"], smp.get("text") or text
         path = info.get("path") or ""
-        if not path or not os.path.exists(path):
-            raise Exception(f"Слот «{speaker}» пуст — запишите образец голоса.")
-        return path, info.get("text") or self.REF_TEXT
+        if path and os.path.exists(path):
+            return path, text
+        for smp in (info.get("samples") or {}).values():   # нейтрального нет — любой образец
+            if isinstance(smp, dict) and smp.get("path") and os.path.exists(smp.get("path") or ""):
+                return smp["path"], smp.get("text") or self.REF_TEXT
+        raise Exception(f"Слот «{speaker}» пуст — запишите образец голоса.")
 
     # ================= VOXCPM2 (GPU) =================
 
@@ -4733,6 +5337,8 @@ class ModernTTSApp(ctk.CTk):
                 "custom_presets": self.custom_presets,
                 "instruction": self.instruction_entry.get("1.0", "end-1c").strip(),
                 "auto_play": bool(self.auto_play_var.get()),
+                "emo_auto": bool(self.emo_auto_var.get() if self.current_engine == "Vox"
+                                  else self._emo_pref),
                 "custom_voices": self.custom_voices,
                 "ctx_choices": self.ctx_choices,
                 "speech_rate": self.speech_rate,
@@ -4824,6 +5430,8 @@ class ModernTTSApp(ctk.CTk):
             self.ctx_choices = cc
 
         self.auto_play_var.set(bool(data.get("auto_play", False)))
+        self._emo_pref = bool(data.get("emo_auto", False))
+        self.emo_auto_var.set(self._emo_pref and self.current_engine == "Vox")
         self.model_offer_muted = bool(data.get("model_offer_muted", False))
         self.voices_seeded = bool(data.get("voices_seeded", False))
         self.vox_offer_done = bool(data.get("vox_offer_done", False))
@@ -4949,6 +5557,61 @@ class ModernTTSApp(ctk.CTk):
             self.current_tts_name = default or None
             if default:
                 self.load_tts_on_select()
+        self._sync_emo_auto()
+
+    def _sync_emo_auto(self):
+        """«Добавить эмоции» имеет смысл только на Vox: на Piper переключатель гаснет."""
+        cb = getattr(self, "emo_auto_cb", None)
+        if cb is None:
+            return
+        if self.current_engine == "Vox":
+            cb.configure(state="normal")
+            self.emo_auto_var.set(bool(self._emo_pref))
+        else:
+            self._emo_pref = bool(self.emo_auto_var.get())
+            cb.configure(state="disabled")
+            self.emo_auto_var.set(False)
+
+    def _on_emo_auto_toggle(self):
+        """Включили «Добавить эмоции»: предупреждаем, если у голоса нет записанных эмоций."""
+        self._emo_pref = bool(self.emo_auto_var.get())
+        self.save_settings()
+        if not self.emo_auto_var.get():
+            return
+        names = self._auto_emotion_names(self.tts_combo.get())
+        if names:
+            self.update_status("🎭 Разметю текст эмоциями: " + ", ".join(names))
+        else:
+            messagebox.showinfo(
+                _tr("Добавить эмоции"),
+                _tr("У голоса «{v}» пока нет записанных эмоций.\n\n"
+                    "Нажми «🎙 Образец голоса» → «😊 Эмоции» и синтезируй их кнопкой ✨: "
+                    "только записанные эмоции нейросеть и сможет ставить в скобках."
+                    ).format(v=self.tts_combo.get()))
+
+    def _auto_emotion_names(self, speaker):
+        """Эмоции, которые реально сработают для этого голоса (образец записан)."""
+        if self.current_engine != "Vox":
+            return []
+        names = []
+        for label, _path, _text in self._emotion_samples(speaker).values():
+            if label not in names:
+                names.append(label)
+        return names
+
+    _MARKER_LIKE = re.compile(r"\(\s*([A-Яа-яЁёA-Za-z][A-Яа-яЁёA-Za-z\s,;:-]{0,39})\s*\)")
+
+    def _strip_unknown_markers(self, text, speaker):
+        """Маркер эмоции, которой нет у голоса, вырезаем: иначе синтез прочитает
+        «(радостный)» словами вместо интонации."""
+        emos = self._emotion_samples(speaker)
+
+        def fix(m):
+            word = (re.split(r"[\s,;:]+", m.group(1).strip()) or [""])[0]
+            return m.group(0) if word and emos.get(self._emo_stem(word)) else ""
+
+        out = self._MARKER_LIKE.sub(fix, text or "")
+        return re.sub(r"[ \t]{2,}", " ", out).strip()
 
     def _actual_llm(self):
         return self.llm_display.get(self.llm_combo.get(), self.llm_combo.get())
@@ -5309,7 +5972,9 @@ class ModernTTSApp(ctk.CTk):
                 self.add_custom_voice(initial_slot=value)  # пустой слот — сразу на запись
                 return
             self.current_tts_name = value
-            self.update_status(f"✅ Голос «{value}» активен")
+            emos = [lbl for lbl, _p, _t in self._emotion_samples(value).values()]
+            hint = f" · эмоции: {', '.join(emos)}" if emos else ""
+            self.update_status(f"✅ Голос «{value}» активен{hint}")
         self.save_settings()
 
     def add_custom_voice(self, initial_slot=None):
@@ -5322,7 +5987,8 @@ class ModernTTSApp(ctk.CTk):
             vid = self._next_voice_id()
             info = {"name": f"Свой {vid}", "path": "", "text": ""}
             self.custom_voices[vid] = info
-        VoiceRecorderDialog(self, self._apply_custom_voice, vid, info.get("name"), self.custom_voices)
+        self.voice_dialog = VoiceRecorderDialog(self, self._apply_custom_voice, vid,
+                                                info.get("name"), self.custom_voices)
 
     def _apply_custom_voice(self, path, text, slot_id, name):
         slot_id = str(slot_id)
@@ -5337,7 +6003,11 @@ class ModernTTSApp(ctk.CTk):
         _sample = VoiceRecorderDialog.DEFAULT_TEXT
         if text.strip() in (_tr(_sample), _sample):
             text = _sample
-        self.custom_voices[slot_id] = {"name": name, "path": path, "text": text}
+        prev = self.custom_voices.get(slot_id)
+        info = {"name": name, "path": path, "text": text}
+        if isinstance(prev, dict) and prev.get("samples"):
+            info["samples"] = prev["samples"]   # эмоции живут в том же слоте — не теряем
+        self.custom_voices[slot_id] = info
         self._ensure_empty_slot()  # после записи появляется следующий пустой слот
         if self.current_engine == "Vox":
             self.tts_combo.configure(values=self.voice_values())
@@ -5345,6 +6015,187 @@ class ModernTTSApp(ctk.CTk):
             self.current_tts_name = name
         self.update_status(f"✅ Голос «{name}» сохранён")
         self.save_settings()
+
+    def _apply_emotion_voice(self, path, text, slot_id, label):
+        """Сохранить образец эмоции внутри существующего голоса."""
+        slot_id = str(slot_id)
+        info = self.custom_voices.get(slot_id)
+        if not isinstance(info, dict):
+            return
+        label = (label or "").strip()
+        if not label:
+            return
+        samples = info.get("samples")
+        if not isinstance(samples, dict):
+            samples = info["samples"] = {}
+        stem = self._emo_stem(label)
+        for old in [k for k in samples if self._emo_stem(k) == stem and k != label]:
+            samples.pop(old, None)          # «радостно» и «радостный» — одна эмоция, перезапись
+        _sample = VoiceRecorderDialog.DEFAULT_TEXT
+        if text.strip() in (_tr(_sample), _sample):
+            text = _sample
+        samples[label] = {"path": path, "text": text}
+        self.update_status(f"✅ Эмоция «{label}» добавлена к голосу «{info.get('name')}»")
+        self.save_settings()
+
+    # ---------------- панель эмоций (правая колонка, Vox) ----------------
+
+    # русское название эмоции (по 5 первым буквам, как _emo_stem) ->
+    # инструкция для VoxCPM2 на английском (контролируемое клонирование:
+    # тембр из нейтрального образца, интонация — из описания в скобках)
+    EMOTION_INSTR = {_emo_key(n): i for n, (i, _) in EMOTION_TAB.items()}
+
+    # ---------------- эмоции голоса (API для колонки в окне «Образец голоса») ----------------
+
+    _emo_busy = False
+    voice_dialog = None     # открытое окно «Образец голоса» — обновляем колонку после синтеза
+
+    def _refresh_voice_dialog(self):
+        d = self.voice_dialog
+        try:
+            if d is not None and d.winfo_exists():
+                d._refresh_emotions()
+        except Exception:
+            pass
+
+    def _emo_neutral(self, slot_id):
+        """Нейтральный образец слота (путь, текст) — база для синтеза эмоции."""
+        info = self.custom_voices.get(str(slot_id)) or {}
+        path = info.get("path") or ""
+        if not path or not os.path.exists(path):
+            return None
+        return path, (info.get("text") or VoiceRecorderDialog.DEFAULT_TEXT)
+
+    def refresh_emotion_rows(self, rows, slot_id):
+        """Окно образца спрашивает, что уже есть в слоте по эмоциям."""
+        info = self.custom_voices.get(str(slot_id)) or {}
+        samples = info.get("samples") or {}
+        for row in rows:
+            label = (row["ent"].get() or "").strip()
+            row["label"] = label
+            if not label:
+                row["stat"].configure(text="— " + _tr("не задана"))
+                for b in (row["rec"], row["syn"], row["del"]):
+                    b.configure(state="disabled")
+                continue
+            smp = samples.get(label)
+            if smp and os.path.exists(smp.get("path") or ""):
+                row["stat"].configure(text="✅ " + _tr("записана"))
+                for b in (row["rec"], row["syn"], row["del"]):
+                    b.configure(state="normal")
+            else:
+                row["stat"].configure(text="— " + _tr("не записана"))
+                row["rec"].configure(state="normal")
+                row["syn"].configure(state="normal")
+                row["del"].configure(state="disabled")
+
+    def emotion_synth(self, slot_id, label):
+        """Синтез эмоционального образца нейросетью из нейтрального образца этого голоса."""
+        if self._emo_busy:
+            self.update_status(_tr("Синтез идёт — подожди."))
+            return
+        if self.current_engine != "Vox":
+            self.update_status("❌ " + _tr("Эмоции синтезирует движок Vox — переключитесь на него."))
+            return
+        base = self._emo_neutral(slot_id)
+        if base is None:
+            self.update_status("❌ " + _tr("Сначала запишите нейтральный образец голоса."))
+            return
+        label = (label or "").strip()
+        instr = self.EMOTION_INSTR.get(self._emo_stem(label))
+        if not instr:
+            self.update_status("❌ " + _tr("Не знаю такую эмоцию. Напиши: радостный, грустный, злой…"))
+            return
+        ref_wav, ref_text = base
+        _lang = "en" if VoiceRecorderDialog._is_english(ref_text) else "ru"
+        phrase = VoiceRecorderDialog._emo_sample_text(label, lang=_lang)
+        if phrase in (VoiceRecorderDialog._EMO_FALLBACK_RU, VoiceRecorderDialog._EMO_FALLBACK_EN):
+            phrase = ref_text      # эмоция вне справочника — берём текст самого образца
+        self._emo_busy = True
+        self.update_status(f"⏳ {_tr('Синтез эмоции')} «{label}»...")
+
+        def work():
+            try:
+                if not self.load_vox(show_errors=True):
+                    raise Exception(_tr("VoxCPM2 недоступна"))
+                m = self.vox_model
+                text = f"({instr}){phrase}"
+                out, last = None, None
+                for kw in ({"cfg_value": 2.0, "inference_timesteps": 10},
+                           {"cfg_value": 2.0}, {}):
+                    try:
+                        out = m.generate(text=text, reference_wav_path=ref_wav, **kw)
+                        break
+                    except TypeError as e:
+                        last = e
+                    except Exception as e:
+                        last = e
+                        break
+                if out is None:
+                    raise Exception(f"VoxCPM2: {last}")
+                arr, sr = self._vox_to_int16(out)
+                if len(arr):
+                    f32 = arr.astype(np.float32) / 32768.0
+                    peak = float(np.max(np.abs(f32)))
+                    if peak > 0.95:
+                        f32 *= 0.95 / peak
+                    arr = (np.clip(f32, -1.0, 1.0) * 32767).astype(np.int16)
+                # как просит Ярослав: та же автоподтяжка скорости, что и во всей озвучке FAIR
+                if len(arr):
+                    print(f"🎚 Эмоция «{label}»: {(len(arr) / sr):.2f} с → ускоряем "
+                          f"×{VOX_BASE_SPEED:g}, как обычный синтез текста")
+                    arr = self._stretch_int16(arr, VOX_BASE_SPEED)
+                fp = os.path.join(BASE_DIR,
+                                  VoiceRecorderDialog._emotion_filename(slot_id, label))
+                with wave.open(fp, "wb") as w:
+                    w.setnchannels(1)
+                    w.setsampwidth(2)
+                    w.setframerate(sr)
+                    w.writeframes(arr.tobytes())
+                secs = len(arr) / max(sr, 1)
+                self.after(0, lambda: self._emotion_synth_ok(slot_id, label, fp, phrase, secs))
+            except Exception as e:
+                self.after(0, lambda e=e: self._emotion_synth_fail(e))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _emotion_synth_ok(self, slot_id, label, fp, phrase, secs):
+        self._emo_busy = False
+        info = self.custom_voices.get(str(slot_id))
+        if isinstance(info, dict):
+            samples = info.setdefault("samples", {})
+            stem = self._emo_stem(label)
+            for old in [k for k in samples
+                        if self._emo_stem(k) == stem and k != label]:
+                samples.pop(old, None)
+            samples[label] = {"path": fp, "text": phrase, "synth": True}
+            self.save_settings()
+        self._refresh_voice_dialog()
+        self.update_status(f"✨ «{label}» — {_tr('синтезирована')} ({secs:.1f} с)")
+
+    def _emotion_synth_fail(self, err):
+        self._emo_busy = False
+        self.update_status(f"❌ {_tr('Эмоция не синтезирована')}: {str(err)[:160]}")
+        self._refresh_voice_dialog()
+
+    def delete_emotion(self, slot_id, label):
+        """Убрать эмоцию из слота (файл синтезированной эмоции тоже удаляем)."""
+        info = self.custom_voices.get(str(slot_id))
+        if not isinstance(info, dict):
+            return
+        smp = (info.get("samples") or {}).get(label)
+        if not isinstance(smp, dict):
+            return
+        info["samples"].pop(label, None)
+        try:
+            p = (smp.get("path") or "").replace("\\", "/")
+            if os.path.exists(p):
+                os.remove(p)
+        except Exception:
+            pass
+        self.save_settings()
+        self.update_status(f"🗑 {_tr('Эмоция')} «{label}» — {_tr('удалена')}")
+        self._refresh_voice_dialog()
 
     def on_llm_change(self, value):
         self.unload_llm()  # освобождаем память под новую модель
@@ -5932,7 +6783,9 @@ class ModernTTSApp(ctk.CTk):
                 "Отвечай ТОЛЬКО готовым текстом, без вступлений и пояснений. "
                 + language_rule +
                 "Все цифры, даты и проценты пиши словами; пиши связной речью, "
-                "без списков, маркеров, ссылок и скобок. "
+                "без списков, маркеров, ссылок" + (
+                    ", кроме скобок с названием эмоции" if getattr(self, "_emo_markers_on", False)
+                    else " и скобок") + ". "
                 "Используй только факты из исходного текста — ничего не додумывай и не добавляй. "
                 "Если задан диапазон объёма — соблюдай его строго: не больше верхней "
                 "границы и не меньше нижней.")
@@ -6261,11 +7114,25 @@ class ModernTTSApp(ctk.CTk):
                                f"цифры и имена.")
                 print(f"📏 Целевой объём: {floor}–{target} знаков ({int(ratio * 100)}% от {len(text)})")
 
+            # «Добавить эмоции»: модель сама ставит (эмоцию) перед фразами. Список берём
+            # из записанных образцов голоса — иная скобка ни на что не повлияла бы.
+            self._emo_markers_on = bool(self.emo_auto_var.get())
+            emo_names = self._auto_emotion_names(self.tts_combo.get()) if self._emo_markers_on else []
+            if self._emo_markers_on and emo_names:
+                instruction = instruction + "\n\n" + emotion_marker_rule(emo_names)
+                print(f"🎭 Авто-эмоции: доступно {len(emo_names)}: {', '.join(emo_names)}")
+            else:
+                self._emo_markers_on = False
+
             summary = self.summarize_text(text, instruction, server_url=gpu_url,
                                           expected_chars=target or len(text))
 
             if target:
                 summary = self._fit_to_limit(summary, target, server_url=gpu_url)
+
+            if self._emo_markers_on:
+                summary = self._strip_unknown_markers(summary, self.tts_combo.get())
+                self._emo_markers_on = False
 
             stats = getattr(self, '_gen_stats', {}) or {}
 
@@ -6600,13 +7467,21 @@ class ModernTTSApp(ctk.CTk):
                 text = text.strip()
                 if text and text[-1] not in ".!?…:;»\"')":
                     text += "."
-                # 200 знаков — компромисс: тембр держится, пауз между фразами немного
-                chunks = self.split_text_chunks(text, limit=200)
-                print(f"📚 Чанков для озвучки: {len(chunks)}")
+                # маркер (эмоция) переключает образец голоса на одно предложение;
+                # по умолчанию (без маркера) — нейтральный образец слота
+                ref_by_emo = {None: (ref_wav, ref_text)}
+                chunks = []
+                for emo, frag in self._split_emotion_segments(text, speaker):
+                    if emo and emo not in ref_by_emo:
+                        ref_by_emo[emo] = self.get_ref(speaker, emo)
+                    # 200 знаков — компромисс: тембр держится, пауз между фразами немного
+                    chunks += [(emo, c) for c in self.split_text_chunks(frag, limit=200)]
+                print(f"📚 Чанков для озвучки: {len(chunks)}"
+                      + (f" · эмоции: {', '.join(e for e in ref_by_emo if e)}" if len(ref_by_emo) > 1 else ""))
                 segs = []
                 sr_out = None
                 skipped = 0
-                for i, ch in enumerate(chunks):
+                for i, (emo, ch) in enumerate(chunks):
                     if self.cancel_event.is_set():
                         raise Cancelled()
                     self._safe_ui(lambda p=i, n=len(chunks): self.set_progress(
@@ -6617,7 +7492,8 @@ class ModernTTSApp(ctk.CTk):
                         continue
                     if ch_clean[-1] not in ".!?…:;":
                         ch_clean += "."
-                    arr, sr = self._vox_synth_chunk(ch_clean, ref_wav, ref_text,
+                    chunk_ref_wav, chunk_ref_text = ref_by_emo[emo]
+                    arr, sr = self._vox_synth_chunk(ch_clean, chunk_ref_wav, chunk_ref_text,
                                                     fast=fast, actual_rate=actual_rate)
                     # всё равно пусто — фиксируем пропуск в логе, а не молча
                     if len(arr) < int(sr * 0.1):

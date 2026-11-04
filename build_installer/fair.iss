@@ -5,7 +5,7 @@
 
 #define AppName "Free AI Reader"
 #define AppShortName "FAIR"
-#define AppVersion "1.3"
+#define AppVersion "1.4"
 #define AppPublisher "Yaroslav Khmelev"
 #define AppExe "FAIR.exe"
 
