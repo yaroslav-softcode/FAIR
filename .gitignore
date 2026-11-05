@@ -55,3 +55,10 @@ build2.log
 iscc.log
 *.bak
 vox/
+
+# 1.5: модели Qwen, черновики и логи
+models_qwen/
+*.bak_*
+_*.log
+_*.txt
+NUL

@@ -4,8 +4,9 @@ Offline AI reader for Windows. Paste an article or video link (YouTube / Rutube 
 VK) or any text — a local AI model condenses it to the length you choose, and the
 app reads the result aloud.
 Everything runs on your machine: analysis via llama.cpp (GGUF), speech via
-**Piper (fast)** or **VOX (high quality) — VOX can also clone your own voice**
-from a 5–15 s microphone sample. No cloud, no subscription.
+**Piper (fast)**, **VOX (high quality) — VOX can also clone your own voice**
+from a 5–15 s microphone sample, or **Qwen3-TTS** (cloning, ready expressive
+voices, voice design from a text description). No cloud, no subscription.
 
 License: GPL-3.0 · UI: English / Russian
 
@@ -37,7 +38,13 @@ License: GPL-3.0 · UI: English / Russian
   those markers itself and uses only the emotions the voice really has. Emotion
   lines follow the language of the voice sample (an English voice gets English
   emotion lines).
+- **Qwen3-TTS engine** (optional, GPU): clone your voice from a mic sample,
+  9 built-in expressive voices, or design a brand-new voice from a text
+  description (“young woman, gentle whisper”). Needs ~4 GB VRAM for the 0.6B
+  model or 6–8 GB for 1.7B — the app asks which size to install and downloads
+  the models itself.
 - **Analysis model**: any GGUF; Gemma 4 E4B Q4_K_M (≈5 GB) is offered by default.
+  The app shows how much VRAM/RAM each context length will really need.
 - **Integration**: local API + MCP bridge (`fair_status`, `fair_speak`) so AI
   assistants can start narration from the command line — no Python required.
 - Copy the result, Stop at any moment, a calm paper-and-gold “old book” colour scheme.
@@ -87,9 +94,11 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
   («переведи на английский», «на немецкий»), и модель вернёт только перевод,
   без исходного текста. Если язык в промте не назван, результат остаётся
   на языке исходного текста.
-- **Озвучка**: Piper (быстрая, на процессоре) или VOX (качественная; возможна
+- **Озвучка**: Piper (быстрая, на процессоре), VOX (качественная; возможна
   озвучка твоим голосом — VOX клонирует его по образцу 5–15 секунд с микрофона;
-  в комплекте уже есть готовые голоса **Алсу** (русский) и **Джон**). Скорость речи, пауза между
+  в комплекте уже есть готовые голоса **Алсу** (русский) и **Джон**) или
+  **Qwen3-TTS** (клонирование, готовые выразительные голоса, дизайн голоса по
+  описанию). Скорость речи, пауза между
   фрагментами, автоплей после анализа. Кнопка ⏯ ставит воспроизведение на паузу
   посреди фразы и продолжает с того же места; после конца — играет сначала.
   Готовую озвучку можно **сохранить в аудиофайл**.
@@ -99,7 +108,14 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
   фразы; с тумблером «Добавить эмоции» нейросеть расставляет такие маркеры сама
   и берёт только те эмоции, что у голоса реально записаны. Язык эмоциональных
   фраз повторяет язык образца голоса (английский голос — английские фразы).
+- **Движок Qwen3-TTS** (опционально, видеокарта): клон голоса по образцу с
+  микрофона, 9 готовых выразительных голосов, а также дизайн нового голоса по
+  текстовому описанию («молодая девушка, ласковый шёпот»). Нужно ~4 ГБ
+  видеопамяти для модели 0.6B или 6–8 ГБ для 1.7B — приложение само спрашивает,
+  какой размер ставить, и само скачивает модели.
 - **Модель анализа**: любая GGUF; по умолчанию предлагается Gemma 4 E4B Q4_K_M (≈5 ГБ).
+  Приложение честно показывает, сколько видеопамяти и ОЗУ займёт выбранный
+  контекст.
 - **Интеграция**: локальный API + MCP-мост (`fair_status`, `fair_speak`) —
   ИИ-ассистенты могут запускать озвучку из командной строки, Python на машине
   не нужен.

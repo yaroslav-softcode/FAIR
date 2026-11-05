@@ -41,6 +41,8 @@ _LLAMA_LIB = os.path.join(SRC, ".venv", "Lib", "site-packages", "llama_cpp", "li
 binaries = [(p, "llama_cpp/lib") for p in glob.glob(os.path.join(_LLAMA_LIB, "*.dll"))]
 
 hiddenimports = ["llama_cpp", "piper", "onnxruntime", "sounddevice", "pyperclip", "psutil",
+                 # шкалы видеопамяти в шапке (пакет nvidia-ml-py, импорт pynvml)
+                 "pynvml",
                  # MCP-API для Гермеса (вшивается в сборку, поднимается из окна приложения)
                  "fair_api",
                  # стандартная библиотека, до которой тяжёлые пакеты дополнения Vox
@@ -58,6 +60,8 @@ excludes = [
     "piper.train", "bitsandbytes", "lightning", "pytorch_lightning", "torchmetrics",
     "torch", "torchaudio", "torchvision", "transformers", "torchcodec", "ema_pytorch",
     "voxcpm", "f5_tts", "pyarrow", "botocore", "grpc", "datasets", "accelerate",
+    # Qwen3-TTS живёт в переносимой GPU-среде (vox/site), в exe не шьётся
+    "qwen_tts",
     "matplotlib", "scipy", "pandas", "IPython", "notebook", "jupyter",
     "tkinter.test", "test", "pydoc_data",
     "PyQt5", "PyQt6", "PySide2", "PySide6", "wx",

@@ -94,6 +94,99 @@ FALLBACK_CHARS = 6000
 MIN_CTX = 2048
 VOX_BASE_SPEED = 2.0  # базовое ускорение VoxCPM2 через ресемпл
 
+
+def _gguf_raw_meta(path):
+    """Читает метаданные GGUF (KV-секцию заголовка) без ggml: работают любые
+    квантизации, в т.ч. те, что llama_cpp не умеет грузить (PTQ1_0 и др.).
+    Возвращает dict; {} при ошибке."""
+    import struct
+
+    def rs(f):
+        n = struct.unpack("<Q", f.read(8))[0]
+        return f.read(n).decode("utf-8", "replace")
+
+    FMT = {0: "<B", 1: "<b", 2: "<H", 3: "<h", 4: "<I", 5: "<i",
+           6: "<f", 7: "<B", 10: "<Q", 11: "<q", 12: "<d"}
+
+    def rv(f):
+        t = struct.unpack("<I", f.read(4))[0]
+        if t == 8:
+            return rs(f)
+        if t == 9:
+            at = struct.unpack("<I", f.read(4))[0]
+            n = struct.unpack("<Q", f.read(8))[0]
+            if at == 8:                          # массив строк: идём по длинам,
+                for _ in range(n):               # не сохраняя (vocab ~260k шт.)
+                    ln = struct.unpack("<Q", f.read(8))[0]
+                    f.seek(ln, 1)
+                return None
+            fm = FMT.get(at)
+            if fm is None:
+                raise ValueError("gguf type %d" % at)
+            sz = struct.calcsize(fm)
+            if n * sz > 4096:                    # большие числа нам не нужны
+                f.seek(n * sz, 1)
+                return None
+            return [struct.unpack(fm, f.read(sz))[0] for _ in range(n)]
+        fm = FMT.get(t)
+        if fm is None:
+            raise ValueError("gguf type %d" % t)
+        return struct.unpack(fm, f.read(struct.calcsize(fm)))[0]
+
+    try:
+        with open(path, "rb") as f:
+            if f.read(4) != b"GGUF":
+                return {}
+            f.read(4 + 8)                       # версия, число тензоров
+            nkv = struct.unpack("<Q", f.read(8))[0]
+            out = {}
+            for _ in range(nkv):
+                k = rs(f)                  # порядок важен: в 3.12 правая часть
+                out[k] = rv(f)             # присваивания вычисляется первой
+            return out
+    except Exception:
+        return {}
+
+
+def _gguf_kv_est(md):
+    """Размер KV-кэша контекста: (байт на токен, фиксированных байт).
+    Считается по точным размерностям модели (head_count_kv, key/value_length),
+    а не на глазок. Слои со скользящим окном (gemma-семейство) с контекстом
+    не растут — за них берётся окно × группа слоёв один раз."""
+    arch = md.get("general.architecture") or ""
+
+    def g(key, d=0):
+        return md.get(arch + "." + key, d)
+
+    try:
+        n = int(g("block_count"))
+        kvh = int(g("attention.head_count_kv"))
+        kl = int(g("attention.key_length"))
+        vl = int(g("attention.value_length"))
+    except Exception:
+        n = kvh = kl = vl = 0
+    if not n or not kvh:
+        return 131072, 0                        # запас для неизвестных архитектур
+    if not kl or not vl:
+        heads, emb = int(g("attention.head_count")), int(g("embedding_length"))
+        kl = vl = (emb // heads) if heads and emb else 128
+    win = int(g("attention.sliding_window"))
+    pat = g("attention.sliding_window_pattern", [])
+    nswa = 0
+    mult = 1
+    if win and isinstance(pat, list) and pat:
+        run = best = 0
+        for x in pat:
+            run = run + 1 if x else 0
+            best = max(best, run)
+        mult = max(2, best)                     # llama.cpp держит окно × группа
+        nswa = sum(1 for i in range(n) if i != n - 1 and pat[i % len(pat)])
+    per = (n - nswa) * kvh * (kl + vl) * 2      # полные слои: растут с контекстом
+    kl2 = int(g("attention.key_length_swa", kl))
+    vl2 = int(g("attention.value_length_swa", vl))
+    fixed = nswa * win * mult * kvh * (kl2 + vl2) * 2 if nswa else 0
+    return per, fixed
+
 # ---------------------------------------------------------------------------
 # Эмоции для правки голоса (VoxCPM2 Style Control).
 # name -> (инструкция для Vox на английском, фраза для записи образца).
@@ -108,6 +201,44 @@ def _emo_key(word):
     w = re.sub(r"[^а-яёa-z]", "", (word or "").lower().replace("ё", "е"))
     return w[:5] if len(w) >= 5 else w
 
+
+# ---------------------------------------------------------------------------
+# Qwen3-TTS — третий движок озвучки (версия 1.5). Модели лежат в models_qwen\
+# рядом с программой: CustomVoice — встроенные голоса, Base — клон по образцу,
+# VoiceDesign — голос из текстового описания.
+# ---------------------------------------------------------------------------
+QWEN_MODELS = {
+    "base":   "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+    "custom": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+    "design": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+}
+# лёгкий движок: 0.6B — дешевле по GPU, но без режима «Дизайн голоса»
+QWEN_MODELS_06 = {
+    "base":   "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+    "custom": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
+}
+QWEN_GB = {"base": 4.5, "custom": 4.5, "design": 4.5}   # примерно, для предупреждения
+QWEN_GB_06 = {"base": 2.6, "custom": 2.6}
+QWEN_HF_TREE = "https://huggingface.co/api/models/{repo}/tree/main?recursive=true"
+QWEN_HF_FILE = "https://huggingface.co/{repo}/resolve/main/{file}"
+QWEN_EXT = (".safetensors", ".json", ".model", ".tiktoken", ".txt", ".py")
+QWEN_BASE_SPEED = 1.0   # Qwen говорит в естественном темпе — ускорение только с ползунка
+QWEN_LANGS = ["auto", "Russian", "English", "Chinese", "German", "French", "Spanish",
+              "Portuguese", "Italian", "Japanese", "Korean"]
+# встроенный голос CustomVoice: id модели -> (русское имя, род, описание)
+QWEN_SPEAKERS = {
+    "Vivian":   ("Вивиан", "женский", "яркий молодой женский, чуть резковатый"),
+    "Serena":   ("Серена", "женский", "тёплый мягкий женский"),
+    "Uncle_Fu": ("Дядюшка Фу", "мужской", "зрелый мужской, низкий бархатный"),
+    "Dylan":    ("Дилан", "мужской", "чистый молодой мужской (Пекин)"),
+    "Eric":     ("Эрик", "мужской", "живой мужской с лёгкой хрипотцой (Чэнду)"),
+    "Ryan":     ("Райан", "мужской", "динамичный мужской, сильный ритм"),
+    "Aiden":    ("Эйдан", "мужской", "солнечный американский мужской"),
+    "Ono_Anna": ("Оно-Анна", "женский", "игривый лёгкий женский"),
+    "Sohee":    ("Сонхи", "женский", "тёплый выразительный женский"),
+}
+QWEN_DISPLAY = {disp for _sid, (disp, _g, _d) in QWEN_SPEAKERS.items()}
+QWEN_BY_DISPLAY = {disp: (sid, gen, desc) for sid, (disp, gen, desc) in QWEN_SPEAKERS.items()}
 
 EMOTION_TAB = {
     # --- светлая часть ---
@@ -208,6 +339,30 @@ def _flog(msg):
             f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
     except Exception:
         pass
+
+
+def _sox_stub_if_needed():
+    """Пакет sox при импорте запускает os.popen('sox -h'); в pythonw без валидного
+    stderr-хендла DuplicateHandle даёт OSError WinError 50 и рвёт весь импорт
+    qwen_tts (проверено живым логом 05.11.26). Бинарного SoX в системе всё равно
+    нет, а qwen_tts трогает sox.Transformer() только в конструкторе токенизатора
+    v1 — путь синтеза его не дёргает (дымы CustomVoice/VoiceDesign/Clone прошли).
+    поэтому при сбое импорта подставляем безобидную заглушку."""
+    if "sox" in sys.modules:
+        return
+    try:
+        import sox  # noqa: F401
+    except Exception:
+        import types
+        fake = types.ModuleType("sox")
+
+        class _NoSox:           # конструктор без требований (как у настоящего
+            pass                # Transformer); вызовы методов дадут явную ошибку
+
+
+        fake.Transformer = _NoSox
+        fake.SoXController = _NoSox
+        sys.modules["sox"] = fake
 
 
 FONT_FAMILY = "Segoe UI Variable Text" if platform.system() == "Windows" else "San Francisco"
@@ -374,6 +529,34 @@ def _http_get(url, **kwargs):
         return requests.get(url, **kwargs)
 
 
+def _center_on_parent(win):
+    """Поставить окно по центру главного окна программы, не выпуская его за его пределы.
+    Размер берётся из уже заданной geometry — окно СРАЗУ появляется по центру,
+    без мигания в углу (Ярослав, 05.11: окно сначала мелькало слева)."""
+    try:
+        g = (win.geometry() or "").strip()
+        gm = re.fullmatch(r"(\d+)x(\d+)(?:[+-]\d+[+-]\d+)?", g)
+        if gm:
+            w, h = int(gm.group(1)), int(gm.group(2))
+        else:
+            w = max(win.winfo_width(), win.winfo_reqwidth())
+            h = max(win.winfo_height(), win.winfo_reqheight())
+        root = getattr(win, "master", None)
+        if root is None or not root.winfo_exists() or root.winfo_width() < 10:
+            return
+        rx, ry = root.winfo_x(), root.winfo_y()
+        rw, rh = root.winfo_width(), root.winfo_height()
+        x = rx + (rw - w) // 2
+        y = ry + (rh - h) // 2
+        if w <= rw:
+            x = max(rx, min(x, rx + rw - w))
+        if h <= rh:
+            y = max(ry, min(y, ry + rh - h))
+        win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+    except Exception:
+        pass
+
+
 class DonateDialog(ctk.CTkToplevel):
     """Оценка приложения и переход на страницу донатов."""
 
@@ -381,6 +564,7 @@ class DonateDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.title(_tr("Благодарить"))
         self.geometry("440x430")
+        _center_on_parent(self)
         self.resizable(False, False)
         self.transient(parent)
         self.grab_set()
@@ -532,6 +716,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         self._emo_need = 0
         self._base_geo = "470x656" if not emotion_mode else "470x612"
         self.geometry(self._base_geo)
+        _center_on_parent(self)
         self.resizable(False, False)
         self.transient(parent)
         self.grab_set()
@@ -632,6 +817,10 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         self.entry_text.pack(fill="x", padx=18, pady=(4, 14))
         self.entry_text.insert("1.0", self._sample_hint())
 
+        # переключатель Vox/Qwen из окна убран (Ярослав, 05.11): голос сам
+        # привяжется к тому движку, под которым открыто окно
+        self.engine_toggle = None
+
         btns = ctk.CTkFrame(body, fg_color="transparent")
         btns.pack(fill="x", padx=18, pady=(0, 10))
         btns.grid_columnconfigure((0, 1), weight=1)
@@ -642,6 +831,22 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         ctk.CTkButton(btns, text="Отмена", command=self.destroy, height=36, corner_radius=3,
                       font=FONT_NORMAL, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                       text_color=COLOR_TEXT_MAIN).grid(row=0, column=1, sticky="ew", padx=(5, 0))
+
+        # «🗑 Удалить голос» — прямо в окне образца (Ярослав, 05.11.26): видно,
+        # когда слот уже заполнен и движок Vox/Qwen
+        self.btn_del = None
+        if (not self.emotion_mode and self.slot_id is not None
+                and getattr(self.app, "current_engine", "") in ("Vox", "Qwen")
+                and (self._cur_info() or {}).get("path")):
+            self.btn_del = ctk.CTkButton(body, text="🗑  " + _tr("Удалить голос"),
+                                         height=30, corner_radius=3, font=FONT_SMALL,
+                                         fg_color="transparent", hover_color=COLOR_SELECT,
+                                         text_color=COLOR_RED, border_width=1,
+                                         border_color=COLOR_BORDER,
+                                         command=self._delete_from_dialog)
+            self.btn_del.pack(fill="x", padx=18, pady=(0, 8))
+            self._base_geo = "470x" + str(int(self._base_geo.split("x")[1]) + 42)
+            self.geometry(self._base_geo)
 
         self._build_emotion_column(body)   # доп. опция под «Сохранить»: кнопка + выезжающая колонка
 
@@ -679,6 +884,10 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
     def _build_emotion_column(self, parent):
         """Компактная кнопка под «Сохранить» + правая колонка эмоций."""
         if self.emotion_mode:
+            return
+        if getattr(self.app, "current_engine", "") == "Qwen":
+            # у Qwen эмоции задаёт движок (инструкция/маркеры в тексте) —
+            # эмоциональных образцов не нужно (Ярослав, 04.11.26)
             return
         self.btn_emos = ctk.CTkButton(
             parent, text=self._emo_btn_text(False), width=260, height=32, corner_radius=4,
@@ -839,6 +1048,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         """Меняем ширину окна сразу: колонка появляется мгновенно, рекордер не меняется."""
         try:
             self.geometry(f"{int(target)}x{self._geo_now()[1]}")
+            _center_on_parent(self)
         except Exception:
             pass
 
@@ -868,6 +1078,17 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         """Инфо слота в этом окне: ключи custom_voices — строки, slot_id — число."""
         return (self.existing.get(self.slot_id)
                 or self.existing.get(str(self.slot_id)) or {})
+
+    def _delete_from_dialog(self):
+        """Удалить голос прямо из окна «Образец голоса» (Ярослав, 05.11.26).
+        Спросит один раз сам _delete_voice — не плодим второе подтверждение."""
+        info = self._cur_info() or {}
+        nm = info.get("name") or self.entry_name.get() or ""
+        try:
+            if self.app._delete_voice(vid=self.slot_id, name=nm):
+                self.destroy()   # закрыли — удалили; отменил подтверждение — окно живёт
+        except Exception:
+            pass
 
     def _emo_has_neutral(self):
         info = self._cur_info()
@@ -1131,7 +1352,11 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
             messagebox.showwarning("Внимание", "Запишите голос с микрофона\nили выберите WAV-файл.", parent=self)
             return
 
-        self.on_save(final_path, text, self.slot_id, name)
+        eng = self.engine_toggle.get() if getattr(self, "engine_toggle", None) is not None else None
+        if eng is not None:
+            self.on_save(final_path, text, self.slot_id, name, eng)
+        else:
+            self.on_save(final_path, text, self.slot_id, name)
         self.destroy()
 
 
@@ -1144,6 +1369,7 @@ class PdfArticlesDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.title(win_title or "Статьи в журнале")
         self.geometry("600x540")
+        _center_on_parent(self)
         self.transient(parent)
         self.grab_set()
         self.after(0, lambda: _apply_lang(self))
@@ -1231,6 +1457,7 @@ class PresetDialog(ctk.CTkToplevel):
 
         self.title("Свой уровень сжатия")
         self.geometry("480x520")
+        _center_on_parent(self)
         self.configure(fg_color=COLOR_BG)
         self.transient(parent)
         self.grab_set()
@@ -1423,6 +1650,10 @@ _PAIRS += [
     ("Подробно (80%)", "Detailed (80%)"),
     ("Речь для озвучки (100%)", "Speech for narration (100%)"),
     ("Перевод на английский (100%)", "Translate into English (100%)"),
+    ("Без изменений", "Leave unchanged"),
+    ("✅ Текст без изменений — нейросеть не вызывалась",
+     "✅ Text left unchanged — the neural network was not called"),
+    ("без изменений", "unchanged"),
     ("Новый 1", "New 1"),
     ("Свой 1", "Custom 1"),
     ("Привет! Это образец моего голоса для синтеза речи.",
@@ -1517,6 +1748,10 @@ _PAIRS += [
 
 _PAIRS += [
     ("🎙 Образец голоса", "🎙 Voice sample"),
+    ("🗑 Удалить голос", "🗑 Delete voice"),
+    ("Удалить голос", "Delete voice"),
+    ("Голос удалён", "Voice deleted"),
+    ("(образец-файл тоже удалён)", "(sample file deleted too)"),
     # ---- эмоции образцов голоса ----
     ("Эмоция голоса", "Voice emotion"),
     ("Название эмоции", "Emotion name"),
@@ -1635,6 +1870,63 @@ _PAIRS += [
 ]
 
 TR_RU_EN = dict(_PAIRS)
+TR_RU_EN.update({
+    "Qwen (GPU)": "Qwen (GPU)",
+    "⚠ Qwen требует видеокарту с 6 ГБ видеопамяти": "⚠ Qwen requires a GPU with 6 GB of VRAM",
+    "✨ Дизайн голоса": "✨ Design voice",
+    "⚙ Настройки Qwen": "⚙ Qwen settings",
+    "Дизайн голоса": "Voice design",
+    "Настройки Qwen3-TTS": "Qwen3-TTS settings",
+    "Движок Qwen": "Qwen engine",
+    "Пакет qwen-tts не установлен — движок Qwen недоступен.":
+        "The qwen-tts package is not installed — the Qwen engine is unavailable.",
+    "Пакет qwen-tts не установлен.": "The qwen-tts package is not installed.",
+    "GPU-среда для Qwen (≈2,5 ГБ)…": "GPU environment for Qwen (≈2.5 GB)…",
+    "GPU-среда не установлена: ": "GPU environment not installed: ",
+    "Пакет Qwen3-TTS (≈30 МБ)…": "Qwen3-TTS package (≈30 MB)…",
+    "Пакет Qwen3-TTS": "Qwen3-TTS package",
+    "Пакет qwen-tts не установлен: ": "The qwen-tts package failed to install: ",
+    "Пакет qwen-tts не установлен. Скачать и установить его? (≈30 МБ)":
+        "The qwen-tts package is not installed. Download and install it? (≈30 MB)",
+    "✅ Пакет Qwen3-TTS установлен.": "✅ The Qwen3-TTS package is installed.",
+    "Пакет qwen-tts не установлен — движок Qwen недоступен. Сначала нужна GPU-среда (движок Vox или первичная установка).":
+        "The qwen-tts package is not installed — the Qwen engine is unavailable. "
+        "First install the GPU environment (Vox engine or first-run setup).",
+    "GPU-среда не установлена — сначала нужен движок Vox.":
+        "The GPU environment is not installed — install the Vox engine first.",
+    "Qwen3-TTS: модели на месте.": "Qwen3-TTS: models are in place.",
+    "Qwen3-TTS: модели не скачаны — докачает при озвучке.":
+        "Qwen3-TTS models are not downloaded — they will download when voicing.",
+    "✅ Модели Qwen3-TTS скачаны.": "✅ Qwen3-TTS models downloaded.",
+    "Заполни описание голоса и текст.": "Fill in the voice description and the text.",
+    "Модель дала тишину — переформулируй описание.":
+        "The model produced silence — rephrase the description.",
+    "Готово — слушаю. Нравится — жми «Сохранить».":
+        "Done — playing. If you like it, press “Save”.",
+    "Сначала прослушай вариант.": "Listen to a take first.",
+    "✅ Голос сохранён в списке — работает как клон.":
+        "✅ Voice saved in the list — it works like a clone.",
+    "Генерирую голос…": "Generating the voice…",
+    "Опиши голос словами — модель его создаст.\n"
+    "Например: «молодой энергичный мужчина, быстрая речь, с улыбкой»":
+        "Describe the voice in words — the model will create it.\n"
+        "Example: \"a young energetic man, fast speech, smiling\".",
+    "Текст прослушки": "Preview text",
+    "Имя голоса в списке": "Voice name in the list",
+    "🔊 Сгенерировать и послушать": "🔊 Generate and listen",
+    "💾 Сохранить": "💾 Save",
+    "Закрыть": "Close",
+    "Устройство": "Device",
+    "Точность": "Precision",
+    "Язык": "Language",
+    "Фиксированное зерно": "Fixed seed",
+    "Зерно (0 — каждый дуб новый)": "Seed (0 — new seed for every take)",
+    "Максимум токенов на фразу": "Max tokens per phrase",
+    "Освобождать память после озвучки": "Free memory after voicing",
+    "✅ Настройки Qwen сохранены.": "✅ Qwen settings saved.",
+    "📥 Скачать модели Qwen": "📥 Download Qwen models",
+    "Освободить память GPU": "Free GPU memory",
+})
 TR_EN_RU = {en: ru for ru, en in _PAIRS}
 
 
@@ -1924,7 +2216,7 @@ filedialog = _TrDialogs(_TK_FILEDIALOG)
 
 class ModernTTSApp(ctk.CTk):
     REF_TEXT = "Привет! Это образец голоса для синтеза речи."
-    ENGINE_VALUES = ["Piper (CPU)", "Vox (GPU)"]
+    ENGINE_VALUES = ["Piper (CPU)", "Vox (GPU)", "Qwen (GPU)"]
     SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
     PLACEHOLDER = ("Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n"
                    "Ctrl+V — вставить из буфера. Всё, что есть в этом поле, считается источником:\n"
@@ -1932,8 +2224,11 @@ class ModernTTSApp(ctk.CTk):
     PLACEHOLDER_EN = ("Paste an article or video link, text or file — or just type here.\n\n"
                       "Ctrl+V — paste from the clipboard. Whatever is in this box is the source:\n"
                       "the analysis uses it, not the link.")
+    # «Без изменений»: текст идёт в озвучку дословно. Нейросеть к нему подключается
+    # только ради постановки эмоций — тогда она не трогает текст, а лишь ставит маркеры.
+    NO_PROCESS = "Без изменений"
     PRESET_VALUES = ["Только суть (10%)", "Очень кратко (30%)", "Кратко (50%)", "Подробно (80%)",
-                     "Речь для озвучки (100%)", "Перевод на английский (100%)"]
+                     "Речь для озвучки (100%)", "Перевод на английский (100%)", NO_PROCESS]
     # Доля исходного объёма для каждого пресета (жёсткий лимит в знаках)
     PRESET_RATIOS = {
         "Только суть (10%)": 0.10,
@@ -1967,6 +2262,11 @@ class ModernTTSApp(ctk.CTk):
             "изложения, ничего не сокращай, не добавляй и не комментируй. Термины, имена "
             "и названия передавай так, как это принято в англоязычной литературе по теме. "
             "Верни только перевод, без пояснений и вступлений.",
+        NO_PROCESS:
+            "Верни этот текст дословно: не пересказывай, не сокращай, не перефразируй, "
+            "не меняй порядок и формулировки. Единственная допустимая правка — расставить "
+            "маркеры эмоций перед фразами, если это запрошено отдельно. Если разметка "
+            "эмоциями не запрошена — верни текст без единой правки.",
     }
     # Те же промпты для английского интерфейса: ключ — название уровня, как в PRESET_VALUES
     PRESET_PROMPTS_EN = {
@@ -1995,6 +2295,11 @@ class ModernTTSApp(ctk.CTk):
             "order of presentation; do not shorten, add to or comment on it. Render terms, names "
             "and titles as is customary in English-language literature on the subject. Return "
             "only the translation, without explanations or preambles.",
+        NO_PROCESS:
+            "Return this text verbatim: do not retell, shorten, rephrase or reorder it, and "
+            "do not change its wording. The only edit allowed is placing emotion markers "
+            "before phrases, if that is requested separately. If no emotion markup is "
+            "requested — return the text without a single change.",
     }
     # Признаки промптов прежней версии — их заменяем актуальными по выбранному пресету
     LEGACY_PROMPTS = (
@@ -2081,6 +2386,18 @@ class ModernTTSApp(ctk.CTk):
         self.vox_name = None
         self.current_engine = "Piper"
         self.current_tts_name = None
+        # --- Qwen3-TTS (третий движок) ---
+        self._qwen_models = {}          # kind -> объект модели (держим в VRAM)
+        self._qwen_prompt_cache = {}    # ключ голоса -> готовый промпт клона
+        self._qwen_runs = 0
+        self._qwen_run_seed = 0
+        self.qwen_size = "1.7B"   # размер движка Qwen: "0.6B" (лёгкий) или "1.7B"
+        self.qwen_cfg = {
+            "device": "auto", "precision": "bf16", "language": "auto",
+            "max_new_tokens": 512, "top_p": 0.9, "top_k": 50,
+            "temperature": 0.8, "repetition_penalty": 1.1,
+            "free_after": False,
+        }
         self.speech_rate = 1.0
         self.vox_fast_var = ctk.BooleanVar(value=False)
         self._sd_stream = None
@@ -2093,6 +2410,7 @@ class ModernTTSApp(ctk.CTk):
         self._play_stop_req = False
 
         self.custom_voices = {}
+        self.engine_voices = {}      # последний выбранный голос каждого движка
         self.custom_presets = {}   # {название: {"ratio": 0.4, "prompt": "..."}} — свои уровни сжатия
         self._last_preset = "Кратко (50%)"
         self.box_is_source = False
@@ -2143,6 +2461,19 @@ class ModernTTSApp(ctk.CTk):
         if FROZEN:
             _flog(f"старт: BASE={self.BASE_DIR} модели={len(self.llm_models)}")
             self.after(700, self._first_run_chain)
+        elif getattr(self, "setup_preview", False):   # однократное превью мастера в dev-сборке
+            def _prev_once():
+                self.setup_preview = False
+                try:
+                    self.save_settings()
+                except Exception:
+                    pass
+                try:
+                    self._first_run_setup()
+                except Exception:
+                    import traceback
+                    print("❌ мастер превью:", traceback.format_exc())
+            self.after(900, _prev_once)
         self._probe_model(self.llm_combo.get())
 
         self._show_placeholder()
@@ -2222,6 +2553,7 @@ class ModernTTSApp(ctk.CTk):
         dlg = ctk.CTkToplevel(self)
         dlg.title(_tr("Модель ИИ"))
         dlg.geometry("540x310")
+        _center_on_parent(dlg)
         dlg.resizable(False, False)
         dlg.transient(self)
         dlg.configure(fg_color=COLOR_BG)
@@ -2538,6 +2870,17 @@ class ModernTTSApp(ctk.CTk):
                   f"моделей={len(self.llm_models)} offered={getattr(self, '_vox_offered', False)}")
         except Exception as e:
             _flog(f"цепочка: диагностика упала: {type(e).__name__}: {e}")
+        if not getattr(self, "_setup_offered", False):
+            if getattr(self, "setup_done", False):
+                pass                              # мастер уже проходили
+            elif self.llm_models and all(os.path.isfile(self._voice_file(n))
+                                         for n, _ in self.AUTO_VOICES):
+                self.setup_done = True            # обновлённая установка: всё на месте
+                self.save_settings()
+            else:
+                self._setup_offered = True
+                self._first_run_setup()
+                return
         if not self.llm_models and not getattr(self, "_model_offered", False) \
                 and not getattr(self, "model_offer_muted", False):
             self._model_offered = True            # сначала — модель анализа
@@ -2554,6 +2897,311 @@ class ModernTTSApp(ctk.CTk):
         if not self.llm_models:
             self._offer_model_download()
 
+    def _mark_setup_done(self):
+        self.setup_done = True
+        self.save_settings()
+
+    def _gpu_summary(self):
+        """(имя видеокарты, ГБ видеопамяти) или (None, None)."""
+        try:
+            import pynvml
+            pynvml.nvmlInit()
+            h = pynvml.nvmlDeviceGetHandleByIndex(0)
+            nm = pynvml.nvmlDeviceGetName(h)
+            if isinstance(nm, bytes):
+                nm = nm.decode("utf-8", "replace")
+            total = pynvml.nvmlDeviceGetMemoryInfo(h).total / 1024 ** 3
+            try:
+                pynvml.nvmlShutdown()
+            except Exception:
+                pass
+            return (str(nm).strip() or None, total)
+        except Exception:
+            return None, None
+
+    def _first_run_setup(self):
+        """Первичная установка: одно окно на три строки — модель анализа (обязательно),
+        Vox (галочка), Qwen3-TTS (выбор размера движка). Видеокарта показана сразу."""
+        old = getattr(self, "_setup_dialog", None)
+        try:
+            if old is not None and old.winfo_exists():
+                old.lift()
+                old.focus_force()
+                return
+        except Exception:
+            pass
+        gname, gvram = self._gpu_summary()
+        print(f"🧭 мастер: окно, gpu={gname!r} vram={gvram}")
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Первичная установка"))
+        dlg.geometry("640x430")
+        _center_on_parent(dlg)
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        dlg.configure(fg_color=COLOR_BG)
+        _apply_dialog_icon(dlg)
+        dlg.after(150, lambda: _apply_dialog_icon(dlg))
+        self._setup_dialog = dlg
+        self._setup_cancel = threading.Event()
+
+        def _after_close(event=None):
+            if event is None or getattr(event, "widget", None) is dlg:
+                self.after(400, self._first_run_chain)
+        dlg.bind("<Destroy>", _after_close)
+
+        body = ctk.CTkFrame(dlg, fg_color=COLOR_PANEL, corner_radius=R_PANEL)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        ctk.CTkLabel(body, text=_tr("Первичная установка FAIR"), font=FONT_SUBHEADER,
+                     text_color=COLOR_HEAD).pack(pady=(10, 3))
+        if gname:
+            gpu_txt = f"\U0001F5A5 {gname} \u2014 {gvram:.1f} {_tr('ГБ видеопамяти')}"
+            gcol = COLOR_GOLD
+        else:
+            gpu_txt = _tr("Видеокарта не найдена: анализ пойдёт на процессоре, "
+                          "голосовые движки Vox и Qwen требуют видеокарту.")
+            gcol = COLOR_RED
+        ctk.CTkLabel(body, text=gpu_txt, font=FONT_SMALL, text_color=gcol,
+                     wraplength=580, justify="left").pack(padx=16, anchor="w", pady=(0, 3))
+
+        r1 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
+        r1.pack(fill="x", padx=12, pady=(4, 3))
+        done1 = " \u2705" if self.llm_models else ""
+        ctk.CTkLabel(r1, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
+                     justify="left", wraplength=580,
+                     text=_tr("1. Модель для анализа Gemma 4 E4B и сборка для "
+                              "видеокарты (\u22485,6 ГБ) \u2014 обязательная часть "
+                              "программы") + done1
+                              ).pack(fill="x", padx=10, pady=3)
+
+        r2 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
+        r2.pack(fill="x", padx=12, pady=3)
+        self._setup_vox = ctk.BooleanVar(value=bool(gvram and gvram >= 7.5))
+        cb2 = ctk.CTkCheckBox(r2, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN,
+                              checkbox_width=18, checkbox_height=18, fg_color="#c6763a",
+                              hover_color="#a95f2c",
+                              text=_tr("2. Голосовой движок VoxCPM2 (\u22484,5 ГБ) \u2014 "
+                                       "нужно 8 ГБ видеопамяти"),
+                              variable=self._setup_vox)
+        cb2.pack(fill="x", padx=10, pady=(4, 1))
+        if self._vox_installed():
+            cb2.select()
+            cb2.configure(state="disabled")
+            ctk.CTkLabel(r2, text="   \u2705 " + _tr("уже установлен"), font=FONT_TINY,
+                         text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=10, pady=(0, 4))
+        elif gvram and gvram < 7.5:
+            cb2.deselect()
+            ctk.CTkLabel(r2, text="   \u26A0 " + _tr("видеопамяти меньше 8 ГБ \u2014 "
+                                                     "Vox может не потянуться, лучше снять галочку"),
+                         font=FONT_TINY, text_color=COLOR_RED, anchor="w",
+                         wraplength=560, justify="left").pack(fill="x", padx=10, pady=(0, 4))
+        elif not gvram:
+            cb2.deselect()
+            cb2.configure(state="disabled")
+            ctk.CTkLabel(r2, text="   \u26A0 " + _tr("нет видеокарты \u2014 Vox недоступен"),
+                         font=FONT_TINY, text_color=COLOR_RED, anchor="w"
+                         ).pack(fill="x", padx=10, pady=(0, 4))
+
+        r3 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
+        r3.pack(fill="x", padx=12, pady=(3, 4))
+        ctk.CTkLabel(r3, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
+                     text=_tr("3. Голосовой движок Qwen3-TTS \u2014 клон голоса по образцу")
+                     ).pack(anchor="w", padx=10, pady=(4, 0))
+        self._setup_qwen = ctk.StringVar(
+            value=("1.7B" if (gvram or 0) >= 5.5 else
+                   "0.6B" if (gvram or 0) >= 3.5 else "нет"))
+        qr = {}
+        _B = (FONT_FAMILY, 10, "bold")
+        for val, segs in (("нет", ((_tr("не устанавливать"), False),)),
+                          ("0.6B", ((_tr("0.6B \u2014 лёгкий (\u22485 ГБ), "), False),
+                                    (_tr("нужно 4 ГБ видеопамяти"), True))),
+                          ("1.7B", ((_tr("1.7B \u2014 качество выше (\u224813,5 ГБ), "), False),
+                                    (_tr("нужно 6\u20138 ГБ видеопамяти"), True),
+                                    (_tr("; «Дизайн голоса» только у 1.7B"), False)))):
+            fr = ctk.CTkFrame(r3, fg_color="transparent")
+            fr.pack(anchor="w", padx=18, pady=2)
+            rb = ctk.CTkRadioButton(fr, text=segs[0][0], variable=self._setup_qwen, value=val,
+                                    font=FONT_TINY, text_color=COLOR_TEXT_MAIN,
+                                    fg_color="#c6763a", hover_color="#a95f2c",
+                                    radiobutton_width=16, radiobutton_height=16)
+            rb.pack(side="left")
+            for txt, bold in segs[1:]:
+                ctk.CTkLabel(fr, text=txt, font=_B if bold else FONT_TINY,
+                             text_color=COLOR_TEXT_MAIN).pack(side="left")
+            qr[val] = rb
+        if not gvram or gvram < 3.5:
+            for val in ("0.6B", "1.7B"):
+                qr[val].configure(state="disabled")
+            self._setup_qwen.set("нет")
+        elif gvram < 5.5:
+            qr["1.7B"].configure(state="disabled")
+
+        bar = ctk.CTkProgressBar(body, height=10, corner_radius=6, progress_color="#c6763a",
+                                 fg_color=COLOR_CARD2)
+        bar.set(0)
+        bar.pack(fill="x", padx=16, pady=(8, 2))
+        info = ctk.CTkLabel(body, text="", font=FONT_TINY, text_color=COLOR_TEXT_SEC,
+                            anchor="w", justify="left", wraplength=590)
+        info.pack(fill="x", padx=16)
+
+        rowb = ctk.CTkFrame(body, fg_color="transparent")
+        rowb.pack(fill="x", padx=16, pady=(6, 8))
+        btn_go = ctk.CTkButton(rowb, text=_tr("Установить выбранное"), width=200, height=34,
+                               corner_radius=R_PANEL, font=FONT_SUBHEADER,
+                               fg_color="#c6763a", hover_color="#a95f2c",
+                               text_color="#ffffff")
+        btn_go.pack(side="left")
+        ctk.CTkButton(rowb, text=_tr("Закрыть"), width=110, height=34, corner_radius=R_PANEL,
+                      font=FONT_NORMAL, fg_color="transparent", border_width=1,
+                      border_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN,
+                      hover_color=COLOR_CARD,
+                      command=lambda: (self._setup_cancel.set(), dlg.destroy())
+                      ).pack(side="left", padx=8)
+
+        def set_info(t):
+            try:
+                if dlg.winfo_exists():
+                    info.configure(text=str(t))
+            except Exception:
+                pass
+
+        def set_bar(v):
+            try:
+                if dlg.winfo_exists():
+                    bar.set(max(0.0, min(float(v), 1.0)))
+            except Exception:
+                pass
+
+        def work():
+            try:
+                gguf_final = os.path.join(self.BASE_DIR, "models_llm", self.MODEL_PACK["name"])
+                if not os.path.isfile(gguf_final) and not self._setup_cancel.is_set():
+                    set_info(_tr("1 · Gemma 4 E4B + сборка для видеокарты (≈5,6 ГБ)…"))
+                    holder = ctk.CTkToplevel(self)
+                    holder.withdraw()
+                    btnfake = ctk.CTkButton(holder, text="")
+                    self._dl_cancel = self._setup_cancel
+                    self._download_model(holder, bar, info, btnfake)
+
+                    def _kill_holder():
+                        try:
+                            if holder.winfo_exists():
+                                holder.destroy()
+                        except Exception:
+                            pass
+                    self._ui(_kill_holder)
+                    if self._setup_cancel.is_set():
+                        set_info(_tr("Установка прервана — продолжите позже"))
+                        return
+                    if not os.path.isfile(gguf_final):
+                        set_info(_tr("Модель анализа не докачалась — попробуйте ещё раз"))
+                        return
+                if self._setup_vox.get() and not self._vox_installed() \
+                        and not self._setup_cancel.is_set():
+                    set_info(_tr("2 · Дополнение Vox: установка…"))
+                    self._vox_cancelled = False
+
+                    def vprog(t, v):
+                        set_info("Vox · " + str(t))
+                        if v is not None:
+                            set_bar(v)
+
+                    def vline(line):
+                        if self._setup_cancel.is_set():
+                            self._vox_cancelled = True
+                            p = getattr(self, "_vox_proc", None)
+                            try:
+                                if p is not None and p.poll() is None:
+                                    p.kill()
+                            except Exception:
+                                pass
+                        set_info("Vox · " + str(line)[:120])
+
+                    ok, detail = self._vox_install_work(vprog, vline)
+                    if ok:
+                        self._ui(self._vox_ready)
+                    elif not self._setup_cancel.is_set():
+                        set_info(_tr("Vox не установлен: ") + str(detail)[-160:])
+                if self._setup_qwen.get() in ("0.6B", "1.7B") and not self._setup_cancel.is_set():
+                    self.qwen_size = self._setup_qwen.get()
+                    self.save_settings()
+                    set_info(f"Qwen3-TTS {self.qwen_size}…")
+
+                    if not self._qwen_installed() and not self._setup_cancel.is_set():
+                        if not self._vox_installed():
+                            set_info(_tr("GPU-среда для Qwen (≈2,5 ГБ)…"))
+                            self._vox_cancelled = False
+
+                            def qenv_prog(t, v):
+                                set_info("Qwen · " + str(t))
+                                if v is not None:
+                                    set_bar(v)
+
+                            def qenv_line(line):
+                                if self._setup_cancel.is_set():
+                                    self._vox_cancelled = True
+                                    p = getattr(self, "_vox_proc", None)
+                                    try:
+                                        if p is not None and p.poll() is None:
+                                            p.kill()
+                                    except Exception:
+                                        pass
+                                set_info("Qwen · " + str(line)[:120])
+
+                            ok_env, detail_env = self._vox_install_work(qenv_prog, qenv_line)
+                            if ok_env:
+                                self._ui(self._vox_ready)
+                            elif not self._setup_cancel.is_set():
+                                set_info(_tr("GPU-среда не установлена: ")
+                                         + str(detail_env)[-160:])
+                                return
+                        if not self._setup_cancel.is_set():
+                            set_info(_tr("Пакет Qwen3-TTS (≈30 МБ)…"))
+
+                            def qpkg_line(line):
+                                if self._setup_cancel.is_set():
+                                    return
+                                m = re.search(r"Progress (\d+) of (\d+)", line)
+                                if m:
+                                    cur, tot = int(m.group(1)), max(1, int(m.group(2)))
+                                    set_info(_tr("Пакет Qwen3-TTS") + f" {int(100 * cur / tot)}%")
+                                else:
+                                    set_info("Qwen · " + str(line)[:120])
+
+                            ok_pkg, detail_pkg = self._qwen_pip_install(qpkg_line)
+                            if not ok_pkg and not self._setup_cancel.is_set():
+                                set_info(_tr("Пакет qwen-tts не установлен: ")
+                                         + str(detail_pkg)[-160:])
+
+                    def qprog(p, name):
+                        set_info(f"Qwen {self.qwen_size}: {p:.0f}% · {name}")
+                        set_bar(p / 100.0)
+
+                    self._qwen_fetch(list(self._qwen_repos().keys()),
+                                     on_progress=qprog, cancel=self._setup_cancel)
+                if self._setup_cancel.is_set():
+                    return
+                self._ui(self._refresh_voices)
+                self._ui(self._mark_setup_done)
+                set_info("\u2705 " + _tr("Установка завершена — можно работать"))
+                try:
+                    if dlg.winfo_exists():
+                        btn_go.configure(state="disabled")
+                except Exception:
+                    pass
+            except Cancelled:
+                set_info(_tr("Установка прервана — продолжите позже"))
+            except Exception as e:
+                print(f"\u274c Первичная установка: {e}")
+                set_info(f"\u274c {e}")
+
+        btn_go.configure(command=lambda: threading.Thread(target=work, daemon=True).start())
+        dlg.update_idletasks()
+        try:
+            dlg.geometry(f"640x{max(330, dlg.winfo_reqheight())}")
+        except Exception:
+            pass
+        _center_on_parent(dlg)
+
     def _auto_install_voices(self):
         """Первый запуск: докачиваем русские голоса Ирина и Руслан (≈126 МБ)."""
         missing = [(n, s) for n, s in self.AUTO_VOICES if not os.path.isfile(self._voice_file(n))]
@@ -2563,6 +3211,7 @@ class ModernTTSApp(ctk.CTk):
         dlg = ctk.CTkToplevel(self)
         dlg.title(_tr("Голоса Piper"))
         dlg.geometry("520x215")
+        _center_on_parent(dlg)
         dlg.resizable(False, False)
         dlg.transient(self)
         dlg.configure(fg_color=COLOR_BG)
@@ -2641,7 +3290,8 @@ class ModernTTSApp(ctk.CTk):
             if self.current_engine == "Piper":
                 self.tts_combo.configure(values=sorted(self.tts_models.keys()))
             else:
-                self.tts_combo.configure(values=self.voice_values())
+                self.tts_combo.configure(values=self.voice_values(
+                    self.current_engine if self.current_engine in ("Vox", "Qwen") else None))
         except Exception:
             pass
         if select:
@@ -2666,6 +3316,7 @@ class ModernTTSApp(ctk.CTk):
         dlg = ctk.CTkToplevel(self)
         dlg.title(_tr("Голоса Piper"))
         dlg.geometry("580x470")
+        _center_on_parent(dlg)
         dlg.resizable(False, True)
         dlg.transient(self)
         dlg.configure(fg_color=COLOR_BG)
@@ -2892,12 +3543,77 @@ class ModernTTSApp(ctk.CTk):
                 pass
         return ram_total, ram_avail
 
+    def _build_mem_panel(self, parent):
+        """Компактная карточка «Видеопамять / Память (ОЗУ)» — внизу левого столбца,
+        под панелью «ОЗВУЧКА»; узкая, прижата к левому краю (макет Ярослава 04.11)."""
+        p = ctk.CTkFrame(parent, fg_color=COLOR_CARD, corner_radius=R_CARD,
+                         border_width=1, border_color=COLOR_BORDER)
+        p.pack(anchor="w", padx=2, pady=(0, 8))   # не тянем на всю ширину — как в макете
+        p.grid_columnconfigure(0, weight=1)
+        rows = ((_tr("Видеопамять"), "gpu", COLOR_RED),
+                (_tr("Память (ОЗУ)"), "ram", COLOR_GOLD))
+        for i, (cap, key, col) in enumerate(rows):
+            f = ctk.CTkFrame(p, fg_color="transparent", width=210)
+            f.grid(row=i * 2, column=0, sticky="ew", padx=10, pady=(7, 7 if i == 1 else 0))
+            f.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(f, text=cap, font=FONT_TINY, text_color=COLOR_TEXT_SEC,
+                         anchor="w").grid(row=0, column=0, sticky="w")
+            val = ctk.CTkLabel(f, text="…", font=FONT_TINY, text_color=COLOR_TEXT_MAIN, anchor="e")
+            val.grid(row=0, column=1, sticky="e")
+            bar = ctk.CTkProgressBar(f, width=210, height=6, corner_radius=3,
+                                     fg_color=COLOR_BORDER, progress_color=col)
+            bar.set(0)
+            bar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(3, 0))
+            setattr(self, f"{key}_val", val)
+            setattr(self, f"{key}_bar", bar)
+        return p
+
+    def _gpu_mem_probe(self):
+        """(занято, всего) видеопамяти или (None, None). NVML не создаёт CUDA-контекст."""
+        h = getattr(self, "_nvml_h", None)
+        if h is None:
+            if getattr(self, "_nvml_bad", False):
+                return (None, None)
+            try:
+                import pynvml
+                pynvml.nvmlInit()
+                self._nvml_h = pynvml.nvmlDeviceGetHandleByIndex(0)
+                h = self._nvml_h
+            except Exception:
+                self._nvml_bad = True
+                return (None, None)
+        try:
+            import pynvml
+            mi = pynvml.nvmlDeviceGetMemoryInfo(h)
+            return (mi.used, mi.total)
+        except Exception:
+            return (None, None)
+
     def _update_ram_label(self):
+        """Перерисовывает панель памяти: видеопамять — ржавчина, ОЗУ — золото."""
+        gu, gt = self._gpu_mem_probe()
+        if gu is not None and gt:
+            self.gpu_val.configure(text=f"{gu / 2**30:.1f} / {gt / 2**30:.0f} ГБ")
+            self.gpu_bar.set(min(1.0, gu / gt))
+        else:
+            self.gpu_val.configure(text=_tr("нет доступа"))
+            self.gpu_bar.set(0)
         rt, ra = self._sys_mem_info()
         if rt:
-            self.ram_label.configure(text=_tr(f"ОЗУ: {round(rt / 1024 ** 3)} ГБ (своб. {ra / 1024 ** 3:.0f})"))
+            used = rt - ra
+            self.ram_val.configure(text=f"{used / 2**30:.1f} / {rt / 2**30:.1f} ГБ")
+            self.ram_bar.set(min(1.0, used / rt))
         else:
-            self.ram_label.configure(text=_tr("ОЗУ: —"))
+            self.ram_val.configure(text="—")
+            self.ram_bar.set(0)
+
+    def _mem_tick(self):
+        """Опрос раз в 2.5 с; после закрытия окна цикл сам гаснет."""
+        try:
+            self._update_ram_label()
+            self.after(2500, self._mem_tick)
+        except Exception:
+            pass
 
     # ================= CTRL+V ПО КОДУ КЛАВИШИ =================
 
@@ -3104,7 +3820,11 @@ class ModernTTSApp(ctk.CTk):
         """Большая кнопка «Образец голоса». Эмоции — внутри окна образца."""
         try:
             if show:
-                self.btn_add_voice.pack(fill="x", padx=12, pady=(0, 10), before=self.rate_row)
+                # под Qwen кнопка встаёт сразу за рядами «Дизайн/Настройки»,
+                # у Vox — на привычном месте над ползунком скорости (Ярослав, 04.11.26)
+                anchor = (self._tts_voice_row
+                          if getattr(self, "current_engine", "") == "Qwen" else self.rate_row)
+                self.btn_add_voice.pack(fill="x", padx=12, pady=(0, 10), before=anchor)
             else:
                 self.btn_add_voice.pack_forget()
         except Exception:
@@ -3195,13 +3915,11 @@ class ModernTTSApp(ctk.CTk):
                                               text_color=COLOR_TEXT_SEC, anchor="e", justify="right")
         self.status_label_main.pack(side="right")
 
-        self.ram_label = ctk.CTkLabel(topbar, text="", font=FONT_TINY, text_color=COLOR_TEXT_SEC, anchor="e")
         # кнопки языка — узкие, чтобы не растягивали шапку
         self.lang_toggle = SegmentToggle(topbar, values=["RU", "EN"], height=28,
                                           btn_width=34, command=self._set_lang)
         self.lang_toggle.set("EN" if UI_LANG == "en" else "RU")   # как в прошлый раз
-        self.lang_toggle.grid(row=0, column=3, sticky="e", padx=(0, 4))
-        self.ram_label.grid(row=0, column=2, sticky="e", padx=(0, 12))
+        self.lang_toggle.grid(row=0, column=2, sticky="e", padx=(0, 4))
 
         # ---------------- левая панель ----------------
         # карточки лежат прямо на фоне окна — без внешней панели и прокрутки
@@ -3413,6 +4131,35 @@ class ModernTTSApp(ctk.CTk):
         voice_row = ctk.CTkFrame(tts, fg_color="transparent")
         voice_row.pack(fill="x", padx=12, pady=(0, 7))
         voice_row.grid_columnconfigure(0, weight=1)
+        self._tts_voice_row = voice_row
+
+        # ----- Qwen3-TTS: инструменты движка (видны только когда выбран Qwen) -----
+        self.qwen_row = ctk.CTkFrame(tts, fg_color="transparent")
+        self.qwen_row.grid_columnconfigure(0, weight=1)
+        self.qwen_row.grid_columnconfigure(1, weight=1)
+        self.btn_qwen_design = ctk.CTkButton(
+            self.qwen_row, text=_tr("✨ Дизайн голоса"), height=28, corner_radius=3,
+            font=FONT_SMALL, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+            text_color=COLOR_TEXT_MAIN, command=self._qwen_design_dialog)
+        self.btn_qwen_design.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self.btn_qwen_design.bind("<Button-3>", self._qwen_size_menu)
+        self.btn_qwen_cfg = ctk.CTkButton(
+            self.qwen_row, text=_tr("⚙ Настройки Qwen"), height=28, corner_radius=3,
+            font=FONT_SMALL, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+            text_color=COLOR_TEXT_MAIN, command=self._qwen_settings_dialog)
+        self.btn_qwen_cfg.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        self.btn_qwen_cfg.bind("<Button-3>", self._qwen_size_menu)
+        self.btn_qwen_cfg.bind("<Button-3>", self._qwen_size_menu)
+        self.qwen_instruct_row = ctk.CTkFrame(tts, fg_color="transparent")
+        self.qwen_instruct_row.grid_columnconfigure(1, weight=1)
+        self.qwen_instruct = ctk.CTkEntry(
+            self.qwen_instruct_row, font=FONT_TINY, height=26, corner_radius=3,
+            fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
+            text_color=COLOR_TEXT_SEC, state="readonly",
+            placeholder_text=_tr("характер задаётся в «✨ Дизайн голоса»"))
+        self.qwen_instruct.grid(row=0, column=1, sticky="ew")
+        self.qwen_seed_var = ctk.StringVar(value="0")
+        self.qwen_fixed_var = ctk.BooleanVar(value=False)
 
         # как верхний список «Сжатие»: тот же CTkOptionMenu и те же цвета
         self.tts_combo = ctk.CTkOptionMenu(voice_row, values=[], font=FONT_SMALL, height=30,
@@ -3457,6 +4204,9 @@ class ModernTTSApp(ctk.CTk):
                                               command=lambda: self._import_piper_voice(None, None))
         self.btn_import_piper.pack(fill="x", padx=12, pady=(0, 10), before=self.rate_row)
         self.btn_import_piper.pack_forget()  # показываем только для Piper
+
+        # ---- карточка памяти: последней в левом столбце, под «ОЗВУЧКОЙ» (макет Ярослава) ----
+        self.mem_panel = self._build_mem_panel(self.sidebar)
 
         # ---------------- правая область ----------------
         self.main_area = ctk.CTkFrame(self, fg_color=COLOR_PANEL, corner_radius=R_PANEL,
@@ -3573,7 +4323,7 @@ class ModernTTSApp(ctk.CTk):
                                             command=self._save_last_audio)
         self.btn_save_audio.grid(row=0, column=4, padx=(6, 14), pady=12)
 
-        self._update_ram_label()
+        self._mem_tick()
 
         self.bind("<Control-Return>", lambda e: self.start_full_process())
         self.bind("<F5>", lambda e: self.play_result())
@@ -3791,43 +4541,32 @@ class ModernTTSApp(ctk.CTk):
             return
 
         def work():
-            ctx, kv = None, 131072
-            try:
-                m = Llama(model_path=path, vocab_only=True, verbose=False)
+            ctx, kv, kvfix = None, 131072, 0
+            md = _gguf_raw_meta(path)           # заголовок GGUF: читаем без ggml
+            arch = md.get("general.architecture")
+            if arch:
                 try:
-                    ctx = int(m.n_ctx_train())
+                    ctx = int(md[arch + ".context_length"])
                 except Exception:
                     ctx = None
-                md = m.metadata
-                if not ctx or ctx <= 0:
-                    for k in ("llama.context_length", "qwen2.context_length",
-                              "mistral.context_length", "phi3.context_length",
-                              "gemma.context_length", "general.context_length"):
-                        try:
-                            ctx = int(md[k])
-                            break
-                        except Exception:
-                            continue
-                try:
-                    arch = str(md["general.architecture"])
-                    layers = int(md[f"{arch}.block_count"])
-                    kv_heads = int(md[f"{arch}.attention.head_count_kv"])
-                    heads = int(md[f"{arch}.attention.head_count"])
-                    emb = int(md[f"{arch}.embedding_length"])
-                    kv = 2 * layers * kv_heads * (emb // heads) * 2
-                except Exception:
-                    pass
-                if not ctx or ctx <= 0:
+                kv, kvfix = _gguf_kv_est(md)    # точная формула по размерности KV
+            if not ctx or ctx <= 0:
+                try:                            # запасной путь — llama_cpp
+                    m = Llama(model_path=path, vocab_only=True, verbose=False)
                     try:
-                        for key in list(md.keys()):
-                            if str(key).endswith("context_length"):
-                                ctx = int(md[key])
-                                break
+                        ctx = int(m.n_ctx_train())
                     except Exception:
-                        pass
-            except Exception as e:
-                print(f"⚠️ Не удалось прочитать метаданные: {e}")
-
+                        ctx = None
+                    if not ctx or ctx <= 0:
+                        for key in list(m.metadata or {}):
+                            if str(key).endswith("context_length"):
+                                try:
+                                    ctx = int(m.metadata[key])
+                                except Exception:
+                                    continue
+                                break
+                except Exception as e:
+                    print(f"⚠️ Не удалось прочитать метаданные: {e}")
             if not ctx or ctx <= 0:
                 ctx = 4096
             try:
@@ -3835,7 +4574,8 @@ class ModernTTSApp(ctk.CTk):
             except Exception:
                 fsize = 0
 
-            self.model_meta[disp] = {"ctx": ctx, "kv": kv, "file_size": fsize}
+            self.model_meta[disp] = {"ctx": ctx, "kv": kv, "kvfix": kvfix,
+                                     "file_size": fsize}
             print(f"📐 {disp}: родной контекст {ctx} токенов")
             self.after(0, self.refresh_model_info)
 
@@ -3870,16 +4610,33 @@ class ModernTTSApp(ctk.CTk):
         self.model_ctx[disp] = used
         self.model_limits[disp] = chars
 
-        mem = meta["file_size"] * 1.05 + meta["kv"] * used
-        gb = mem / (1024 ** 3)
+        weights = meta["file_size"]
+        kvn = meta["kv"] * used + meta.get("kvfix", 0)   # KV-кэш выбранного контекста
+        gib = lambda b: b / (1024 ** 3)
+        free_v, vram = None, None
+        if self.llm_gpu_var.get():
+            # режим «видеокарта»: веса и KV-кэш живут в видеопамяти (весы могут
+            # оставаться частично в отображённом файле), в ОЗУ — служебная часть
+            vram = weights + kvn + int(0.30 * 2**30)
+            ram = int(0.75 * 2**30) + weights * 0.55 + kvn * 0.25
+            txt = _tr(f"{used:,} ток. · VRAM ≈ {gib(vram):.1f} · ОЗУ ≈ {gib(ram):.1f} ГБ")
+            gu, gt = self._gpu_mem_probe()
+            if gu is not None and gt:
+                free_v = gt - gu
+        else:
+            # режим «процессор»: всё — и веса, и кэш — лежит в системной ОЗУ
+            ram = weights * 1.05 + kvn + int(0.35 * 2**30)
+            txt = _tr(f"{used:,} ток. · ОЗУ ≈ {gib(ram):.1f} ГБ")
 
         rt, ra = self._sys_mem_info()
+        known = bool(ra) or free_v is not None
+        ok = True
         if ra:
-            color = COLOR_GREEN if mem <= ra else COLOR_RED
-        else:
-            color = COLOR_TEXT_SEC
-        self.llm_limit_label.configure(text=_tr(f"{used:,} ток. · ≈ {gb:.1f} ГБ").replace(",", " "),
-                                       text_color=color)
+            ok = ok and ram <= ra
+        if free_v is not None:
+            ok = ok and (vram or 0) <= free_v
+        color = (COLOR_GREEN if ok else COLOR_RED) if known else COLOR_TEXT_SEC
+        self.llm_limit_label.configure(text=txt.replace(",", " "), text_color=color)
         self._update_ram_label()
 
     def _on_ctx_slider(self, value):
@@ -4039,6 +4796,7 @@ class ModernTTSApp(ctk.CTk):
         """Модальный выбор одной строки из списка; None — отмена."""
         box = ctk.CTkToplevel(self)
         box.title(title); box.geometry("480x430"); box.transient(self); box.grab_set()
+        _center_on_parent(box)
         self.after(0, lambda: _apply_lang(box))
         _apply_dialog_icon(box)
         box.configure(fg_color=COLOR_BG)
@@ -4126,7 +4884,8 @@ class ModernTTSApp(ctk.CTk):
         if not r.ok:
             raise Exception("Rutube: видео не найдено или недоступно.")
         j = r.json()
-        raw = j.get("subtitles") or {}
+        # Rutube отдаёт субтитры в поле captions (список {code, file, format}), а не subtitles
+        raw = j.get("subtitles") or j.get("captions") or {}
         items = []
         if isinstance(raw, dict):
             items = [(str(c), u) for c, u in raw.items() if isinstance(u, str) and u]
@@ -4147,7 +4906,10 @@ class ModernTTSApp(ctk.CTk):
             if i is None:
                 raise _SubCancelled()
             code, u = cand[i]
-        txt = requests.get(u, headers={"User-Agent": "Mozilla/5.0"}, timeout=20).text
+        rr = requests.get(u, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                                 "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                                 "Chrome/131.0.0.0 Safari/537.36"}, timeout=20)
+        txt = rr.content.decode("utf-8", "replace")
         return self._vtt_to_text(txt), (j.get("title") or f"Rutube {vid[:8]}")
 
     def _ytdlp_transcript(self, url, platform="ВК"):
@@ -4191,7 +4953,12 @@ class ModernTTSApp(ctk.CTk):
                 raise _SubCancelled()
             code, u = cand[i]
         try:
-            txt = requests.get(u, headers={"User-Agent": "Mozilla/5.0"}, timeout=30).text
+            # VK-CDN (okcdn) отдаёт 400 на короткий User-Agent — нужен полноценный браузерный
+            hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                                  "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                   "Referer": "https://vkvideo.ru/"}
+            rr = requests.get(u, headers=hdr, timeout=30)
+            txt = rr.content.decode("utf-8", "replace")  # VK не пишет charset в content-type
         except Exception:
             raise Exception(f"{platform}: не удалось скачать файл субтитров.")
         return self._vtt_to_text(txt), (info.get("title") or platform)
@@ -4536,9 +5303,28 @@ class ModernTTSApp(ctk.CTk):
                 return vid, info
         return None, None
 
-    def voice_values(self):
-        """Названия всех слотов для списка «Озвучка»."""
-        return [i.get("name") for _, i in self._voice_items() if isinstance(i, dict) and i.get("name")]
+    def _voice_engine(self, info):
+        """К какому движку принадлежит голос (своя метка engine, иначе — по следам в данных)."""
+        if not isinstance(info, dict):
+            return "Vox"
+        e = info.get("engine")
+        if e in ("Vox", "Qwen"):
+            return e
+        if info.get("instruct"):
+            return "Qwen"                       # дизайн-голос — это Qwen
+        return "Vox"
+
+    def voice_values(self, engine=None):
+        """Названия слотов для списка «Озвучка». Указал engine — только голоса этого
+        движка плюс пустые слоты (пустой заполнится тем движком, что запишет)."""
+        out = []
+        for _vid, i in self._voice_items():
+            if not isinstance(i, dict) or not i.get("name"):
+                continue
+            if engine and i.get("path") and self._voice_engine(i) != engine:
+                continue
+            out.append(i.get("name"))
+        return out
 
     def _next_voice_id(self):
         used = set()
@@ -4858,6 +5644,7 @@ class ModernTTSApp(ctk.CTk):
         dlg = ctk.CTkToplevel(self)
         dlg.title(_tr("Дополнение Vox"))
         dlg.geometry("560x330")
+        _center_on_parent(dlg)
         dlg.resizable(False, False)
         dlg.transient(self)
         dlg.configure(fg_color=COLOR_BG)
@@ -5267,6 +6054,863 @@ class ModernTTSApp(ctk.CTk):
 
     # ================= PIPER =================
 
+    # ================= QWEN3-TTS (GPU) =================
+
+    def _qwen_combo_values(self):
+        """Список голосов: встроенные тембры CustomVoice + слоты образцов."""
+        return [QWEN_SPEAKERS[s][0] for s in QWEN_SPEAKERS] + self.voice_values("Qwen")
+
+    def _show_qwen_tools(self, show):
+        if show:
+            self.qwen_row.pack(fill="x", padx=12, pady=(0, 6), before=self._tts_voice_row)
+            try:   # у лёгкого 0.6B дизайна нет — кнопка затемнена, клик предложит сменить движок
+                if "design" in self._qwen_repos():
+                    self.btn_qwen_design.configure(fg_color=COLOR_FILL_SOFT,
+                                                   hover_color=COLOR_BORDER,
+                                                   text_color=COLOR_TEXT_MAIN)
+                else:
+                    self.btn_qwen_design.configure(fg_color=COLOR_CARD,
+                                                   hover_color=COLOR_CARD,
+                                                   text_color=COLOR_TEXT_SEC)
+            except Exception:
+                pass
+            # «🎙 Образец голоса» — сразу после кнопок «Дизайн голоса»/«Настройки Qwen»
+            self._show_custom_voice(True)
+            # строка инструкции характера — под списком голосов, только для чтения
+            self.qwen_instruct_row.pack(fill="x", padx=12, pady=(0, 6), before=self.rate_row)
+            self._sync_qwen_instruct()
+        else:
+            self.qwen_row.pack_forget()
+            self.qwen_instruct_row.pack_forget()
+
+    def _sync_qwen_instruct(self):
+        """Поле инструкции в карточке — read-only зеркало паспорта текущего голоса."""
+        e = getattr(self, "qwen_instruct", None)
+        if e is None:
+            return
+        txt = ""
+        try:
+            if getattr(self, "current_engine", "") == "Qwen":
+                name = self.current_tts_name or self.tts_combo.get()
+                if name in QWEN_BY_DISPLAY:
+                    # встроенный тембр: его паспорт — пол и характер из справочника
+                    _sid, gen, desc = QWEN_BY_DISPLAY[name]
+                    txt = f"{gen}, {desc}"
+                else:
+                    _vid, info = self._find_voice(name)
+                    if isinstance(info, dict):
+                        txt = str(info.get("instruct") or "")
+        except Exception:
+            txt = ""
+        try:
+            e.configure(state="normal")
+            e.delete(0, "end")
+            if txt:
+                e.insert(0, txt[:200])
+            e.configure(state="readonly")
+        except Exception:
+            pass
+
+    def _qwen_installed(self):
+        if getattr(self, "_qwen_inst_ok", False):
+            return True
+        self._vox_syspath()       # пакет живёт в переносимой GPU-среде (vox/site)
+        _sox_stub_if_needed()     # sox рвёт импорт qwen_tts в pythonw (WinError 50)
+        try:
+            import qwen_tts  # noqa: F401
+            self._qwen_inst_ok = True
+            return True
+        except Exception as e:
+            # импорт споткнулся (гонка потоков, временный сбой) — проверяем пакет
+            # прямо на диске: если он стоит, НЕ показываем «не установлен»
+            on_disk = False
+            try:
+                _, _, site_dir = self._vox_paths()
+                cands = [os.path.join(site_dir, "qwen_tts")]
+                cands += [os.path.join(p, "qwen_tts") for p in sys.path
+                          if p.endswith("site-packages")]
+                on_disk = any(os.path.isdir(c) for c in cands)
+            except Exception:
+                pass
+            if not getattr(self, "_qwen_tb_logged", False):
+                self._qwen_tb_logged = True   # один полный трейс — не спамить журнал
+                import traceback as _tb
+                _flog("qwen_tts импорт не прошёл | на диске=%s\n%s"
+                      % (on_disk, _tb.format_exc()))
+            return bool(on_disk)
+
+    # что ставим в переносимую GPU-среду вместе с движком Qwen.
+    # torch не трогаем НИКОГДА: pip иначе тянет свежий CPU-торч поверх рабочей
+    # сборки 2.5.1+cu121 и ломает Vox (проверено на живом окружении)
+    QWEN_PKG_PINS = ["qwen-tts==0.1.1", "transformers==4.57.3",
+                     "tokenizers==0.22.2", "accelerate==1.12.0",
+                     "huggingface-hub==0.36.2", "safetensors==0.8.0"]
+    # каталоги этих пакетов в оверлее — их чистим перед установкой
+    QWEN_PKG_DIRS = ["qwen_tts", "transformers", "tokenizers", "accelerate",
+                     "huggingface_hub", "safetensors"]
+    QWEN_PKG_EXTRA = ["librosa", "einops", "onnxruntime", "gradio",
+                      "sox", "soxr", "pydub", "soundfile"]
+
+    def _qwen_pip_install(self, on_line=None):
+        """Поставить пакет qwen-tts в переносимую GPU-среду (vox/site). (ok, хвост)"""
+        _, py_dir, site_dir = self._vox_paths()
+        py_exe = os.path.join(py_dir, "python.exe")
+        if not os.path.isfile(py_exe):
+            return False, _tr("GPU-среда не установлена — сначала нужен движок Vox.")
+        # 0) pip --target НЕ перезаписывает готовые каталоги: старый пакет остался бы
+        #    лежать рядом с новым dist-info и отравил бы среду. Вычищаем только свои
+        #    пинованные пакеты — torch и пакеты Vox не трогаем НИКОГДА.
+        for nm in self.QWEN_PKG_DIRS:
+            for d in (os.path.join(site_dir, nm),):
+                if os.path.isdir(d):
+                    shutil.rmtree(d, ignore_errors=True)
+            for di in glob.glob(os.path.join(site_dir, nm + "-*.dist-info")):
+                shutil.rmtree(di, ignore_errors=True)
+        # 1) пинованные пакеты: --no-deps, чтобы pip не притащил свежий torch
+        ok, out = self._run_py(
+            [py_exe, "-m", "pip", "install", "--no-warn-script-location",
+             "--progress-bar", "raw", "--upgrade", "--no-deps",
+             "--target", site_dir] + self.QWEN_PKG_PINS,
+            on_line)
+        if not ok:
+            return False, "pip install qwen-tts:\n" + out
+        # 2) вспомогательные библиотеки qwen-tts (torch не тянут): добираем недостающие
+        self._run_py(
+            [py_exe, "-m", "pip", "install", "--no-warn-script-location",
+             "--progress-bar", "raw", "--target", site_dir] + self.QWEN_PKG_EXTRA,
+            on_line)
+        if not ok:
+            return False, "pip install qwen-tts:\n" + out
+        code = ("import sys; sys.path.insert(0, r'%s'); import qwen_tts; "
+                "print('QWENOK', qwen_tts.__file__)" % site_dir)
+        ok, out = self._run_py([py_exe, "-c", code], on_line)
+        if ok and "QWENOK" in out:
+            self._vox_syspath()   # чтобы импорт был виден и окну приложения
+        return (ok and "QWENOK" in out), out[-600:]
+
+    def _qwen_check_import(self):
+        if not self._qwen_installed():
+            raise Exception(_tr("Пакет qwen-tts не установлен — движок Qwen недоступен."))
+
+    def _qwen_dir(self):
+        return os.path.join(self.BASE_DIR, "models_qwen")
+
+    def _qwen_repos(self):
+        """Репозитории чекпойнтов для текущего размера движка (0.6B — без дизайна)."""
+        return QWEN_MODELS_06 if self.qwen_size == "0.6B" else QWEN_MODELS
+
+    def _qwen_path(self, kind):
+        return os.path.join(self._qwen_dir(), self._qwen_repos()[kind].split("/")[-1])
+
+    def _qwen_ready(self, kind):
+        if kind not in self._qwen_repos():
+            return False
+        d = self._qwen_path(kind)
+        return bool(os.path.exists(os.path.join(d, ".qwen_ok"))
+                    and os.path.exists(os.path.join(d, "config.json")))
+
+    def _qwen_fetch(self, kinds, on_progress=None, cancel=None):
+        """Скачать недостающие модели Qwen с Hugging Face в models_qwen (качка через .part)."""
+        import json as _json
+        kinds = [k for k in kinds if k in self._qwen_repos() and not self._qwen_ready(k)]
+        if not kinds:
+            return
+        os.makedirs(self._qwen_dir(), exist_ok=True)
+        for kind in kinds:
+            repo = self._qwen_repos()[kind]
+            d = self._qwen_path(kind)
+            os.makedirs(d, exist_ok=True)
+            try:
+                r = _http_get(QWEN_HF_TREE.format(repo=repo), timeout=30)
+                entries = _json.loads(r.text)
+            except Exception as e:
+                raise Exception(f"Не удалось получить список файлов модели Qwen: {e}")
+            files = [(e["path"], int(e.get("size") or 0)) for e in entries
+                     if e.get("type") == "blob" and e["path"].lower().endswith(QWEN_EXT)]
+            if not files:
+                raise Exception("Qwen: сервер вернул пустой список файлов.")
+            total = sum(sz for _n, sz in files) or 1
+            prog = {"done": 0}
+            for name, size in files:
+                if cancel is not None and cancel.is_set():
+                    raise Cancelled()
+                dest = os.path.join(d, *name.split("/"))
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                if os.path.exists(dest) and size and os.path.getsize(dest) == size:
+                    prog["done"] += size
+                    continue
+                if on_progress:
+                    on_progress(min(99.0, 100.0 * prog["done"] / total), name)
+                print(f"⬇ Qwen {kind}: {name}")
+
+                def _tick(n, _name=name):
+                    prog["done"] += n
+                    if on_progress:
+                        on_progress(min(99.0, 100.0 * prog["done"] / total), _name)
+
+                self._fetch_file(QWEN_HF_FILE.format(repo=repo, file=name), dest,
+                                 on_bytes=_tick, cancel=cancel)
+            with open(os.path.join(d, ".qwen_ok"), "w", encoding="utf-8") as f:
+                f.write(repo)
+            print(f"✅ Модель Qwen {kind} на месте")
+
+    def _qwen_prepare(self):
+        """Выбран движок Qwen: проверить модели, предложить докачать."""
+        if not self._qwen_installed():
+            return
+        missing = [k for k in ("custom", "base", "design")
+                   if k in self._qwen_repos() and not self._qwen_ready(k)]
+        if not missing:
+            self.update_status(_tr("Qwen3-TTS: модели на месте."))
+            return
+        gmap = QWEN_GB_06 if self.qwen_size == "0.6B" else QWEN_GB
+        gb = sum(gmap[k] for k in missing)
+        names = ", ".join(self._qwen_repos()[k].split("/")[-1] for k in missing)
+        if not messagebox.askyesno(
+                _tr("Движок Qwen"),
+                _tr("Не скачаны модели Qwen3-TTS (~{gb} ГБ):\n{names}\n\n"
+                    "Скачать сейчас в папку models_qwen?").format(gb=gb, names=names)):
+            self.update_status(_tr("Qwen3-TTS: модели не скачаны — докачает при озвучке."))
+            return
+
+        def work():
+            try:
+                self._qwen_fetch(missing, on_progress=lambda p, name: self._safe_ui(
+                    lambda p=p, name=name: self.set_progress(int(p), f"Модель Qwen: {name}")))
+                self._safe_ui(lambda: self.set_progress(0, ""))
+                self._safe_ui(lambda: self.update_status(_tr("✅ Модели Qwen3-TTS скачаны.")))
+            except Exception as e:
+                print(f"❌ Загрузка Qwen: {e}")
+                self._safe_ui(lambda e=e: self.update_status(f"❌ Qwen: {e}"))
+                self._safe_ui(lambda: self.set_progress(0, ""))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _qwen_device_dtype(self):
+        import torch
+        want = str(self.qwen_cfg.get("device") or "auto")
+        has_gpu = torch.cuda.is_available()
+        if want == "cpu" or not has_gpu:
+            return "cpu", torch.float32
+        prec = str(self.qwen_cfg.get("precision") or "bf16")
+        if prec == "fp32":
+            return "cuda", torch.float32
+        if prec == "fp16":
+            return "cuda", torch.float16
+        return "cuda", torch.bfloat16
+
+    def _qwen_model(self, kind):
+        if kind not in self._qwen_repos():
+            raise Exception(_tr("Режим недоступен на лёгком движке Qwen 0.6B — "
+                                "поставьте 1.7B в «Настройки Qwen»."))
+        if not self._qwen_ready(kind):
+            raise Exception(f"Модель Qwen {kind} не скачана.")
+        cached = self._qwen_models.get(kind)
+        if cached is not None:
+            return cached
+        dev, dt = self._qwen_device_dtype()
+        self._safe_ui(lambda: self.update_status("⏳ Загрузка Qwen3-TTS (веса ~5 ГБ)..."))
+        try:
+            _sox_stub_if_needed()
+            from qwen_tts import Qwen3TTSModel
+        except Exception:
+            import traceback as _tb
+            _flog("Qwen3TTSModel импорт не прошёл\n" + _tb.format_exc())
+            raise
+        path = self._qwen_path(kind)
+        try:
+            m = Qwen3TTSModel.from_pretrained(path, device_map=dev, torch_dtype=dt)
+        except Exception as e:
+            if dev != "cpu":
+                print(f"⚠️ Qwen на GPU не поднялся ({e}) — пробую CPU")
+                import torch as _t
+                m = Qwen3TTSModel.from_pretrained(path, device_map="cpu", torch_dtype=_t.float32)
+            else:
+                raise
+        self._qwen_models[kind] = m
+        self._qwen_prompt_cache.clear()   # промпты старого экземпляра модели невалидны
+        self._safe_ui(lambda k=kind: self.update_status(f"✅ Qwen3-TTS ({k}) готова ({dev})."))
+        return m
+
+    def _qwen_free(self):
+        """Отпустить VRAM/CUDA-кэш: модели Qwen тяжёлые."""
+        import gc
+        self._qwen_models.clear()
+        self._qwen_prompt_cache.clear()
+        gc.collect()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+
+    def _qwen_prompt(self, model, vid, info):
+        """Готовый промпт клона для голоса-образца (кэшируется: создаётся 1 раз на голос)."""
+        path = (info or {}).get("path") or ""
+        if not path or not os.path.exists(path):
+            raise Exception("Образец голоса не найден — перезапишите его через «🎙 Образец голоса».")
+        key = f"{vid}|{path}|{bool((info or {}).get('text'))}"
+        cache = self._qwen_prompt_cache
+        if key in cache:
+            return cache[key]
+        ref_text = ((info or {}).get("text") or "").strip()
+        if ref_text:
+            try:
+                prompt = model.create_voice_clone_prompt(ref_audio=path, ref_text=ref_text)
+            except Exception as e:
+                print(f"⚠️ Промпт клона по образцу+тексту не принят ({e}) — режим x-vector")
+                prompt = model.create_voice_clone_prompt(ref_audio=path, x_vector_only_mode=True)
+        else:
+            prompt = model.create_voice_clone_prompt(ref_audio=path, x_vector_only_mode=True)
+        cache.clear()   # держим промпт только текущего голоса: чужой промпт портит тембр
+        cache[key] = prompt
+        return prompt
+
+    def _qwen_to_int16(self, wavs):
+        w = wavs[0] if isinstance(wavs, (list, tuple)) and wavs else wavs
+        if hasattr(w, "detach"):
+            w = w.detach().cpu().numpy()
+        arr = np.asarray(w, dtype=np.float32).reshape(-1)
+        if arr.size == 0:
+            return arr.astype(np.int16)
+        peak = float(np.abs(arr).max())
+        if peak <= 1.5:
+            gain = (32767.0 / max(peak, 1e-6)) if peak < 0.5 else 32767.0
+            arr = np.clip(arr * gain, -32768, 32767)
+        return arr.astype(np.int16)
+
+    def _qwen_seed_saved(self):
+        try:
+            return max(0, min(2_000_000_000, int(self.qwen_seed_var.get() or 0)))
+        except Exception:
+            return 0
+
+    def _qwen_new_run_seed(self):
+        """Зерно на прогон: фиксированное из настроек или новое, чтобы дубли различались."""
+        base = self._qwen_seed_saved()
+        if base and bool(self.qwen_fixed_var.get()):
+            self._qwen_run_seed = base
+        else:
+            self._qwen_runs += 1
+            self._qwen_run_seed = (base + self._qwen_runs * 7919) % 2_000_000_000
+        try:
+            import torch
+            torch.manual_seed(self._qwen_run_seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(self._qwen_run_seed)
+        except Exception:
+            pass
+        print(f"🎲 Qwen seed: {self._qwen_run_seed}"
+              + (" (фикс.)" if base and bool(self.qwen_fixed_var.get()) else ""))
+
+    def _qwen_call(self, fn, **kw):
+        """Вызов API пакета со срезанием kwargs, которых нет в этой версии пакета."""
+        while True:
+            try:
+                return fn(**kw)
+            except TypeError as e:
+                msg = str(e)
+                dropped = False
+                for bad in ("instruct", "language", "voice_clone_prompt", "non_streaming_mode"):
+                    if bad in msg and bad in kw:
+                        kw.pop(bad)
+                        dropped = True
+                        print(f"⚠️ qwen-tts не принимает {bad} — пробую без него")
+                        break
+                if not dropped:
+                    raise
+
+    def _qwen_instruct_for(self, emo_label, user_instr, vpack=None):
+        parts = []
+        if emo_label:
+            parts.append(EMOTION_TAB.get(emo_label, ("", ""))[0])
+        info = (vpack or (None, None))[1] or {}
+        own = (info.get("instruct") or "").strip()   # «паспорт» голоса из Дизайна
+        if own:
+            parts.append(own)
+        if user_instr:
+            parts.append(user_instr)
+        s = ", ".join(p for p in parts if p).strip()
+        return s or None
+
+    def _split_emotion_segments_qwen(self, text):
+        """[(метка эмоции|None, кусок)] — как у Vox, но эмоция подмешивается в instruct,
+        а не в образец голоса: EMOTION_TAB даёт английскую инструкцию прямо из справочника."""
+        if not EMOTION_TAB:
+            return [(None, text)]
+        by_stem = {self._emo_stem(label): label for label in EMOTION_TAB}
+        parts, pos, cur = [], 0, None
+        for m in re.finditer(r"\(([^()]{1,40})\)", text):
+            word = (re.split(r"[\s,;:]+", m.group(1).strip()) or [""])[0]
+            label = by_stem.get(self._emo_stem(word)) if word else None
+            if not label:
+                continue                     # не наша эмоция — скобки остаются в тексте
+            frag = text[pos:m.start()]
+            if frag.strip():
+                parts.append((cur, frag))
+            cur, pos = label, m.end()
+        rest = text[pos:]
+        if rest.strip():
+            parts.append((cur, rest))
+        if not parts:
+            return [(None, text)]
+        out = []
+        for emo, frag in parts:
+            if not emo:
+                out.append((None, frag))
+                continue
+            sentences = [s for s in re.split(r"(?<=[.!?…])[ \t]+", frag) if s.strip()]
+            if sentences:
+                out.append((emo, sentences[0]))
+                out.extend((None, s) for s in sentences[1:])
+        return out or [(None, text)]
+
+    def _qwen_synth_chunk(self, model, spk_id, vpack, ch_clean, emo_label, user_instr, lang):
+        instruct = self._qwen_instruct_for(emo_label, user_instr, vpack)
+        cfg = self.qwen_cfg
+        common = dict(do_sample=True,
+                      max_new_tokens=int(cfg["max_new_tokens"]),
+                      top_p=float(cfg["top_p"]), top_k=int(cfg["top_k"]),
+                      temperature=float(cfg["temperature"]),
+                      repetition_penalty=float(cfg["repetition_penalty"]),
+                      non_streaming_mode=True)
+        if spk_id:   # встроенный тембр CustomVoice
+            wavs, sr = self._qwen_call(model.generate_custom_voice, text=ch_clean,
+                                       speaker=spk_id, language=lang, instruct=instruct,
+                                       **common)
+        else:        # клон по образцу (Base)
+            vid, info = vpack
+            prompt = self._qwen_prompt(model, str(vid), info or {})
+            wavs, sr = self._qwen_call(model.generate_voice_clone, text=ch_clean,
+                                       voice_clone_prompt=prompt, instruct=instruct,
+                                       language=lang, **common)
+        return self._qwen_to_int16(wavs), int(sr)
+
+    def _qwen_size_menu(self, event):
+        """ПКМ по «Дизайн голоса»: выбор движка Qwen — 4 ГБ или 6–8 ГБ."""
+        menu = Menu(self, tearoff=0)
+        _style_tk_menu(menu)
+        cur = self.qwen_size
+        menu.add_command(label=("\u2705 " if cur == "0.6B" else "    ") +
+                         _tr("Движок 0.6B \u2014 нужно 4 ГБ (\u22485 ГБ)"),
+                         command=lambda: self._qwen_switch_size("0.6B"))
+        menu.add_command(label=("\u2705 " if cur == "1.7B" else "    ") +
+                         _tr("Движок 1.7B \u2014 нужно 6\u20138 ГБ (\u224813,5 ГБ)"),
+                         command=lambda: self._qwen_switch_size("1.7B"))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+        return "break"
+
+    def _qwen_switch_size(self, size):
+        """Сменить размер движка Qwen; если модели не скачаны — сначала спросить."""
+        if size == self.qwen_size:
+            return
+        self.qwen_size = size
+        missing = [k for k in self._qwen_repos() if not self._qwen_ready(k)]
+        if missing:
+            self.qwen_size = "1.7B" if size == "0.6B" else "0.6B"
+            self._qwen_size_dl_offer(size, missing)
+            return
+        self._qwen_apply_size(size)
+
+    def _qwen_apply_size(self, size):
+        """Применить размер движка и докачать недостающие модели в фоне."""
+        self.qwen_size = size
+        self.save_settings()
+        if self.current_engine == "Qwen":
+            self._show_qwen_tools(True)
+        missing = [k for k in self._qwen_repos() if not self._qwen_ready(k)]
+        if not missing:
+            self._ui(self.update_status, f"\u2705 Qwen {size}")
+            return
+
+        def work():
+            try:
+                if not self._qwen_installed():
+                    ok_pkg, out_pkg = self._qwen_pip_install()
+                    if not ok_pkg:
+                        self._ui(self.update_status,
+                                 f"\u274c qwen-tts: {out_pkg[-140:]}")
+
+                def qprog(p, name):
+                    self._ui(self.update_status,
+                             f"Qwen {size}: {p:.0f}% \u00b7 {name}")
+                self._qwen_fetch(missing, on_progress=qprog)
+                self._ui(self.update_status, f"\u2705 Qwen {size} \u2713")
+                self._ui(self._refresh_voices)
+            except Cancelled:
+                self._ui(self.update_status, _tr("Qwen докачка отменена"))
+            except Exception as e:
+                self._ui(self.update_status, f"\u274c Qwen: {e}")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _qwen_size_dl_offer(self, size, missing):
+        """Движок {size} не скачан: предложить скачать, показав объём и VRAM."""
+        gb_map = QWEN_GB_06 if size == "0.6B" else QWEN_GB
+        total = sum(gb_map.get(k, 0.0) for k in missing)
+        vram_need = _tr("\u043d\u0443\u0436\u043d\u043e 4 \u0413\u0411 \u0432\u0438\u0434\u0435\u043e\u043f\u0430\u043c\u044f\u0442\u0438") \
+            if size == "0.6B" else \
+            _tr("\u043d\u0443\u0436\u043d\u043e 6\u20138 \u0413\u0411 \u0432\u0438\u0434\u0435\u043e\u043f\u0430\u043c\u044f\u0442\u0438")
+        gname, gvram = self._gpu_summary()
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Скачать движок Qwen?"))
+        dlg.geometry("540x250")
+        _center_on_parent(dlg)
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        dlg.configure(fg_color=COLOR_BG)
+        _apply_dialog_icon(dlg)
+        ctk.CTkLabel(dlg, text=f"{_tr('Движок Qwen')} {size} {_tr('ещё не скачан')}",
+                     font=FONT_SUBHEADER, text_color=COLOR_HEAD).pack(pady=(12, 4))
+        ctk.CTkLabel(dlg, text=_tr("Скачать (\u2248{t:.1f} ГБ)?").format(t=total),
+                     font=(FONT_FAMILY, 13, "bold"),
+                     text_color=COLOR_TEXT_MAIN).pack()
+        ctk.CTkLabel(dlg, text=vram_need, font=(FONT_FAMILY, 12, "bold"),
+                     text_color=COLOR_TEXT_MAIN).pack(pady=(2, 0))
+        if gname:
+            need_min = 2.0 if size == "0.6B" else 5.5
+            ok = gvram >= need_min
+            ctk.CTkLabel(dlg, text=f"\U0001f5a5 {gname} \u2014 {gvram:.1f} "
+                                   + _tr("ГБ видеопамяти"),
+                         font=FONT_SMALL,
+                         text_color=COLOR_GOLD if ok else COLOR_RED).pack(pady=(8, 1))
+            if not ok:
+                ctk.CTkLabel(dlg, text=_tr("Вашей видеопамяти может не хватить"),
+                             font=FONT_TINY, text_color=COLOR_RED).pack()
+        else:
+            ctk.CTkLabel(dlg, text=_tr("\U0001f5a5 Видеокарта не найдена"),
+                         font=FONT_SMALL, text_color=COLOR_RED).pack(pady=(8, 1))
+        row = ctk.CTkFrame(dlg, fg_color="transparent")
+        row.pack(pady=(12, 10))
+        ctk.CTkButton(row, text=_tr("Скачать"), width=160, height=32,
+                      corner_radius=3, font=FONT_SMALL,
+                      fg_color="#c6763a", hover_color="#a95f2c",
+                      text_color=COLOR_TEXT_MAIN,
+                      command=lambda: (self._qwen_apply_size(size),
+                                       dlg.destroy())).pack(side="left")
+        ctk.CTkButton(row, text=_tr("Отмена"), width=100, height=32,
+                      corner_radius=3, font=FONT_SMALL, fg_color=COLOR_FILL_SOFT,
+                      hover_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN,
+                      command=dlg.destroy).pack(side="left", padx=8)
+
+        def _fit():
+            try:
+                if dlg.winfo_exists():
+                    dlg.geometry(f"540x{max(190, dlg.winfo_reqheight())}")
+            except Exception:
+                pass
+        dlg.after(60, _fit)
+
+    def _qwen_design_size_offer(self):
+        """Дизайн голоса требует движок 1.7B: показать требования и VRAM пользователя."""
+        gname, gvram = self._gpu_summary()
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Дизайн голоса"))
+        dlg.geometry("540x230")
+        _center_on_parent(dlg)
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        dlg.configure(fg_color=COLOR_BG)
+        _apply_dialog_icon(dlg)
+        ctk.CTkLabel(dlg, text=_tr("Дизайн голоса доступен у движка Qwen 1.7B"),
+                     font=FONT_SUBHEADER, text_color=COLOR_HEAD).pack(pady=(12, 4))
+        ctk.CTkLabel(dlg, text=_tr("Нужно 6\u20138 ГБ видеопамяти"),
+                     font=(FONT_FAMILY, 13, "bold"),
+                     text_color=COLOR_TEXT_MAIN).pack()
+        if gname:
+            ok = gvram >= 5.5
+            ctk.CTkLabel(dlg, text=f"\U0001f5a5 {gname} \u2014 {gvram:.1f} "
+                                   + _tr("ГБ видеопамяти"),
+                         font=FONT_SMALL,
+                         text_color=COLOR_GOLD if ok else COLOR_RED).pack(pady=(8, 1))
+            if not ok:
+                ctk.CTkLabel(dlg, text=_tr("Вашей видеопамяти может не хватить"),
+                             font=FONT_TINY, text_color=COLOR_RED).pack()
+        else:
+            ctk.CTkLabel(dlg, text=_tr("\U0001f5a5 Видеокарта не найдена \u2014 "
+                                       "дизайн голоса не сможет работать"),
+                         font=FONT_SMALL, text_color=COLOR_RED).pack(pady=(8, 1))
+        row = ctk.CTkFrame(dlg, fg_color="transparent")
+        row.pack(pady=(12, 10))
+        ctk.CTkButton(row, text=_tr("Установить движок 1.7B (\u224813,5 ГБ)"),
+                      width=240, height=32, corner_radius=3, font=FONT_SMALL,
+                      fg_color="#c6763a", hover_color="#a95f2c",
+                      text_color=COLOR_TEXT_MAIN,
+                      command=lambda: (self._qwen_switch_size("1.7B"),
+                                       dlg.destroy())).pack(side="left")
+        ctk.CTkButton(row, text=_tr("Закрыть"), width=100, height=32,
+                      corner_radius=3, font=FONT_SMALL, fg_color=COLOR_FILL_SOFT,
+                      hover_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN,
+                      command=dlg.destroy).pack(side="left", padx=8)
+
+        def _fit():
+            try:
+                if dlg.winfo_exists():
+                    dlg.geometry(f"540x{max(180, dlg.winfo_reqheight())}")
+            except Exception:
+                pass
+        dlg.after(60, _fit)
+
+    def _qwen_design_dialog(self):
+        if "design" not in self._qwen_repos():
+            self._qwen_design_size_offer()
+            return
+        """✨ Дизайн голоса: VoiceDesign-модель создаёт голос по текстовому описанию."""
+        if not self._qwen_installed():
+            messagebox.showwarning(_tr("Дизайн голоса"), _tr("Пакет qwen-tts не установлен."))
+            return
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Дизайн голоса"))
+        dlg.geometry("440x490")
+        _center_on_parent(dlg)
+        dlg.transient(self)
+        dlg.configure(fg_color=COLOR_BG)   # фон окна в палитре приложения
+        try:
+            dlg.attributes("-topmost", True)
+            dlg.after(500, lambda: dlg.attributes("-topmost", False))
+        except Exception:
+            pass
+        ctk.CTkLabel(dlg, text=_tr("Опиши голос словами — модель его создаст.\n"
+                                   "Например: «молодой энергичный мужчина, быстрая речь, с улыбкой»"),
+                     font=FONT_SMALL, text_color=COLOR_TEXT_SEC, justify="left",
+                     anchor="w").pack(fill="x", padx=16, pady=(14, 6))
+        ins = ctk.CTkEntry(dlg, font=FONT_SMALL, height=58, corner_radius=3,
+                           fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
+                           text_color=COLOR_TEXT_MAIN,
+                           placeholder_text="мужчина, 25 лет, энергичный, с улыбкой, быстрая речь…")
+        ins.pack(fill="x", padx=16)
+        ctk.CTkLabel(dlg, text=_tr("Текст прослушки"), font=FONT_SMALL,
+                     text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=16, pady=(10, 2))
+        txt = ctk.CTkEntry(dlg, font=FONT_SMALL, height=34, corner_radius=3,
+                           fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
+                           text_color=COLOR_TEXT_MAIN)
+        txt.insert(0, VoiceRecorderDialog.DEFAULT_TEXT)
+        txt.pack(fill="x", padx=16)
+        ctk.CTkLabel(dlg, text=_tr("Имя голоса в списке"), font=FONT_SMALL,
+                     text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=16, pady=(10, 2))
+        name_e = ctk.CTkEntry(dlg, font=FONT_SMALL, height=30, corner_radius=3,
+                              fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
+                              text_color=COLOR_TEXT_MAIN, placeholder_text="Дизайн 1")
+        name_e.pack(fill="x", padx=16)
+        status = ctk.CTkLabel(dlg, text="", font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
+                              anchor="w", justify="left", wraplength=400)
+        status.pack(fill="x", padx=16, pady=(10, 6))
+        state = {"wav": None, "ins": "", "sample": ""}
+
+        def gen():
+            d = (ins.get() or "").strip()
+            t = (txt.get() or "").strip()
+            if not d or not t:
+                status.configure(text=_tr("Заполни описание голоса и текст."))
+                return
+
+            def work():
+                try:
+                    self._qwen_fetch(["design"])
+                    model = self._qwen_model("design")
+                    self._qwen_new_run_seed()
+                    cfg = self.qwen_cfg
+                    wavs, sr = self._qwen_call(
+                        model.generate_voice_design, text=t, instruct=d, language=None,
+                        do_sample=True, max_new_tokens=int(cfg["max_new_tokens"]),
+                        top_p=float(cfg["top_p"]), top_k=int(cfg["top_k"]),
+                        temperature=float(cfg["temperature"]),
+                        repetition_penalty=float(cfg["repetition_penalty"]),
+                        non_streaming_mode=True)
+                    arr = self._qwen_to_int16(wavs)
+                    if len(arr) < int(sr * 0.2):
+                        self._safe_ui(lambda: status.configure(
+                            text=_tr("Модель дала тишину — переформулируй описание.")))
+                        return
+                    path = os.path.join(self.BASE_DIR, "temp_qwen_design.wav")
+                    with wave.open(path, "wb") as wf:
+                        wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(int(sr))
+                        wf.writeframes(arr.tobytes())
+                    state.update(wav=path, ins=d, sample=t)
+
+                    def ok():
+                        status.configure(text=_tr("Готово — слушаю. Нравится — жми «Сохранить»."))
+                        self._play_wav(path)
+                    self._safe_ui(ok)
+                except Exception as e:
+                    print(f"❌ Дизайн Qwen: {e}")
+                    self._safe_ui(lambda e=e: status.configure(text=f"Ошибка: {e}"))
+            status.configure(text=_tr("Генерирую голос…"))
+            threading.Thread(target=work, daemon=True).start()
+
+        def keep():
+            if not state["wav"]:
+                status.configure(text=_tr("Сначала прослушай вариант."))
+                return
+            vid, _info = self._first_empty_voice()
+            if vid is None:
+                vid = self._next_voice_id()
+            wav = os.path.join(self.BASE_DIR, "voices_qwen", f"design_{vid}.wav")
+            try:
+                os.makedirs(os.path.dirname(wav), exist_ok=True)
+                shutil.copyfile(state["wav"], wav)
+            except Exception as e:
+                status.configure(text=f"Не удалось сохранить: {e}")
+                return
+            label = (name_e.get() or "").strip() or "Дизайн"
+            self._apply_custom_voice(wav, state["sample"], vid, label)
+            info = self.custom_voices.get(str(vid))
+            if isinstance(info, dict):
+                info["instruct"] = state["ins"]   # паспорт голоса: подмешивается в каждое озвучивание
+                self.save_settings()
+            if self.current_engine == "Qwen":
+                self.tts_combo.configure(values=self._qwen_combo_values())
+                nm = info.get("name") if isinstance(info, dict) else label
+                self.tts_combo.set(nm)
+                self.current_tts_name = nm
+                self._sync_qwen_instruct()
+            status.configure(text=_tr("✅ Голос сохранён в списке — работает как клон."))
+
+        ctk.CTkButton(dlg, text="🔊 " + _tr("Сгенерировать и послушать"), height=30,
+                      corner_radius=3, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_MAIN, command=gen).pack(fill="x", padx=16, pady=(2, 4))
+        ctk.CTkButton(dlg, text="💾 " + _tr("Сохранить"), height=30, corner_radius=3,
+                      fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_MAIN, command=keep).pack(fill="x", padx=16, pady=(0, 4))
+        ctk.CTkButton(dlg, text=_tr("Закрыть"), height=26, corner_radius=3,
+                      fg_color="transparent", border_width=1, border_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_MAIN, command=dlg.destroy).pack(fill="x", padx=16,
+                                                                            pady=(0, 12))
+        # окно по высоте содержимого — без пустого «подвала» (Ярослав, 04.11.26)
+        dlg.update_idletasks()
+        try:
+            dlg.geometry(f"440x{max(200, dlg.winfo_reqheight())}")
+            _center_on_parent(dlg)
+        except Exception:
+            pass
+
+    def _qwen_settings_dialog(self):
+        """⚙ Настройки движка Qwen: устройство, точность, язык, сэмплирование, память."""
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Настройки Qwen3-TTS"))
+        dlg.geometry("400x560")
+        _center_on_parent(dlg)
+        dlg.transient(self)
+        dlg.configure(fg_color=COLOR_BG)   # фон окна в палитре приложения
+        try:
+            dlg.attributes("-topmost", True)
+            dlg.after(500, lambda: dlg.attributes("-topmost", False))
+        except Exception:
+            pass
+
+        def row():
+            f = ctk.CTkFrame(dlg, fg_color="transparent")
+            f.pack(fill="x", padx=16, pady=3)
+            f.grid_columnconfigure(0, weight=1)
+            return f
+
+        def label(parent, text, font=FONT_SMALL):
+            ctk.CTkLabel(parent, text=text, font=font, text_color=COLOR_TEXT_SEC,
+                         anchor="w").grid(row=0, column=0, sticky="w")
+
+        def menu(parent, values, var, width=120):
+            ctk.CTkOptionMenu(parent, values=values, variable=var, width=width, height=26,
+                              corner_radius=3, font=FONT_TINY, fg_color=COLOR_CARD2,
+                              button_color=COLOR_FILL_SOFT, button_hover_color=COLOR_SELECT,
+                              text_color=COLOR_TEXT_MAIN).grid(row=0, column=1, sticky="e")
+
+        r = row(); label(r, _tr("Устройство")); dev_var = ctk.StringVar(value=self.qwen_cfg["device"])
+        menu(r, ["auto", "gpu", "cpu"], dev_var)
+        r = row(); label(r, _tr("Точность")); prec_var = ctk.StringVar(value=self.qwen_cfg["precision"])
+        menu(r, ["bf16", "fp16", "fp32"], prec_var)
+        # живая подсказка под выбором точности (Ярослав, 05.11.26): меняем текст
+        # вместе с пунктом меню — пользователь видит цену выбора до сохранения
+        _ph = {
+            "bf16": "Родной формат Qwen3-TTS: веса уже лежат в нём, ~3.8 ГБ видеопамяти, "
+                    "широкий диапазон чисел — без «выпаданий» в шум. Ставь его, если нет особой причины.",
+            "fp16": "Та же память и почти та же скорость, что bf16, но узкий диапазон чисел: "
+                    "иногда возможны шум и артефакты звука. Пробуй ради скорости — появятся шумы, верни bf16.",
+            "fp32": "Полная точность: вдвое больше видеопамяти (~7.6 ГБ) и медленнее. Нужна на CPU "
+                    "или старых видеокартах без bf16 (GTX 10xx и старше), либо для поиска причины артефактов.",
+        }
+        _ph_lbl = ctk.CTkLabel(r, text="", font=FONT_TINY, text_color=COLOR_TEXT_SEC,
+                               anchor="w", justify="left", wraplength=356)
+        _ph_lbl.grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 0))
+        prec_var.trace_add("write", lambda *_x: _ph_lbl.configure(
+            text=_ph.get(str(prec_var.get()).lower(), "")))
+        _ph_lbl.configure(text=_ph.get(str(prec_var.get()).lower(), ""))
+        r = row(); label(r, _tr("Язык")); lang_var = ctk.StringVar(value=self.qwen_cfg["language"])
+        menu(r, QWEN_LANGS, lang_var, width=140)
+        r = row(); label(r, _tr("Фиксированное зерно"))
+        fixed_var = ctk.BooleanVar(value=bool(self.qwen_fixed_var.get()))
+        ctk.CTkSwitch(r, text="", variable=fixed_var).grid(row=0, column=1, sticky="e")
+        r = row(); label(r, _tr("Зерно (0 — каждый дуб новый)"))
+        seed_e = ctk.CTkEntry(r, width=120, height=26, corner_radius=3, font=FONT_TINY,
+                              fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
+                              text_color=COLOR_TEXT_MAIN)
+        seed_e.insert(0, self.qwen_seed_var.get() or "0")
+        seed_e.grid(row=0, column=1, sticky="e")
+        num_fields = {}
+        for key, text in (("max_new_tokens", _tr("Максимум токенов на фразу")),
+                          ("top_k", "top_k"), ("top_p", "top_p"),
+                          ("temperature", "temperature"),
+                          ("repetition_penalty", "repetition_penalty")):
+            r = row(); label(r, text, font=FONT_TINY)
+            e = ctk.CTkEntry(r, width=90, height=24, corner_radius=3, font=FONT_TINY,
+                             fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
+                             text_color=COLOR_TEXT_MAIN)
+            e.insert(0, str(self.qwen_cfg[key]))
+            e.grid(row=0, column=1, sticky="e")
+            num_fields[key] = e
+        r = row(); label(r, _tr("Освобождать память после озвучки"))
+        free_var = ctk.BooleanVar(value=bool(self.qwen_cfg.get("free_after")))
+        ctk.CTkSwitch(r, text="", variable=free_var).grid(row=0, column=1, sticky="e")
+        r = row(); label(r, _tr("Размер движка"))
+        size_seg = SegmentToggle(r, values=["0.6B", "1.7B"], height=26, btn_width=70)
+        size_seg.set(self.qwen_size if self.qwen_size in ("0.6B", "1.7B") else "1.7B")
+        size_seg.grid(row=0, column=1, sticky="e")
+
+        def save():
+            try:
+                if size_seg.get() in ("0.6B", "1.7B"):
+                    # переключение через общую процедуру: если модели нет — предложим скачать
+                    self._qwen_switch_size(size_seg.get())
+            except Exception:
+                pass
+            changed = (dev_var.get() != self.qwen_cfg["device"]
+                       or prec_var.get() != self.qwen_cfg["precision"])
+            self.qwen_cfg["device"] = dev_var.get()
+            self.qwen_cfg["precision"] = prec_var.get()
+            self.qwen_cfg["language"] = lang_var.get()
+            lim = {"max_new_tokens": (64, 2048, int), "top_k": (1, 200, int),
+                   "top_p": (0.1, 1.0, float), "temperature": (0.1, 2.0, float),
+                   "repetition_penalty": (0.5, 2.0, float)}
+            for key, (lo, hi, cast) in lim.items():
+                try:
+                    self.qwen_cfg[key] = max(lo, min(hi, cast(num_fields[key].get())))
+                except Exception:
+                    pass
+            self.qwen_fixed_var.set(bool(fixed_var.get()))
+            try:
+                self.qwen_seed_var.set(str(max(0, min(2_000_000_000, int(seed_e.get() or 0)))))
+            except Exception:
+                pass
+            self.qwen_cfg["free_after"] = bool(free_var.get())
+            if changed:
+                self._qwen_free()   # смена устройства/точности — модель перезагрузится
+            self.save_settings()
+            self.update_status(_tr("✅ Настройки Qwen сохранены."))
+            dlg.destroy()
+
+        ctk.CTkButton(dlg, text="💾 " + _tr("Сохранить"), height=30, corner_radius=3,
+                      fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_MAIN, command=save).pack(fill="x", padx=16, pady=(10, 12))
+        # после удаления кнопок окно стало длиннее содержимого — подгоняем под него
+        dlg.update_idletasks()
+        try:
+            dlg.geometry(f"400x{max(200, dlg.winfo_reqheight())}")
+            _center_on_parent(dlg)
+        except Exception:
+            pass
+
     def load_tts_on_select(self):
         name = self.tts_combo.get()
         if not name:
@@ -5337,12 +6981,21 @@ class ModernTTSApp(ctk.CTk):
                 "custom_presets": self.custom_presets,
                 "instruction": self.instruction_entry.get("1.0", "end-1c").strip(),
                 "auto_play": bool(self.auto_play_var.get()),
-                "emo_auto": bool(self.emo_auto_var.get() if self.current_engine == "Vox"
+                "emo_auto": bool(self.emo_auto_var.get() if self.current_engine in ("Vox", "Qwen")
                                   else self._emo_pref),
                 "custom_voices": self.custom_voices,
+                "engine_voices": self.engine_voices,
                 "ctx_choices": self.ctx_choices,
                 "speech_rate": self.speech_rate,
                 "vox_fast": bool(self.vox_fast_var.get()),
+                "qwen_cfg": dict(self.qwen_cfg),
+                "qwen_size": self.qwen_size,
+                "setup_preview": bool(getattr(self, "setup_preview", False)),
+                "setup_done": bool(getattr(self, "setup_done", False)),
+                "qwen_instruct": (self.qwen_instruct.get()
+                                  if getattr(self, "qwen_instruct", None) is not None else ""),
+                "qwen_seed_fixed": self._qwen_seed_saved(),
+                "qwen_seed_on": bool(self.qwen_fixed_var.get()),
                 "llm_gpu": bool(self.llm_gpu_var.get()),
                 "external_llms": self.external_llms,
                 "geometry": self.geometry(),
@@ -5370,6 +7023,10 @@ class ModernTTSApp(ctk.CTk):
             candidate = os.path.join(self.BASE_DIR, os.path.basename(path))
             if os.path.exists(candidate):
                 info["path"] = candidate
+        # у старых голосов метки движка нет: instruct — дизайн Qwen, остальные — Vox.
+        # пустой слот не мигрируем: он достанется тому движку, который первым запишет
+        if info.get("path") and info.get("engine") not in ("Vox", "Qwen"):
+            info["engine"] = "Qwen" if info.get("instruct") else "Vox"
         return info
 
     def load_settings(self):
@@ -5417,6 +7074,10 @@ class ModernTTSApp(ctk.CTk):
                 if not info.get("name"):
                     info["name"] = f"Свой {slot}"  # старый формат — имя по номеру
                 self.custom_voices[str(slot)] = info
+        ev = data.get("engine_voices")
+        if isinstance(ev, dict):
+            self.engine_voices = {k: v for k, v in ev.items()
+                                  if k in ("Vox", "Qwen", "Piper") and isinstance(v, str) and v}
 
         # встроенные голоса («Алсу», «Джон»): добавляем в свободные слоты, если их ещё нет
         # (до _apply_engine — список голосов он построит уже с ними)
@@ -5435,6 +7096,11 @@ class ModernTTSApp(ctk.CTk):
         self.model_offer_muted = bool(data.get("model_offer_muted", False))
         self.voices_seeded = bool(data.get("voices_seeded", False))
         self.vox_offer_done = bool(data.get("vox_offer_done", False))
+        self.qwen_size = str(data.get("qwen_size") or "1.7B")
+        if self.qwen_size not in ("0.6B", "1.7B"):
+            self.qwen_size = "1.7B"
+        self.setup_preview = bool(data.get("setup_preview", False))
+        self.setup_done = bool(data.get("setup_done", False))
 
         rate = data.get("speech_rate", 1.0)
         try:
@@ -5445,12 +7111,33 @@ class ModernTTSApp(ctk.CTk):
         self.rate_slider.set(rate)
         self.rate_label.configure(text=f"×{rate:.1f}")
         self.vox_fast_var.set(bool(data.get("vox_fast", False)))
+        qc = data.get("qwen_cfg")
+        if isinstance(qc, dict):   # подкрученные параметры движка Qwen
+            for key in ("device", "precision", "language"):
+                if isinstance(qc.get(key), str):
+                    self.qwen_cfg[key] = qc[key]
+            for key, lo, hi, cast in (("max_new_tokens", 64, 2048, int), ("top_k", 1, 200, int),
+                                      ("top_p", 0.1, 1.0, float), ("temperature", 0.1, 2.0, float),
+                                      ("repetition_penalty", 0.5, 2.0, float)):
+                try:
+                    self.qwen_cfg[key] = max(lo, min(hi, cast(qc.get(key, self.qwen_cfg[key]))))
+                except Exception:
+                    pass
+        # legacy-ключ qwen_instruct больше не вставляем: строка в карточке — зеркало
+        # паспорта голоса, оно заполнится при выборе голоса/движка (в readonly нельзя и programmatically)
+        try:
+            self.qwen_seed_var.set(str(max(0, min(2_000_000_000, int(data.get("qwen_seed_fixed", 0) or 0)))))
+        except Exception:
+            pass
+        self.qwen_fixed_var.set(bool(data.get("qwen_seed_on", False)))
         self.llm_gpu_var.set(bool(data.get("llm_gpu", False)))
         self._update_gpu_labels()
 
         engine = data.get("engine", "Piper")   # по умолчанию — Piper: работает без дополнений
-        if engine not in ("Piper", "Vox"):
+        if engine not in ("Piper", "Vox", "Qwen"):
             engine = "Piper"
+        if engine == "Qwen" and not self._qwen_installed():
+            engine = "Piper"                   # пакет qwen-tts не установлен — тихий откат
         if engine == "Vox" and not self._vox_installed():
             engine = "Piper"                   # дополнение Vox не поставлено — молча на Piper
         self._apply_engine(engine)
@@ -5460,6 +7147,8 @@ class ModernTTSApp(ctk.CTk):
         if voice and voice in allowed:
             self.tts_combo.set(voice)
             self.current_tts_name = voice
+            self.engine_voices.setdefault(engine, voice)
+            self._sync_qwen_instruct()
 
         ex = data.get("external_llms")
         if isinstance(ex, dict):
@@ -5524,25 +7213,47 @@ class ModernTTSApp(ctk.CTk):
             self.engine_menu.set("Piper (CPU)")
         elif value == "Vox":
             self.engine_menu.set("Vox (GPU)")
+        elif value == "Qwen":
+            self.engine_menu.set("Qwen (GPU)")
         hint = getattr(self, "engine_hint", None)
         if hint is not None:
             if value == "Vox":
                 hint.configure(text=_tr("⚠ Vox требует видеокарту с 8 ГБ видеопамяти"),
                                text_color=COLOR_TEXT_MAIN)
+            elif value == "Qwen":
+                hint.configure(text=_tr("⚠ Qwen требует видеокарту с 6 ГБ видеопамяти"),
+                               text_color=COLOR_TEXT_MAIN)
             else:
                 hint.configure(text=_tr("Piper: процессор, видеокарта не нужна"),
                                text_color=COLOR_TEXT_SEC)
-        if value == "Vox":
+        if value == "Qwen":
+            self._show_piper_import(False)
+            self._ensure_empty_slot()
+            names = self._qwen_combo_values()
+            self.tts_combo.configure(values=names)
+            cur = self.engine_voices.get("Qwen") or ""      # голос, выбранный на Qwen раньше
+            if cur not in names:
+                cur = self.current_tts_name if self.current_tts_name in names else ""
+            if not cur:
+                tv = self.tts_combo.get()
+                cur = tv if tv in names else "Вивиан"
+            if cur:
+                self.tts_combo.set(cur)
+                self.current_tts_name = cur
+        elif value == "Vox":
             self._show_custom_voice(True)
             self._show_piper_import(False)
             self._ensure_empty_slot()
-            self.tts_combo.configure(values=self.voice_values())
-            names = self.voice_values()
-            cur = self.current_tts_name if self.current_tts_name in names else ""
+            names = self.voice_values("Vox")
+            self.tts_combo.configure(values=names)
+            cur = self.engine_voices.get("Vox") or ""       # голос, выбранный на Vox раньше
+            if cur not in names:
+                cur = self.current_tts_name if self.current_tts_name in names else ""
             if not cur:
                 vid, info = self._first_empty_voice()
                 filled = [i.get("name") for _, i in self._voice_items()
-                          if isinstance(i, dict) and i.get("path") and os.path.exists(i.get("path") or "")]
+                          if isinstance(i, dict) and i.get("path") and os.path.exists(i.get("path") or "")
+                          and self._voice_engine(i) == "Vox"]
                 cur = filled[-1] if filled else (info.get("name") if info else (names[0] if names else ""))
             if cur:
                 self.tts_combo.set(cur)
@@ -5556,7 +7267,9 @@ class ModernTTSApp(ctk.CTk):
             self.tts_combo.set(default)
             self.current_tts_name = default or None
             if default:
+                self.engine_voices["Piper"] = default
                 self.load_tts_on_select()
+        self._show_qwen_tools(value == "Qwen")
         self._sync_emo_auto()
 
     def _sync_emo_auto(self):
@@ -5564,7 +7277,7 @@ class ModernTTSApp(ctk.CTk):
         cb = getattr(self, "emo_auto_cb", None)
         if cb is None:
             return
-        if self.current_engine == "Vox":
+        if self.current_engine in ("Vox", "Qwen"):
             cb.configure(state="normal")
             self.emo_auto_var.set(bool(self._emo_pref))
         else:
@@ -5580,7 +7293,10 @@ class ModernTTSApp(ctk.CTk):
             return
         names = self._auto_emotion_names(self.tts_combo.get())
         if names:
-            self.update_status("🎭 Разметю текст эмоциями: " + ", ".join(names))
+            if self.current_engine == "Qwen":
+                self.update_status("🎭 Разметю текст эмоциями — у Qwen весь справочник без записей")
+            else:
+                self.update_status("🎭 Разметю текст эмоциями: " + ", ".join(names))
         else:
             messagebox.showinfo(
                 _tr("Добавить эмоции"),
@@ -5591,6 +7307,10 @@ class ModernTTSApp(ctk.CTk):
 
     def _auto_emotion_names(self, speaker):
         """Эмоции, которые реально сработают для этого голоса (образец записан)."""
+        if self.current_engine == "Qwen":
+            # Qwen не требует образцов-эмоций: маркеры из всего справочника
+            # движок сам превращает в интонацию (_split_emotion_segments_qwen)
+            return list(EMOTION_TAB.keys())
         if self.current_engine != "Vox":
             return []
         names = []
@@ -5604,7 +7324,11 @@ class ModernTTSApp(ctk.CTk):
     def _strip_unknown_markers(self, text, speaker):
         """Маркер эмоции, которой нет у голоса, вырезаем: иначе синтез прочитает
         «(радостный)» словами вместо интонации."""
-        emos = self._emotion_samples(speaker)
+        if self.current_engine == "Qwen":
+            # у Qwen эмоции задаются инструкцией, а не образцом — годится весь справочник
+            emos = {self._emo_stem(k): (k, "", "") for k in EMOTION_TAB}
+        else:
+            emos = self._emotion_samples(speaker)
 
         def fix(m):
             word = (re.split(r"[\s,;:]+", m.group(1).strip()) or [""])[0]
@@ -5629,7 +7353,44 @@ class ModernTTSApp(ctk.CTk):
     # ================= ОБРАБОТЧИКИ =================
 
     def on_engine_change(self, value):
-        eng = "Vox" if value.startswith("Vox") else "Piper"
+        if value.startswith("Qwen"):
+            eng = "Qwen"
+        elif value.startswith("Vox"):
+            eng = "Vox"
+        else:
+            eng = "Piper"
+        if eng == "Qwen" and not self._qwen_installed():
+            if self._vox_installed() and messagebox.askyesno(
+                    _tr("Движок Qwen"),
+                    _tr("Пакет qwen-tts не установлен. Скачать и установить его? (≈30 МБ)")):
+                self._apply_engine("Qwen")
+                self.save_settings()
+
+                def qwork():
+                    ok, out = self._qwen_pip_install()
+                    if ok:
+                        self._safe_ui(lambda: self.update_status(
+                            _tr("✅ Пакет Qwen3-TTS установлен.")))
+                        self._safe_ui(self._qwen_prepare)
+                    else:
+                        self._safe_ui(lambda out=out: self.update_status(
+                            f"❌ qwen-tts: {out[-140:]}"))
+
+                        def back():
+                            self.engine_menu.set("Piper (CPU)")
+                            self._apply_engine("Piper")
+                            self.save_settings()
+                        self._safe_ui(back)
+                threading.Thread(target=qwork, daemon=True).start()
+            else:
+                self.engine_menu.set("Piper (CPU)")
+                self._apply_engine("Piper")
+                self.save_settings()
+                messagebox.showwarning(
+                    _tr("Движок Qwen"),
+                    _tr("Пакет qwen-tts не установлен — движок Qwen недоступен. "
+                        "Сначала нужна GPU-среда (движок Vox или первичная установка)."))
+            return
         if eng == "Vox" and not self._vox_installed():
             # дополнение Vox не стоит — вместо ошибки предлагаем поставить
             self.engine_menu.set("Piper")
@@ -5647,6 +7408,9 @@ class ModernTTSApp(ctk.CTk):
             self.update_status("Движок: VoxCPM2 (GPU).")
             if self.vox_model is None:
                 threading.Thread(target=self.load_vox_threaded, daemon=True).start()
+        elif eng == "Qwen":
+            self.update_status("Движок: Qwen3-TTS (GPU).")
+            self._qwen_prepare()
         else:
             self.update_status(f"Движок: Piper (CPU). Голос: «{self.tts_combo.get()}»")
         self.save_settings()
@@ -5751,6 +7515,7 @@ class ModernTTSApp(ctk.CTk):
     def _on_gpu_toggle(self):
         self.save_settings()
         self._update_gpu_labels()
+        self.refresh_model_info()     # оценка памяти зависит от режима (ОЗУ/VRAM)
         if not self.llm_gpu_var.get():
             self._stop_gpu_server()
             self.update_status("Режим: процессор (CUDA выключена)")
@@ -5840,6 +7605,7 @@ class ModernTTSApp(ctk.CTk):
         dlg = ctk.CTkToplevel(self)
         dlg.title(_tr("Видеокарта"))
         dlg.geometry("540x330")
+        _center_on_parent(dlg)
         dlg.resizable(False, False)
         dlg.transient(self)
         dlg.configure(fg_color=COLOR_BG)
@@ -5963,6 +7729,23 @@ class ModernTTSApp(ctk.CTk):
     def on_tts_change(self, value):
         if self.current_engine == "Piper":
             self.load_tts_on_select()
+        elif self.current_engine == "Qwen":
+            if value in QWEN_DISPLAY:
+                _sid, _gen, desc = QWEN_BY_DISPLAY[value]
+                self.current_tts_name = value
+                self.update_status(f"✅ Голос «{value}» — встроенный Qwen ({desc})")
+                self._sync_qwen_instruct()
+            else:
+                vid, info = self._find_voice(value)
+                if info is None:
+                    return
+                path = info.get("path") or ""
+                if not path or not os.path.exists(path):
+                    self.add_custom_voice(initial_slot=value)  # пустой слот — сразу на запись
+                    return
+                self.current_tts_name = value
+                self.update_status(f"✅ Голос «{value}» — клон Qwen по образцу")
+                self._sync_qwen_instruct()
         elif self.current_engine == "Vox":
             vid, info = self._find_voice(value)
             if info is None:
@@ -5975,6 +7758,8 @@ class ModernTTSApp(ctk.CTk):
             emos = [lbl for lbl, _p, _t in self._emotion_samples(value).values()]
             hint = f" · эмоции: {', '.join(emos)}" if emos else ""
             self.update_status(f"✅ Голос «{value}» активен{hint}")
+        if value:
+            self.engine_voices[self.current_engine] = value   # у каждого движка свой голос
         self.save_settings()
 
     def add_custom_voice(self, initial_slot=None):
@@ -5990,7 +7775,7 @@ class ModernTTSApp(ctk.CTk):
         self.voice_dialog = VoiceRecorderDialog(self, self._apply_custom_voice, vid,
                                                 info.get("name"), self.custom_voices)
 
-    def _apply_custom_voice(self, path, text, slot_id, name):
+    def _apply_custom_voice(self, path, text, slot_id, name, engine=None):
         slot_id = str(slot_id)
         name = (name or "").strip() or f"Свой {slot_id}"
         # имена не должны совпадать — иначе в списке не выбрать нужный голос
@@ -6007,14 +7792,83 @@ class ModernTTSApp(ctk.CTk):
         info = {"name": name, "path": path, "text": text}
         if isinstance(prev, dict) and prev.get("samples"):
             info["samples"] = prev["samples"]   # эмоции живут в том же слоте — не теряем
+        if isinstance(prev, dict) and prev.get("instruct"):
+            info["instruct"] = prev["instruct"] # паспорт дизайн-голоса — не теряем
+        # голос принадлежит движку, под которым записан: списки голосов разделены (Ярослав 05.11)
+        eng = engine if engine in ("Vox", "Qwen") else (
+            self.current_engine if self.current_engine in ("Vox", "Qwen") else "Vox")
+        info["engine"] = eng
         self.custom_voices[slot_id] = info
         self._ensure_empty_slot()  # после записи появляется следующий пустой слот
-        if self.current_engine == "Vox":
-            self.tts_combo.configure(values=self.voice_values())
+        if self.current_engine == "Qwen":
+            self.tts_combo.configure(values=self._qwen_combo_values())
+        elif self.current_engine == "Vox":
+            self.tts_combo.configure(values=self.voice_values("Vox"))
+        if eng == self.current_engine:
+            # голос сохранён для текущего движка — сразу делаем его текущим
             self.tts_combo.set(name)
             self.current_tts_name = name
+            self.engine_voices[self.current_engine] = name
+        else:
+            self.update_status(f"✅ Голос «{name}» сохранён для движка {eng}")
         self.update_status(f"✅ Голос «{name}» сохранён")
         self.save_settings()
+
+    def _delete_voice(self, vid=None, name=None):
+        """Убрать свой голос из списка (Vox/Qwen): указанный слот vid+name или
+        текущий выбранный. Файл образца сносим, только если он лежит в
+        хранилище приложения; чужие файлы не трогаем."""
+        try:
+            if vid is None:
+                name = self.tts_combo.get()
+                vid, info = self._find_voice(name)
+            else:
+                vid = str(vid)
+                info = self.custom_voices.get(vid)
+                name = name or (info or {}).get("name") or ""
+            if vid is None or not isinstance(info, dict) or not info.get("path"):
+                return
+            if not messagebox.askyesno(_tr("Удалить"),
+                                       f"{_tr('Удалить голос')} «{name}»?", parent=self):
+                return
+            path = (info.get("path") or "").strip()
+            gone = ""
+            try:
+                p = os.path.abspath(path)
+                root_app = os.path.abspath(self.BASE_DIR)
+                inside = p.lower().startswith(root_app.lower() + os.sep)
+                builtin = (os.sep + "voices_builtin" + os.sep).lower() in p.lower()
+                if inside and not builtin and os.path.isfile(p):
+                    os.remove(p)
+                    gone = f" {_tr('(образец-файл тоже удалён)')}"
+            except Exception:
+                pass
+            del self.custom_voices[vid]
+            self.engine_voices = {k: v for k, v in self.engine_voices.items() if v != name}
+            if self.current_tts_name == name:
+                self.current_tts_name = None
+            self._ensure_empty_slot()
+            eng = self.current_engine
+            names = (self._qwen_combo_values() if eng == "Qwen"
+                     else self.voice_values("Vox") if eng == "Vox" else [])
+            self.tts_combo.configure(values=names)
+            filled = [i.get("name") for _, i in self._voice_items()
+                      if isinstance(i, dict) and i.get("path")
+                      and os.path.exists(i.get("path") or "")
+                      and self._voice_engine(i) == eng]
+            nxt = filled[-1] if filled else (names[0] if names else "")
+            if nxt:
+                self.tts_combo.set(nxt)
+                self.current_tts_name = nxt
+                self.engine_voices[eng] = nxt
+                if eng == "Qwen":
+                    self._sync_qwen_instruct()
+            self.save_settings()
+            self.update_status(f"🗑 {_tr('Голос удалён')}: {name}{gone}")
+            return True
+        except Exception as e:
+            self.update_status(f"❌ Ошибка: {e}")
+        return False
 
     def _apply_emotion_voice(self, path, text, slot_id, label):
         """Сохранить образец эмоции внутри существующего голоса."""
@@ -6779,13 +8633,23 @@ class ModernTTSApp(ctk.CTk):
                 language_rule = ("Язык ответа — язык исходного текста. Не переводи текст, не меняй "
                                  "язык и не пересказывай его по-русски, если инструкция прямо не просит "
                                  "перевода. ")
-        return ("Ты профессиональный редактор, готовящий текст для озвучки диктором. "
-                "Отвечай ТОЛЬКО готовым текстом, без вступлений и пояснений. "
-                + language_rule +
+        if getattr(self, "_verbatim_mode", False):
+            # «Без изменений»: модель только размечает эмоции, текст не трогает
+            style_rule = (
+                "Сохраняй текст дословно: те же формулировки, порядок, абзацы, цифры и имена, "
+                "что в исходнике; не сокращай, не пересказывай и не переоформляй. Единственная "
+                "допустимая правка — маркеры эмоций вида (имя_эмоции) перед фразами, если они "
+                "запрошены в инструкции; других скобок быть не должно. Если разметка эмоциями "
+                "не запрошена — верни текст без единой правки. ")
+        else:
+            style_rule = (
                 "Все цифры, даты и проценты пиши словами; пиши связной речью, "
                 "без списков, маркеров, ссылок" + (
                     ", кроме скобок с названием эмоции" if getattr(self, "_emo_markers_on", False)
-                    else " и скобок") + ". "
+                    else " и скобок") + ". ")
+        return ("Ты профессиональный редактор, готовящий текст для озвучки диктором. "
+                "Отвечай ТОЛЬКО готовым текстом, без вступлений и пояснений. "
+                + language_rule + style_rule +
                 "Используй только факты из исходного текста — ничего не додумывай и не добавляй. "
                 "Если задан диапазон объёма — соблюдай его строго: не больше верхней "
                 "границы и не меньше нижней.")
@@ -7010,11 +8874,20 @@ class ModernTTSApp(ctk.CTk):
             return
 
         llm_name = self.llm_combo.get()
-        if not llm_name:
+        if not llm_name and not (self.preset_menu.get() == self.NO_PROCESS
+                                 and not self.emo_auto_var.get()):
             messagebox.showwarning("Внимание", "Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»")
             return
 
-        if self.current_engine == "Vox":
+        if self.current_engine == "Qwen":
+            speaker = self.tts_combo.get()
+            if speaker not in QWEN_DISPLAY:
+                _, info = self._find_voice(speaker)
+                if not speaker or info is None or not (info.get("path") and os.path.exists(info.get("path") or "")):
+                    messagebox.showwarning("Внимание", "Выбери голос Qwen из списка или запиши свой: «🎙 Образец голоса».")
+                    return
+            self.current_tts_name = speaker
+        elif self.current_engine == "Vox":
             speaker = self.tts_combo.get()
             _, info = self._find_voice(speaker)
             if not speaker or info is None or not (info.get("path") and os.path.exists(info.get("path") or "")):
@@ -7050,6 +8923,25 @@ class ModernTTSApp(ctk.CTk):
                 self.after(0, lambda: self.update_status("Загрузка статьи…"))
                 text = self.fetch_and_clean_text(url)
             self.after(0, lambda: self.set_progress(5, "Подготовка текста"))
+
+            # «Без изменений»: без авто-эмоций текст идёт в озвучку как есть, модель не нужна.
+            # С «Добавить эмоции» остаётся тот же дословный формат: модель лишь расставляет
+            # маркеры (правило разметки добавляется ниже, стилевая перезапись снята).
+            self._verbatim_mode = (self.preset_menu.get() == self.NO_PROCESS)
+            if self._verbatim_mode and not self.emo_auto_var.get():
+                if len(text) < 100:
+                    raise Exception("Текст слишком короткий или пустой")
+                if not source_text:
+                    # текст уже в поле — не трогаем его даже пробелами; при ссылке — кладём статью
+                    self.after(0, lambda s=text: self._set_box_text(s, generated=False))
+                self.after(0, lambda n=len(text): self.stats_label.configure(
+                    text=f"{n} зн. · {_tr('без изменений')}"))
+                self.after(0, lambda: self.set_progress(100, "Готово"))
+                self.after(0, lambda: self.update_status(
+                    _tr("✅ Текст без изменений — нейросеть не вызывалась")))
+                if self.auto_play_var.get() and not self.cancel_event.is_set():
+                    self.after(300, self.play_result)
+                return
 
             limit = self.model_limits.get(llm_name, FALLBACK_CHARS)
             n_chars = len(text)
@@ -7374,7 +9266,15 @@ class ModernTTSApp(ctk.CTk):
             messagebox.showwarning("Внимание", "Нет текста для озвучки.")
             return
 
-        if self.current_engine == "Vox":
+        if self.current_engine == "Qwen":
+            speaker = self.tts_combo.get()
+            if speaker not in QWEN_DISPLAY:
+                _, info = self._find_voice(speaker)
+                if not speaker or info is None or not (info.get("path") and os.path.exists(info.get("path") or "")):
+                    messagebox.showwarning("Внимание", "Выбери голос Qwen из списка или запиши свой: «🎙 Образец голоса».")
+                    return
+            self.current_tts_name = speaker
+        elif self.current_engine == "Vox":
             speaker = self.tts_combo.get()
             _, info = self._find_voice(speaker)
             if not speaker or info is None or not (info.get("path") and os.path.exists(info.get("path") or "")):
@@ -7390,7 +9290,7 @@ class ModernTTSApp(ctk.CTk):
                     return
 
         voice_key = (self.current_tts_name or self.tts_combo.get()) \
-            if self.current_engine == "Vox" else self.tts_combo.get()
+            if self.current_engine in ("Vox", "Qwen") else self.tts_combo.get()
         cached = getattr(self, "_last_audio", None)
         if (cached and cached[0] == text and cached[1] == self.current_engine
                 and cached[2] == voice_key and abs(cached[3] - self.speech_rate) < 1e-9
@@ -7518,6 +9418,83 @@ class ModernTTSApp(ctk.CTk):
                 if self.cancel_event.is_set():
                     raise Cancelled()
 
+                if play:
+                    self._play_wav(temp_file)
+
+            elif self.current_engine == "Qwen":
+                actual_rate = rate * QWEN_BASE_SPEED
+                self._qwen_check_import()
+                speaker = self.current_tts_name or self.tts_combo.get()
+                spk_id, vpack, need_kind = None, None, "custom"
+                if speaker not in QWEN_DISPLAY:
+                    if not speaker:
+                        _v, _info = self._first_empty_voice()
+                        filled = [i.get("name") for _, i in self._voice_items()
+                                  if isinstance(i, dict) and i.get("path") and os.path.exists(i.get("path") or "")]
+                        speaker = filled[-1] if filled else ""
+                    _vid, _info = self._find_voice(speaker)
+                    if not _info or not (_info.get("path") and os.path.exists(_info.get("path") or "")):
+                        raise Exception("Не выбран голос: возьми встроенный голос Qwen или запишите образец «🎙 Образец голоса».")
+                    spk_id, vpack, need_kind = None, (_vid, _info), "base"
+                else:
+                    spk_id = QWEN_BY_DISPLAY[speaker][0]
+                if not self._qwen_ready(need_kind):
+                    self._safe_ui(lambda: self.update_status("⏳ Скачиваю модель Qwen3-TTS..."))
+                    self._qwen_fetch([need_kind], cancel=self.cancel_event)
+                self.after(0, lambda: self.update_status(f"⏳ Синтез Qwen3-TTS (×{actual_rate:.2f})..."))
+                model = self._qwen_model(need_kind)
+                lang = self.qwen_cfg.get("language") or "auto"
+                lang = None if lang == "auto" else lang
+                # поле инструкции в карточке — только зеркало; характер живёт
+                # в паспорте голоса (vpack) и подмешивается в _qwen_instruct_for
+                user_instr = ""
+                # как у Vox: незакрытая пунктуацией фраза «съедает» хвост фразы — закрываем знаком
+                text = text.strip()
+                if text and text[-1] not in ".!?…:;»\"')":
+                    text += "."
+                chunks = []
+                for emo, frag in self._split_emotion_segments_qwen(text):
+                    chunks += [(emo, c) for c in self.split_text_chunks(frag, limit=220)]
+                print(f"📚 Чанков Qwen: {len(chunks)}"
+                      + (f" · эмоции: {', '.join(dict.fromkeys(e for e, _ in chunks if e))}"
+                         if any(e for e, _ in chunks) else ""))
+                self._qwen_new_run_seed()
+                segs = []
+                sr_out = None
+                skipped = 0
+                for i, (emo, ch) in enumerate(chunks):
+                    if self.cancel_event.is_set():
+                        raise Cancelled()
+                    self._safe_ui(lambda p=i, n=len(chunks): self.set_progress(
+                        int(p * 95 / max(1, n)) + 3, f"Синтез {p + 1}/{n}"))
+                    ch_clean = re.sub(r'^[^0-9A-Za-zА-Яа-яЁё]+', '', ch).strip()
+                    if len(ch_clean) < 2:
+                        continue
+                    if ch_clean[-1] not in ".!?…:;":
+                        ch_clean += "."
+                    arr, sr = self._qwen_synth_chunk(model, spk_id, vpack, ch_clean,
+                                                     emo, user_instr, lang)
+                    if len(arr) < int(sr * 0.1):
+                        skipped += 1
+                        print(f"❌ Чанк {i+1} пропущен (модель не дала аудио): {ch_clean[:70]}...")
+                        continue
+                    arr = self._stretch_int16(arr, actual_rate)
+                    sr_out = sr
+                    segs.append(arr)
+                if skipped:
+                    print(f"⚠️ Всего пропущено чанков: {skipped}")
+                if not segs:
+                    raise Exception("Qwen не синтезировал ни одной фразы.")
+                audio = self._join_chunks(segs, sr_out)
+                with wave.open(temp_file, 'wb') as f:
+                    f.setnchannels(1);
+                    f.setsampwidth(2);
+                    f.setframerate(sr_out)
+                    f.writeframes(audio.tobytes())
+                if self.cancel_event.is_set():
+                    raise Cancelled()
+                if self.qwen_cfg.get("free_after"):
+                    self._qwen_free()
                 if play:
                     self._play_wav(temp_file)
 
