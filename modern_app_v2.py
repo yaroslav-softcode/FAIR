@@ -1110,8 +1110,13 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                             initial_text=self._emo_sample_text(pre, lang=self._sample_lang()))
 
     def _emotion_saved(self, path, text, slot_id, label):
-        """Колонка обновляется после сохранения эмоции."""
+        """Микрофонная запись эмоции: сначала persist в настройки голоса, потом колонка.
+        Без _apply_emotion_voice запись уходила в файл, но в слот не попадала (баг 06.11.26)."""
         if self.app:
+            try:
+                self.app._apply_emotion_voice(path, text, slot_id, label)
+            except Exception:
+                pass
             self.existing = self.app.custom_voices
         row = next((r for r in self._emo_rows if (r["ent"].get() or "").strip() == label), None)
         if row is None:      # новой эмоции может и не быть в списке строк — берём первую пустую
@@ -1209,6 +1214,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         if not SD_AVAILABLE:
             messagebox.showerror("Микрофон", "Запись недоступна.\nУстановите: pip install sounddevice", parent=self)
             return
+        self._stop_sample_play()      # новая запись — прежнее прослушивание ни к чему
         if not self.recording:
             self.frames = []
             try:
@@ -1260,6 +1266,34 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                 text_color=COLOR_TEXT_MAIN)
 
     def play_sample(self):
+        """Прослушать образец: запись с микрофона (ещё не сохранена — в памяти)
+        или файл. Повторное нажатие ⏹ останавливает (Ярослав, 06.11.26)."""
+        if getattr(self, "_sample_playing", False):
+            self._stop_sample_play()
+            return
+        if self.audio_int16 is not None:
+            if SD_AVAILABLE:
+                threading.Thread(target=self._play_worker,
+                                 args=(self.audio_int16, self.rec_fs),
+                                 daemon=True).start()
+                self._sample_playing = True
+                try:
+                    self.btn_play_sample.configure(text="⏹")
+                except Exception:
+                    pass
+                return
+            # нет sounddevice — пишем временный wav и открываем системный плеер
+            try:
+                tmp = os.path.join(BASE_DIR, "preview_sample_tmp.wav")
+                with wave.open(tmp, "wb") as f:
+                    f.setnchannels(1)
+                    f.setsampwidth(2)
+                    f.setframerate(self.rec_fs)
+                    f.writeframes(self.audio_int16.tobytes())
+                os.startfile(tmp)
+            except Exception as e:
+                messagebox.showerror("Звук", str(e), parent=self)
+            return
         path = self.selected_path or self._loaded_path
         if not path or not os.path.exists(path):
             messagebox.showinfo("Образец", "Сначала запишите голос или выберите файл.", parent=self)
@@ -1268,6 +1302,42 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
             os.startfile(path)
         except Exception as e:
             messagebox.showerror("Звук", str(e), parent=self)
+
+    def _play_worker(self, data, fs):
+        try:
+            sd.play(data, samplerate=fs, blocking=True)
+        except Exception:
+            pass
+        try:
+            self.after(0, self._sample_done)
+        except Exception:
+            pass
+
+    def _sample_done(self):
+        self._sample_playing = False
+        try:
+            if self.winfo_exists():
+                self.btn_play_sample.configure(text="▶")
+        except Exception:
+            pass
+
+    def _stop_sample_play(self):
+        if not getattr(self, "_sample_playing", False):
+            return
+        self._sample_playing = False
+        try:
+            sd.stop()
+        except Exception:
+            pass
+        self._sample_done()
+
+    def destroy(self):
+        # закрыть окно — заглушить незавершённое прослушивание записи
+        try:
+            self._stop_sample_play()
+        except Exception:
+            pass
+        super().destroy()
 
     # ---------- буфер обмена ----------
 
@@ -1558,7 +1628,18 @@ class PresetDialog(ctk.CTkToplevel):
 # модели остаются без изменений.
 UI_LANG = "ru"
 
-_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку на статью или видео, текст или файл — либо наберите текст в поле справа.', 'Paste an article or video link, text or file — or type in the field on the right.'), ('Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n', 'Paste an article or video link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('Добавить эмоции', 'Add emotions'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку на статью или видео, текст или файл.', '✅ Ready. Paste an article or video link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, epub, fb2, rtf, html, txt, md)', 'Choose a file (pdf, docx, epub, fb2, rtf, html, txt, md)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку на статью или видео, текст или файл.', 'Text is required: paste an article or video link, text or file.'), ('Хорошо', 'OK'), ('Голос Алсу установлен', 'Alsu voice installed'), ('Встроенный голос добавлен', 'Built-in voice added'), ('Озвучка сохранена', 'Spoken audio saved'), ('Нет озвучки для сохранения — сначала нажмите «Озвучить».', 'Nothing to save yet — press “Speak” first.'), ('Сохранить озвучку', 'Save spoken audio'), ('⏳ Синтез речи…', '⏳ Synthesizing speech…'),
+_PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'),
+    ('Видеопамять занята', 'Video memory in use'),
+    ('Видеопамять почти вся занята другой программой.', 'Video memory is almost entirely held by another program.'),
+    ('Свободно', 'Free'), ('нужно', 'needed'),
+    ('Если загрузить сейчас, видеокарта начнёт делить память между программами: загрузка и озвучка будут очень долгими, а чужое приложение будет тормозить.',
+     'If you load now, the GPU starts splitting memory between programs: loading and speech become very slow, and the other app stalls.'),
+    ('Закрой то, что держит видеокарту (LM Studio, ComfyUI, серверы моделей), или выбери движок Piper.',
+     'Close whatever holds the GPU (LM Studio, ComfyUI, model servers), or pick the Piper engine.'),
+    ('Всё равно попробовать загрузить?', 'Try loading anyway?'),
+    ('Vox не загружен: мало видеопамяти', 'Vox not loaded: not enough video memory'),
+    ('Не удалось загрузить VoxCPM2: видеокарту держит другое приложение (CUDA out of memory). Освободи видеопамять и попробуй снова.',
+     'Failed to load VoxCPM2: the graphics card is held by another app (CUDA out of memory). Free video memory and try again.'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку на статью или видео, текст или файл — либо наберите текст в поле справа.', 'Paste an article or video link, text or file — or type in the field on the right.'), ('Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n', 'Paste an article or video link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('Добавить эмоции', 'Add emotions'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку на статью или видео, текст или файл.', '✅ Ready. Paste an article or video link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, epub, fb2, rtf, html, txt, md)', 'Choose a file (pdf, docx, epub, fb2, rtf, html, txt, md)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку на статью или видео, текст или файл.', 'Text is required: paste an article or video link, text or file.'), ('Хорошо', 'OK'), ('Голос Алсу установлен', 'Alsu voice installed'), ('Встроенный голос добавлен', 'Built-in voice added'), ('Озвучка сохранена', 'Spoken audio saved'), ('Нет озвучки для сохранения — сначала нажмите «Озвучить».', 'Nothing to save yet — press “Speak” first.'), ('Сохранить озвучку', 'Save spoken audio'), ('⏳ Синтез речи…', '⏳ Synthesizing speech…'),
 ('Ссылка на статью или видео (YouTube, Rutube, VK)', 'Article or video link (YouTube, Rutube, VK)'),
 ('⏳ Загрузка субтитров видео…', '⏳ Loading video subtitles…'),
 ('Видео', 'Video'),
@@ -5767,6 +5848,39 @@ class ModernTTSApp(ctk.CTk):
                     return path
         return None
 
+    VOX_MIN_FREE_GB = 6.0   # 4,7 ГБ весов VoxCPM2 + резерв на диффузию и активации
+
+    def _ask_low_vram(self, free_gb, total_gb):
+        """Спросить из любого потока: грузить Vox при почти занятой видеопамяти?
+        False — пользователь отказался (баг «загружается и не может загрузиться», 06.11.26)."""
+        def ask():
+            return messagebox.askyesno(
+                _tr("Видеопамять занята"),
+                _tr("Видеопамять почти вся занята другой программой.")
+                + f"\n{_tr('Свободно')} {free_gb:.1f} ГБ, {_tr('нужно')} ≈{self.VOX_MIN_FREE_GB:.0f} ГБ.\n\n"
+                + _tr("Если загрузить сейчас, видеокарта начнёт делить память между программами: "
+                      "загрузка и озвучка будут очень долгими, а чужое приложение будет тормозить.")
+                + "\n\n"
+                + _tr("Закрой то, что держит видеокарту (LM Studio, ComfyUI, серверы моделей), "
+                      "или выбери движок Piper.")
+                + "\n\n" + _tr("Всё равно попробовать загрузить?"))
+        if threading.current_thread() is threading.main_thread():
+            return ask()
+        res, ev = {}, threading.Event()
+
+        def go():
+            try:
+                res["v"] = ask()
+            except Exception:
+                res["v"] = False
+            ev.set()
+        try:
+            self.after(0, go)
+        except Exception:
+            return False
+        ev.wait(900)
+        return bool(res.get("v"))
+
     def load_vox(self, show_errors=False):
         if self.vox_model is not None:
             return True
@@ -5805,6 +5919,23 @@ class ModernTTSApp(ctk.CTk):
             import torch
             cuda_ok = torch.cuda.is_available()
             print(f"🔎 torch {torch.__version__} · CUDA доступна: {cuda_ok}")
+            _flog(f"vox: загрузка начата · CUDA={cuda_ok}")
+
+            # VRAM-гейт: при занятой карте torch молча «льёт» веса в ОЗУ через WDDM —
+            # загрузка ~1 мин и синтез в разы медленнее. Спросим честно (06.11.26).
+            if cuda_ok:
+                _u, _t = self._gpu_mem_probe()
+                if _u is not None and _t:
+                    _free = (_t - _u) / 2 ** 30
+                    _flog(f"vox: свободно VRAM {_free:.1f}/{_t / 2 ** 30:.1f} GiB")
+                    if _free < self.VOX_MIN_FREE_GB:
+                        if not self._ask_low_vram(_free, _t / 2 ** 30):
+                            _flog("vox: пользователь отказался грузить (мало VRAM)")
+                            self.after(0, lambda: self.update_status(
+                                "⏸ " + _tr("Vox не загружен: мало видеопамяти")))
+                            return False
+                        self.after(0, lambda: self.update_status(
+                            "⏳ " + _tr("Загрузка VoxCPM2 (веса ~5 ГБ)...")))
 
             names = [local_weights] if local_weights else []
             names += VOX_CANDIDATES
@@ -5817,9 +5948,12 @@ class ModernTTSApp(ctk.CTk):
                     for kw in kw_list:
                         try:
                             self.after(0, lambda n=name, d=dev: self.update_status(f"⏳ Загрузка VoxCPM2 ({d})..."))
+                            _flog(f"vox: from_pretrained dev={dev} kwargs={list(kw) or ['default']}")
+                            t0 = time.time()
                             self.vox_model = VoxCPM.from_pretrained(name, device=dev, **kw)
                             self.vox_name = name
                             self._print_vox_device()
+                            _flog(f"vox: загружен за {time.time() - t0:.0f} с")
                             print(
                                 f"🎙 VoxCPM2 загружен: {name} · device={dev} · dtype={list(kw.keys()) or 'bf16 (default)'}")
                             return True
@@ -5827,8 +5961,14 @@ class ModernTTSApp(ctk.CTk):
                             continue  # неизвестный kwarg → пробуем следующий
                         except Exception as e:
                             last_err = e
+                            _flog(f"vox: [{name}, {dev}] {type(e).__name__}: {e}")
                             print(f"⚠️ VoxCPM2 [{name}, {dev}]: {e}")
                             break  # ошибка устройства → следующий dev
+            _err_txt = str(last_err or "")
+            if "out of memory" in _err_txt.lower():
+                raise Exception(_tr(
+                    "Не удалось загрузить VoxCPM2: видеокарту держит другое приложение "
+                    "(CUDA out of memory). Освободи видеопамять и попробуй снова."))
             raise Exception(f"Не удалось загрузить VoxCPM2: {last_err}")
         except Exception as e:
             print(f"❌ Ошибка загрузки VoxCPM2: {e}")
