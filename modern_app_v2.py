@@ -2478,7 +2478,7 @@ class ModernTTSApp(*_APP_BASE):
         self.theme = self._load_theme()
 
         self.title("FAIR")
-        self.geometry("1140x790")
+        self.geometry("1140x850")
         self.minsize(1000, 700)
         self.configure(fg_color=COLOR_BG)
         self._init_fonts()
@@ -3646,29 +3646,28 @@ class ModernTTSApp(*_APP_BASE):
         return ram_total, ram_avail
 
     def _build_mem_panel(self, parent):
-        """Карточка памяти внизу левого столбца — ВР и ОЗУ в одну строку
-        (макет Ярослава 06.11). Подписи крашены в цвет полос — единый стиль
-        с верхними панелями: ВР — ржавчина, ОЗУ — золото."""
+        """Карточка памяти внизу левого столбца: видеопамять и ОЗУ в одну строку
+        (макет Ярослава 06.11). Подписи — прошлые, серым; значения «занято/всего»;
+        полосы короткие, перед второй подписи — большой зазор. По бокам карточки
+        те же «грани», что у верхних панелей."""
         p = ctk.CTkFrame(parent, fg_color=COLOR_CARD, corner_radius=R_CARD,
                          border_width=1, border_color=COLOR_BORDER)
         p.pack(fill="x", padx=2, pady=(0, 8))
+        self._add_side_edges(p)          # вертикальные «грани» слева и справа
         row = ctk.CTkFrame(p, fg_color="transparent")
-        row.pack(fill="x", padx=10, pady=9)
-        row.grid_columnconfigure(1, weight=1)
-        row.grid_columnconfigure(4, weight=1)
-        specs = ((_tr("ВР"), "gpu", COLOR_RED),
-                 (_tr("ОЗУ"), "ram", COLOR_GOLD))
-        for i, (cap, key, col) in enumerate(specs):
-            c = i * 3
-            ctk.CTkLabel(row, text=cap, font=FONT_TINY, text_color=col,
-                         anchor="w").grid(row=0, column=c, sticky="w")
-            bar = ctk.CTkProgressBar(row, height=6, corner_radius=3, width=70,
+        row.pack(fill="x", padx=8, pady=8)
+        specs = ((_tr("Видеопамять"), "gpu", COLOR_RED, (0, 0)),
+                 (_tr("Память (ОЗУ)"), "ram", COLOR_GOLD, (24, 0)))
+        for cap, key, col, pl in specs:
+            ctk.CTkLabel(row, text=cap, font=FONT_TINY, text_color=COLOR_TEXT_SEC,
+                         anchor="w").pack(side="left", padx=pl)
+            bar = ctk.CTkProgressBar(row, height=4, corner_radius=2, width=44,
                                      fg_color=COLOR_BORDER, progress_color=col)
             bar.set(0)
-            bar.grid(row=0, column=c + 1, sticky="ew", padx=(6, 6))
+            bar.pack(side="left", padx=(4, 0))
             val = ctk.CTkLabel(row, text="…", font=FONT_TINY,
                                text_color=COLOR_TEXT_MAIN, anchor="e")
-            val.grid(row=0, column=c + 2, sticky="e")
+            val.pack(side="left", padx=(4, 0))
             setattr(self, f"{key}_val", val)
             setattr(self, f"{key}_bar", bar)
         return p
@@ -3698,10 +3697,10 @@ class ModernTTSApp(*_APP_BASE):
         """Перерисовывает панель памяти: видеопамять — ржавчина, ОЗУ — золото."""
         gu, gt = self._gpu_mem_probe()
         if gu is not None and gt:
-            self.gpu_val.configure(text=f"{gu / 2**30:.1f}/{gt / 2**30:.0f} ГБ")
+            self.gpu_val.configure(text=f"{gu / 2**30:.0f}/{gt / 2**30:.0f} ГБ")
             self.gpu_bar.set(min(1.0, gu / gt))
         else:
-            self.gpu_val.configure(text=_tr("нет"))
+            self.gpu_val.configure(text="—")
             self.gpu_bar.set(0)
         rt, ra = self._sys_mem_info()
         if rt:
@@ -4440,7 +4439,7 @@ class ModernTTSApp(*_APP_BASE):
         """Ставит окно по центру экрана и не даёт содержимому его раздуть."""
         try:
             self.update_idletasks()
-            w, h = 1140, 790
+            w, h = 1140, 850
             sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
             x = max(20, (sw - w) // 2)
             y = max(20, (sh - h) // 3)
