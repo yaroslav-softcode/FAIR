@@ -871,7 +871,6 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         return _tr(self.DEFAULT_TEXT)
 
     _EMO_COL_W = 470        # сколько добавляем справа при раскрытии колонки
-    _EMO_MAX_ROWS = 10      # максимум эмоций на один голос
     _EMO_MIN_ROWS = 4       # три основные уже вписаны + одна пустая под свою
     EMO_PRESETS = ("радостный", "строгий", "грустный")
     # что можно выбрать в раскрывающемся списке: каждое имя подбирает свою фразу-образец
@@ -914,58 +913,12 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         self._emo_rows_box.grid_columnconfigure(0, weight=1)
         self._emo_frame.grid_rowconfigure(2, weight=1)
         self._emo_rows = []
-        for i in range(self._EMO_MAX_ROWS):
-            rowf = ctk.CTkFrame(self._emo_rows_box, fg_color=COLOR_CARD, corner_radius=8)
-            rowf.grid(row=i, column=0, sticky="ew", padx=6, pady=(0, 10))
-            self._emo_rows_box.grid_rowconfigure(i, weight=0)
-            ent = _EmoCombo(
-                rowf, values=list(self.EMO_CHOICES), font=FONT_SMALL, height=32,
-                corner_radius=3, border_width=1, border_color=COLOR_BORDER,
-                fg_color="#ffffff", button_color=COLOR_BRAND,
-                button_hover_color=COLOR_BRAND_HOVER, dropdown_fg_color="#ffffff",
-                dropdown_hover_color=COLOR_SELECT, dropdown_text_color=COLOR_TEXT_MAIN,
-                text_color=COLOR_TEXT_MAIN,
-                command=lambda val, i=i: self._combo_pick(i))
-            try:    # подсказка как у остальных полей окна
-                ent._entry.configure(
-                    placeholder_text=_tr("название эмоции (например: радостный)"))
-            except Exception:
-                pass
-            ent.pack(fill="x", padx=10, pady=(10, 4))
-            stat = ctk.CTkLabel(rowf, text="— " + _tr("не задана"), font=FONT_TINY,
-                                text_color=COLOR_TEXT_SEC, anchor="w")
-            stat.pack(fill="x", padx=12)
-            brow = ctk.CTkFrame(rowf, fg_color="transparent")
-            brow.pack(fill="x", padx=10, pady=(4, 10))
-            brow.grid_columnconfigure(1, weight=1)
-            rec = ctk.CTkButton(brow, text="🎙  " + _tr("Записать"), width=104, height=30,
-                                corner_radius=3, font=FONT_SMALL,
-                                fg_color=COLOR_FILL_SOFT, hover_color=COLOR_SELECT,
-                                text_color=COLOR_TEXT_MAIN,
-                                command=lambda i=i: self._emo_record(i))
-            rec.grid(row=0, column=0, padx=(0, 6))
-            syn = ctk.CTkButton(brow, text="✨  " + _tr("Синтезировать"), height=30,
-                                corner_radius=3, font=FONT_SMALL,
-                                fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
-                                text_color="#ffffff",
-                                command=lambda i=i: self._emo_synth(i))
-            syn.grid(row=0, column=1, sticky="ew")
-            dlt = ctk.CTkButton(brow, text="🗑", width=36, height=30, corner_radius=3,
-                                fg_color="transparent", hover_color=COLOR_SELECT,
-                                border_width=1, border_color=COLOR_BORDER,
-                                text_color=COLOR_TEXT_SEC,
-                                command=lambda i=i: self._emo_delete(i))
-            dlt.grid(row=0, column=2, padx=(6, 0))
-            if i < len(self.EMO_PRESETS):
-                ent.insert(0, self.EMO_PRESETS[i])   # три основные эмоции уже вписаны
-            ent.bind("<KeyRelease>", lambda e: (self._rows_visibility(),
-                                                self._refresh_emotions()))
-            self._emo_rows.append({"frame": rowf, "ent": ent, "stat": stat, "rec": rec,
-                                   "syn": syn, "del": dlt, "label": ""})
+        for i in range(self._EMO_MIN_ROWS):
+            self._make_emo_row(i)
         ctk.CTkLabel(self._emo_frame,
                      text=_tr("Запись с микрофона в этот же голос.") + "\n"
                           + _tr("Нейросинтез эмоции из нейтрального образца этого голоса.") + "\n"
-                          + _tr("Максимум 10 эмоций на голос."),
+                          + _tr("Сколько угодно эмоций — новая строка появляется сама."),
                      font=FONT_TINY, text_color=COLOR_TEXT_SEC, justify="left").grid(
             row=3, column=0, sticky="w", padx=16, pady=(0, 6))
         self._fill_existing_labels()
@@ -976,26 +929,85 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         except Exception:
             pass
 
+    def _make_emo_row(self, i):
+        """Одна строка эмоций: название + статус + кнопки. Строки создаются по
+        мере надобности — список эмоций не ограничен в длине."""
+        rowf = ctk.CTkFrame(self._emo_rows_box, fg_color=COLOR_CARD, corner_radius=8)
+        rowf.grid(row=i, column=0, sticky="ew", padx=6, pady=(0, 10))
+        self._emo_rows_box.grid_rowconfigure(i, weight=0)
+        ent = _EmoCombo(
+            rowf, values=list(self.EMO_CHOICES), font=FONT_SMALL, height=32,
+            corner_radius=3, border_width=1, border_color=COLOR_BORDER,
+            fg_color="#ffffff", button_color=COLOR_BRAND,
+            button_hover_color=COLOR_BRAND_HOVER, dropdown_fg_color="#ffffff",
+            dropdown_hover_color=COLOR_SELECT, dropdown_text_color=COLOR_TEXT_MAIN,
+            text_color=COLOR_TEXT_MAIN,
+            command=lambda val, i=i: self._combo_pick(i))
+        try:    # подсказка как у остальных полей окна
+            ent._entry.configure(
+                placeholder_text=_tr("название эмоции (например: радостный)"))
+        except Exception:
+            pass
+        ent.pack(fill="x", padx=10, pady=(10, 4))
+        stat = ctk.CTkLabel(rowf, text="— " + _tr("не задана"), font=FONT_TINY,
+                            text_color=COLOR_TEXT_SEC, anchor="w")
+        stat.pack(fill="x", padx=12)
+        brow = ctk.CTkFrame(rowf, fg_color="transparent")
+        brow.pack(fill="x", padx=10, pady=(4, 10))
+        brow.grid_columnconfigure(1, weight=1)
+        rec = ctk.CTkButton(brow, text="🎙  " + _tr("Записать"), width=104, height=30,
+                            corner_radius=3, font=FONT_SMALL,
+                            fg_color=COLOR_FILL_SOFT, hover_color=COLOR_SELECT,
+                            text_color=COLOR_TEXT_MAIN,
+                            command=lambda i=i: self._emo_record(i))
+        rec.grid(row=0, column=0, padx=(0, 6))
+        syn = ctk.CTkButton(brow, text="✨  " + _tr("Синтезировать"), height=30,
+                            corner_radius=3, font=FONT_SMALL,
+                            fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                            text_color="#ffffff",
+                            command=lambda i=i: self._emo_synth(i))
+        syn.grid(row=0, column=1, sticky="ew")
+        dlt = ctk.CTkButton(brow, text="🗑", width=36, height=30, corner_radius=3,
+                            fg_color="transparent", hover_color=COLOR_SELECT,
+                            border_width=1, border_color=COLOR_BORDER,
+                            text_color=COLOR_TEXT_SEC,
+                            command=lambda i=i: self._emo_delete(i))
+        dlt.grid(row=0, column=2, padx=(6, 0))
+        if i < len(self.EMO_PRESETS):
+            ent.insert(0, self.EMO_PRESETS[i])   # три основные эмоции уже вписаны
+        ent.bind("<KeyRelease>", lambda e: (self._rows_visibility(),
+                                            self._refresh_emotions()))
+        self._emo_rows.append({"frame": rowf, "ent": ent, "stat": stat, "rec": rec,
+                               "syn": syn, "del": dlt, "label": ""})
+
+    def _ensure_rows(self, n):
+        """Достроить строк, чтобы их было не меньше n (списка-потолка нет)."""
+        while len(self._emo_rows) < n:
+            self._make_emo_row(len(self._emo_rows))
+
     def _fill_existing_labels(self):
         """Уже записанные эмоции этого голоса — в первые строки, основные — следом за ними."""
         have = list((self._cur_info().get("samples") or {}).keys())
         names = have + [p for p in self.EMO_PRESETS if p not in have]
+        self._ensure_rows(max(self._EMO_MIN_ROWS, len(names) + 1))
         for row in self._emo_rows:      # иначе в скрытых строках остаются прошлые имена
             row["ent"].delete(0, "end")
             row["label"] = ""
-        for i, nm in enumerate(names[:self._EMO_MAX_ROWS]):
+        for i, nm in enumerate(names):
             row = self._emo_rows[i]
             row["ent"].delete(0, "end")
             row["ent"].insert(0, nm)
             row["label"] = nm
 
     def _rows_visibility(self):
-        """Строк ровно столько, сколько вписано, плюс одна пустая (минимум — 4)."""
+        """Строк ровно столько, сколько вписано, плюс одна пустая (минимум — 4).
+        Новые строки достраиваются на лету — количество эмоций не ограничено."""
         if not self._emo_rows:
             self._emo_need = 0
             return
         filled = sum(1 for r in self._emo_rows if (r["ent"].get() or "").strip())
-        self._emo_need = min(self._EMO_MAX_ROWS, max(self._EMO_MIN_ROWS, filled + 1))
+        self._ensure_rows(max(self._EMO_MIN_ROWS, filled + 1))
+        self._emo_need = max(self._EMO_MIN_ROWS, filled + 1)
         for i, r in enumerate(self._emo_rows):
             if i < self._emo_need:
                 r["frame"].grid()
@@ -1850,7 +1862,7 @@ _PAIRS += [
     ("Нейтральный образец не записан — не из чего синтезировать эмоцию.", "No neutral sample recorded — nothing to synthesize an emotion from."),
     ("Запись с микрофона в этот же голос.", "Microphone recording into the same voice."),
     ("Нейросинтез эмоции из нейтрального образца этого голоса.", "Neural synthesis of the emotion from this voice's neutral sample."),
-    ("Максимум 10 эмоций на голос.", "Up to 10 emotions per voice."),
+    ("Сколько угодно эмоций — новая строка появляется сама.", "Any number of emotions — a new row appears by itself."),
     ("не записана", "not recorded"),
     ("удалена", "deleted"),
     ("Маркер в тексте: (радостный) фраза.\nБез маркера — нейтральный голос. Запиши или синтезируй.", "Marker in text: (joyful) phrase.\nWithout a marker — neutral voice. Record or synthesize."),
