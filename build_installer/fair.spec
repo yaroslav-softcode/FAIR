@@ -14,6 +14,10 @@ datas = []
 datas += collect_data_files("customtkinter")          # темы, шрифты, иконки CTk
 datas += collect_data_files("sounddevice")            # PortAudio DLL
 datas += collect_data_files("piper")                  # espeak-ng-data (без него нет фонем)
+try:                                                  # перетаскивание файлов в окно
+    datas += collect_data_files("tkinterdnd2")        # tkdnd: tcl-скрипты и бинарники
+except Exception:
+    pass
 datas += [
     (os.path.join(SRC, "app.ico"), "."),
     (os.path.join(SRC, "logo.png"), "."),
@@ -52,7 +56,9 @@ hiddenimports = ["llama_cpp", "piper", "onnxruntime", "sounddevice", "pyperclip"
                  "xml.etree.ElementTree", "email.mime.text", "http.cookiejar",
                  "urllib.request", "urllib.parse", "json", "argparse", "ast", "inspect",
                  # субтитры видео: YouTube и ВК/Rutube-запасной путь
-                 "youtube_transcript_api", "yt_dlp", "defusedxml"]
+                 "youtube_transcript_api", "yt_dlp", "defusedxml",
+                 # drag&drop документов с рабочего стола
+                 "tkinterdnd2"]
 
 excludes = [
     # piper содержит подпакет обучения (piper.train) — он тянет torch на 600 МБ,

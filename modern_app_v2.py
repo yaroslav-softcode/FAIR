@@ -1629,6 +1629,7 @@ class PresetDialog(ctk.CTkToplevel):
 UI_LANG = "ru"
 
 _PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('ОЗВУЧКА', 'VOICE'),
+          ('ВР', 'VRAM'), ('ОЗУ', 'RAM'), ('нет', 'n/a'),
     ('Видеопамять занята', 'Video memory in use'),
     ('Видеопамять почти вся занята другой программой.', 'Video memory is almost entirely held by another program.'),
     ('Свободно', 'Free'), ('нужно', 'needed'),
@@ -2295,11 +2296,23 @@ filedialog = _TrDialogs(_TK_FILEDIALOG)
 # ===================================================================
 
 
-class ModernTTSApp(ctk.CTk):
+try:                            # drag&drop документов с рабочего стола (tkdnd)
+    from tkinterdnd2 import TkinterDnD, DND_FILES
+    # DnDWrapper обязан быть ДО CTk в базовых классах: иначе его __init__
+    # не вызывается в MRO и tkdnd не инициализируется (TkdndVersion = None)
+    _APP_BASE = (TkinterDnD.DnDWrapper, ctk.CTk)
+    _DND_OK = True
+except Exception:               # tkinterdnd2 нет — окно обычное, DnD просто молчит
+    _APP_BASE = (ctk.CTk,)
+    _DND_OK = False
+
+
+class ModernTTSApp(*_APP_BASE):
     REF_TEXT = "Привет! Это образец голоса для синтеза речи."
     ENGINE_VALUES = ["Piper (CPU)", "Vox (GPU)", "Qwen (GPU)"]
     SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
-    PLACEHOLDER = ("Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n"
+    PLACEHOLDER = ("Вставьте ссылку на статью или видео, текст — или перетащите сюда файл "
+                   "(pdf, docx, epub, fb2, txt...).\n\n"
                    "Ctrl+V — вставить из буфера. Всё, что есть в этом поле, считается источником:\n"
                    "анализ пойдёт по нему, а не по ссылке.")
     PLACEHOLDER_EN = ("Paste an article or video link, text or file — or just type here.\n\n"
@@ -2449,6 +2462,14 @@ class ModernTTSApp(ctk.CTk):
 
     def __init__(self):
         super().__init__()
+        if _DND_OK:
+            # в tkinterdnd2 0.4+ миксин DnDWrapper не инициализирует tkdnd сам —
+            # грузим tcl-пакет tkdnd вручную (без этого drop_target_register падает)
+            try:
+                from tkinterdnd2.TkinterDnD import _require
+                self.TkdndVersion = _require(self)
+            except Exception:
+                pass
         self._apply_app_icon()
         self.after(120, self._apply_titlebar_icon)
         self.after(160, lambda: _dwm_titlebar(self))    # бумажная шапка Windows 11
@@ -3625,26 +3646,29 @@ class ModernTTSApp(ctk.CTk):
         return ram_total, ram_avail
 
     def _build_mem_panel(self, parent):
-        """Компактная карточка «Видеопамять / Память (ОЗУ)» — внизу левого столбца,
-        под панелью «ОЗВУЧКА»; узкая, прижата к левому краю (макет Ярослава 04.11)."""
+        """Карточка памяти внизу левого столбца — ВР и ОЗУ в одну строку
+        (макет Ярослава 06.11). Подписи крашены в цвет полос — единый стиль
+        с верхними панелями: ВР — ржавчина, ОЗУ — золото."""
         p = ctk.CTkFrame(parent, fg_color=COLOR_CARD, corner_radius=R_CARD,
                          border_width=1, border_color=COLOR_BORDER)
-        p.pack(anchor="w", padx=2, pady=(0, 8))   # не тянем на всю ширину — как в макете
-        p.grid_columnconfigure(0, weight=1)
-        rows = ((_tr("Видеопамять"), "gpu", COLOR_RED),
-                (_tr("Память (ОЗУ)"), "ram", COLOR_GOLD))
-        for i, (cap, key, col) in enumerate(rows):
-            f = ctk.CTkFrame(p, fg_color="transparent", width=210)
-            f.grid(row=i * 2, column=0, sticky="ew", padx=10, pady=(7, 7 if i == 1 else 0))
-            f.grid_columnconfigure(0, weight=1)
-            ctk.CTkLabel(f, text=cap, font=FONT_TINY, text_color=COLOR_TEXT_SEC,
-                         anchor="w").grid(row=0, column=0, sticky="w")
-            val = ctk.CTkLabel(f, text="…", font=FONT_TINY, text_color=COLOR_TEXT_MAIN, anchor="e")
-            val.grid(row=0, column=1, sticky="e")
-            bar = ctk.CTkProgressBar(f, width=210, height=6, corner_radius=3,
+        p.pack(fill="x", padx=2, pady=(0, 8))
+        row = ctk.CTkFrame(p, fg_color="transparent")
+        row.pack(fill="x", padx=10, pady=9)
+        row.grid_columnconfigure(1, weight=1)
+        row.grid_columnconfigure(4, weight=1)
+        specs = ((_tr("ВР"), "gpu", COLOR_RED),
+                 (_tr("ОЗУ"), "ram", COLOR_GOLD))
+        for i, (cap, key, col) in enumerate(specs):
+            c = i * 3
+            ctk.CTkLabel(row, text=cap, font=FONT_TINY, text_color=col,
+                         anchor="w").grid(row=0, column=c, sticky="w")
+            bar = ctk.CTkProgressBar(row, height=6, corner_radius=3, width=70,
                                      fg_color=COLOR_BORDER, progress_color=col)
             bar.set(0)
-            bar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(3, 0))
+            bar.grid(row=0, column=c + 1, sticky="ew", padx=(6, 6))
+            val = ctk.CTkLabel(row, text="…", font=FONT_TINY,
+                               text_color=COLOR_TEXT_MAIN, anchor="e")
+            val.grid(row=0, column=c + 2, sticky="e")
             setattr(self, f"{key}_val", val)
             setattr(self, f"{key}_bar", bar)
         return p
@@ -3674,15 +3698,15 @@ class ModernTTSApp(ctk.CTk):
         """Перерисовывает панель памяти: видеопамять — ржавчина, ОЗУ — золото."""
         gu, gt = self._gpu_mem_probe()
         if gu is not None and gt:
-            self.gpu_val.configure(text=f"{gu / 2**30:.1f} / {gt / 2**30:.0f} ГБ")
+            self.gpu_val.configure(text=f"{gu / 2**30:.1f}/{gt / 2**30:.0f} ГБ")
             self.gpu_bar.set(min(1.0, gu / gt))
         else:
-            self.gpu_val.configure(text=_tr("нет доступа"))
+            self.gpu_val.configure(text=_tr("нет"))
             self.gpu_bar.set(0)
         rt, ra = self._sys_mem_info()
         if rt:
             used = rt - ra
-            self.ram_val.configure(text=f"{used / 2**30:.1f} / {rt / 2**30:.1f} ГБ")
+            self.ram_val.configure(text=f"{used / 2**30:.0f}/{rt / 2**30:.0f} ГБ")
             self.ram_bar.set(min(1.0, used / rt))
         else:
             self.ram_val.configure(text="—")
@@ -4079,6 +4103,7 @@ class ModernTTSApp(ctk.CTk):
         self._bind_ctrl_v(self.instruction_entry._textbox,
                           lambda e: self._paste_widget(self.instruction_entry, e))
         self._bind_clipboard_keys(self.instruction_entry._textbox)
+        self._dnd_attach(self.instruction_entry)
         self._attach_text_menu(self.instruction_entry._textbox,
                                on_insert=lambda t: self.instruction_entry.insert("insert", t))
 
@@ -4331,6 +4356,7 @@ class ModernTTSApp(ctk.CTk):
                                          border_width=1, border_color=COLOR_BORDER)
         self.result_box.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 4))
         self._style_text_selection(self.result_box)
+        self._dnd_attach(self.result_box)      # брось документ сюда — он откроется
 
         try:
             tb = self.result_box._textbox
@@ -4796,6 +4822,10 @@ class ModernTTSApp(ctk.CTk):
             filetypes=[("Документы", "*.pdf *.docx *.doc *.txt *.md *.fb2 *.epub *.rtf *.html *.htm"), ("All files", "*.*")])
         if not path:
             return
+        self.insert_path(path)
+
+    def insert_path(self, path):
+        """Загрузить документ в поле текста: кнопка «Файл» и перетаскивание."""
         ext = os.path.splitext(path)[1].lower()
         src_name = None
         try:
@@ -4843,6 +4873,30 @@ class ModernTTSApp(ctk.CTk):
 
     def _pick_article(self, article):
         self._put_source_text(article["text"], article["title"])
+
+    # ---------------- ПЕРЕТАСКИВАНИЕ ФАЙЛОВ В ПОЛЕ ТЕКСТА ----------------
+
+    def _dnd_attach(self, widget):
+        """Разрешает бросить файл в виджет — он откроется как документ."""
+        if not _DND_OK:
+            return
+        try:
+            widget.drop_target_register(DND_FILES)
+            widget.dnd_bind("<<Drop>>", self._on_file_drop)
+        except Exception:
+            pass
+
+    def _on_file_drop(self, event):
+        """Бросили файл(ы) в поле источника — грузим первый поддерживаемый."""
+        try:
+            paths = self.tk.splitlist(event.data)
+        except Exception:
+            paths = [str(getattr(event, "data", "") or "").strip()]
+        for p in paths:
+            p = p.strip()
+            if p and os.path.isfile(p):
+                self.insert_path(p)
+                return
 
     # ---------------- видео: YouTube / Rutube / VK ----------------
     _YT_HOSTS = ("youtube.com", "youtu.be", "m.youtube.com", "www.youtube.com",
