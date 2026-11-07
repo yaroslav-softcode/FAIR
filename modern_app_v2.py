@@ -6434,7 +6434,8 @@ class ModernTTSApp(*_APP_BASE):
             except Exception as e:
                 raise Exception(f"Не удалось получить список файлов модели Qwen: {e}")
             files = [(e["path"], int(e.get("size") or 0)) for e in entries
-                     if e.get("type") == "blob" and e["path"].lower().endswith(QWEN_EXT)]
+                     if e.get("type") in ("blob", "file")
+                     and e["path"].lower().endswith(QWEN_EXT)]
             if not files:
                 raise Exception("Qwen: сервер вернул пустой список файлов.")
             total = sum(sz for _n, sz in files) or 1
