@@ -1797,6 +1797,14 @@ _PAIRS += [
     ("✅ Голос 'Маша' активен", "✅ Voice 'Masha' is active"),
 ]
 
+# автоударения RUAccent (v1.5 dev): галочка в карточке ОЗВУЧКА
+_PAIRS += [
+    ("Автоударения (RUAccent)", "Auto stress marks (RUAccent)"),
+    ("✅ Автоударения включены", "✅ Auto stress marks on"),
+    ("Автоударения выключены", "Auto stress marks off"),
+    ("⏳ Загрузка автоударений (RUAccent)…", "⏳ Loading auto stress marks (RUAccent)…"),
+]
+
 _PAIRS += [
     # ---- v10: статусы и ошибки, которые оставались на русском
     ("✅ Настройки восстановлены: Vox, «Свой 1».",
@@ -2516,6 +2524,8 @@ class ModernTTSApp(*_APP_BASE):
             "free_after": False,
         }
         self.speech_rate = 1.0
+        self.stress_auto = True          # автоударения RUAccent (все движки, v1.5 dev)
+        self._ruaccent_obj = None        # ленивая загрузка модели ударений
         self.vox_fast_var = ctk.BooleanVar(value=False)
         self._sd_stream = None
 
@@ -4304,6 +4314,16 @@ class ModernTTSApp(*_APP_BASE):
         self.rate_label = ctk.CTkLabel(self.rate_row, text="×1.0", font=(FONT_FAMILY, 10, "bold"),
                                        text_color=COLOR_TEXT_MAIN, width=36, anchor="e")
         self.rate_label.grid(row=0, column=2, sticky="e")
+
+        # автоударения RUAccent — общий переключатель для всех движков (v1.5 dev)
+        self.stress_var = ctk.BooleanVar(value=bool(self.stress_auto))
+        self.stress_cb = ctk.CTkCheckBox(tts, text=_tr("Автоударения (RUAccent)"),
+                                         variable=self.stress_var, font=FONT_SMALL,
+                                         command=self._on_stress_toggle,
+                                         fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                                         checkbox_width=18, checkbox_height=18,
+                                         text_color=COLOR_TEXT_MAIN)
+        self.stress_cb.pack(fill="x", padx=12, pady=(0, 10), before=self.rate_row)
 
         # «Образец голоса» — отдельная большая кнопка во всю ширину
         self.btn_add_voice = ctk.CTkButton(tts, text="🎙  Образец голоса", height=30,
@@ -7180,6 +7200,13 @@ class ModernTTSApp(*_APP_BASE):
         self._translate_instruction()   # название уровня и сам промпт — на одном языке
         self.save_settings()
 
+    def _on_stress_toggle(self):
+        """Галочка «Автоударения» — общий переключатель RUAccent для всех движков."""
+        self.stress_auto = bool(self.stress_var.get())
+        self.update_status(_tr("✅ Автоударения включены") if self.stress_auto
+                           else _tr("Автоударения выключены"))
+        self.save_settings()
+
     def save_settings(self):
         try:
             data = {
@@ -7197,6 +7224,7 @@ class ModernTTSApp(*_APP_BASE):
                 "ctx_choices": self.ctx_choices,
                 "speech_rate": self.speech_rate,
                 "vox_fast": bool(self.vox_fast_var.get()),
+                "stress_auto": bool(self.stress_var.get()),
                 "qwen_cfg": dict(self.qwen_cfg),
                 "qwen_size": self.qwen_size,
                 "setup_preview": bool(getattr(self, "setup_preview", False)),
@@ -7320,6 +7348,11 @@ class ModernTTSApp(*_APP_BASE):
         self.rate_slider.set(rate)
         self.rate_label.configure(text=f"×{rate:.1f}")
         self.vox_fast_var.set(bool(data.get("vox_fast", False)))
+        self.stress_auto = bool(data.get("stress_auto", True))
+        try:
+            self.stress_var.set(self.stress_auto)
+        except Exception:
+            pass
         qc = data.get("qwen_cfg")
         if isinstance(qc, dict):   # подкрученные параметры движка Qwen
             for key in ("device", "precision", "language"):
@@ -9546,11 +9579,55 @@ class ModernTTSApp(*_APP_BASE):
 
     # ================= СИНТЕЗ =================
 
+    # ---------------- автоударения RUAccent (все движки, v1.5 dev) ----------------
+    _RU_VOWELS = "аеёиоуыэюяАЕЁИОУЫЭЮЯ"
+
+    @classmethod
+    def _plus_to_acute(cls, text: str) -> str:
+        """Формат RUAccent «+ перед гласной» → U+0301 сразу ПОСЛЕ гласной.
+        Именно этот знак понимают Qwen-чекпойнт, espeak-ng (Piper) и VoxCPM2."""
+        return re.sub(r"\+([" + cls._RU_VOWELS + r"])",
+                      lambda m: m.group(1) + "\u0301", text)
+
+    def _apply_stress(self, text: str) -> str:
+        """Автоматическая расстановка ударений (RUAccent, MIT) — общая для Vox,
+        Qwen и Piper. Группы в скобках не трогаем: это маркеры эмоций/вставки."""
+        if not getattr(self, "stress_auto", False) or not text:
+            return text
+        try:
+            acc = getattr(self, "_ruaccent_obj", None)
+            if acc is None:
+                self.after(0, lambda: self.update_status(
+                    _tr("⏳ Загрузка автоударений (RUAccent)…")))
+                from ruaccent import RUAccent
+                acc = RUAccent()
+                acc.load(omograph_model_size="turbo2", use_dictionary=True)
+                self._ruaccent_obj = acc
+            saved = []
+
+            def _keep(m):
+                saved.append(m.group(0))
+                return "ZQJ"        # без русских гласных — разметка к нему не цепляется
+
+            proto = re.sub(r"\([^()]*\)|\S*[\u0301]\S*", _keep, text)
+            # ↑ неприкосновенны: скобки (маркеры/вставки) и слова, размеченные рукой
+            marked = self._plus_to_acute(acc.process_all(proto))
+            for orig in saved:      # возвращаем скобки по порядку
+                marked = marked.replace("ZQJ", orig, 1)
+            return marked
+        except Exception as e:
+            try:
+                _flog(f"RUAccent: {type(e).__name__}: {e}")
+            except Exception:
+                pass
+            return text
+
     def generate_and_play(self, text: str, play: bool = True):
         temp_file = os.path.join(self.BASE_DIR, "temp_output_pro.wav")
         try:
             orig_text = text
             text = self.normalize_for_tts(text)
+            text = self._apply_stress(text)   # автоударения (RUAccent) — все движки
             rate = self.speech_rate
 
             if self.current_engine == "Vox":
