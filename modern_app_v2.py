@@ -3661,7 +3661,7 @@ class ModernTTSApp(*_APP_BASE):
         for cap, key, col, pl in specs:
             ctk.CTkLabel(row, text=cap, font=FONT_TINY, text_color=COLOR_TEXT_SEC,
                          anchor="w").pack(side="left", padx=pl)
-            bar = ctk.CTkProgressBar(row, height=4, corner_radius=2, width=44,
+            bar = ctk.CTkProgressBar(row, height=8, corner_radius=4, width=44,
                                      fg_color=COLOR_BORDER, progress_color=col)
             bar.set(0)
             bar.pack(side="left", padx=(4, 0))
