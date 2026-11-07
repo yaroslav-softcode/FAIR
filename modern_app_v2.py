@@ -9591,9 +9591,20 @@ class ModernTTSApp(*_APP_BASE):
 
     def _apply_stress(self, text: str) -> str:
         """Автоматическая расстановка ударений (RUAccent, MIT) — общая для Vox,
-        Qwen и Piper. Группы в скобках не трогаем: это маркеры эмоций/вставки."""
+        Qwen и Piper. Группы в скобках не трогаем: это маркеры эмоций/вставки.
+        Встроенные тембры Qwen (CustomVoice) разметку пропускают — она портит их
+        озвучку; СВОИ голоса Qwen (запись/дизайн, клон) размечаются как все."""
         if not getattr(self, "stress_auto", False) or not text:
             return text
+        # встроенный голос Qwen — разметка не нужна (свои голоса работают отлично)
+        try:
+            if getattr(self, "current_engine", "") == "Qwen":
+                nm = self.current_tts_name or self.tts_combo.get()
+                if nm in QWEN_DISPLAY:
+                    print("ℹ️ Автоударения: встроенный голос Qwen — разметка пропущена")
+                    return text
+        except Exception:
+            pass
         try:
             acc = getattr(self, "_ruaccent_obj", None)
             if acc is None:
