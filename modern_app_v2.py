@@ -2236,7 +2236,8 @@ def _apply_lang(root):
             stack.extend(w.winfo_children())
         except Exception:
             pass
-        if not isinstance(w, (ctk.CTkOptionMenu, ctk.CTkComboBox)):
+        if (not isinstance(w, (ctk.CTkOptionMenu, ctk.CTkComboBox))
+                and not getattr(w, "_no_auto_tr", False)):
             for attr in ("text", "placeholder_text"):
                 try:
                     cur = w.cget(attr)
@@ -4024,6 +4025,7 @@ class ModernTTSApp(*_APP_BASE):
             ctk.CTkLabel(_trow, text="Reader", font=_f, text_color="#e0ac42"),
         ]
         for _lbl in self._brand_lbls:
+            _lbl._no_auto_tr = True    # «Free AI Reader» — фирменное имя, на всех языках одинаково
             _lbl.pack(side="left")
             _lbl.configure(cursor="hand2")
             _lbl.bind("<Button-1>", self._open_donate_page)   # клик по названию — донаты
