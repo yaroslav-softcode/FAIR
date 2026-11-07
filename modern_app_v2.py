@@ -1060,10 +1060,25 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         return int(bw), int(bh)
 
     def _set_width(self, target):
-        """Меняем ширину окна сразу: колонка появляется мгновенно, рекордер не меняется."""
+        """Меняем ширину окна, НЕ перескакивая: колонка эмоций выезжает справа,
+        а левая часть окна остаётся на месте (просьба Ярослава, 07.11).
+        У самого края экрана сдвигаем лишь настолько, чтобы окно влезло."""
         try:
-            self.geometry(f"{int(target)}x{self._geo_now()[1]}")
-            _center_on_parent(self)
+            _w, h = self._geo_now()
+            base_w = int(self._base_geo.split("x")[0])
+            sw, sh = int(self.winfo_screenwidth()), int(self.winfo_screenheight())
+            target = max(int(target), base_w)
+            x, y = int(self.winfo_x()), int(self.winfo_y())
+            if x + target > sw - 16:
+                x = max(12, sw - target - 16)
+            # ctk 6.0 после смены DPI держит min=max прежнего размера — снимаем
+            # оковы, иначе новая ширина молча отклоняется (проверено 07.11)
+            try:
+                self.minsize(base_w, h)
+                self.maxsize(sw, sh)
+            except Exception:
+                pass
+            self.geometry(f"{target}x{h}+{x}+{y}")
         except Exception:
             pass
 
