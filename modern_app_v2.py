@@ -1670,7 +1670,7 @@ _PAIRS = [('ИСТОЧНИК', 'SOURCE'), ('МОДЕЛЬ ИИ', 'AI MODEL'), ('�
     ('Всё равно попробовать загрузить?', 'Try loading anyway?'),
     ('Vox не загружен: мало видеопамяти', 'Vox not loaded: not enough video memory'),
     ('Не удалось загрузить VoxCPM2: видеокарту держит другое приложение (CUDA out of memory). Освободи видеопамять и попробуй снова.',
-     'Failed to load VoxCPM2: the graphics card is held by another app (CUDA out of memory). Free video memory and try again.'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку на статью или видео, текст или файл — либо наберите текст в поле справа.', 'Paste an article or video link, text or file — or type in the field on the right.'), ('Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n', 'Paste an article or video link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('Добавить эмоции', 'Add emotions'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку на статью или видео, текст или файл.', '✅ Ready. Paste an article or video link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, epub, fb2, rtf, html, txt, md)', 'Choose a file (pdf, docx, epub, fb2, rtf, html, txt, md)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку на статью или видео, текст или файл.', 'Text is required: paste an article or video link, text or file.'), ('Хорошо', 'OK'), ('Голос Алсу установлен', 'Alsu voice installed'), ('Встроенный голос добавлен', 'Built-in voice added'), ('Озвучка сохранена', 'Spoken audio saved'), ('Нет озвучки для сохранения — сначала нажмите «Озвучить».', 'Nothing to save yet — press “Speak” first.'), ('Сохранить озвучку', 'Save spoken audio'), ('⏳ Синтез речи…', '⏳ Synthesizing speech…'),
+     'Failed to load VoxCPM2: the graphics card is held by another app (CUDA out of memory). Free video memory and try again.'), ('Ссылка на статью', 'Article link'), ('Вставьте ссылку на статью или видео, текст или файл — либо наберите текст в поле справа.', 'Paste an article or video link, text or file — or type in the field on the right.'), ('Вставьте ссылку на статью или видео, текст или файл — или просто печатайте здесь.\n\n', 'Paste an article or video link, text or file — or just type here.\n\n'), ('Вставьте текст или ссылку', 'Paste text or a link'), ('Выберите, что вставить в поле текста', 'Choose what to insert into the text field'), ('Вставить', 'Paste'), ('Копировать', 'Copy'), ('Вырезать', 'Cut'), ('Выделить всё', 'Select all'), ('Поставить ударение…', 'Add a stress mark…'), ('Ударение', 'Stress'), ('Куда поставить ударение?', 'Where to put the stress?'), ('✅ Ударение поставлено', '✅ Stress mark added'), ('⚠ Поставьте курсор на слово, где нужно ударение', '⚠ Put the cursor on the word that needs a stress mark'), ('⚠ В этом слове нет гласных', '⚠ This word has no vowels'), ('Другая модель', 'Another model'), ('Новый…', 'New…'), ('Удалить', 'Delete'), ('Контекст', 'Context'), ('Сжатие', 'Compression'), ('Скорость', 'Speed'), ('Запустить анализ', 'Run analysis'), ('Остановить', 'Stop'), ('Очистить', 'Clear'), ('Готово', 'Ready'), ('Сохранить', 'Save'), ('Отмена', 'Cancel'), ('Файл', 'File'), ('Промпт — что сделать с текстом', 'Prompt — what to do with the text'), ('Свой уровень сжатия', 'Custom compression level'), ('Сжатие до, % исходного текста', 'Compress to, % of the original text'), ('Название голоса', 'Voice name'), ('Название в списке', 'Name in the list'), ('Например: Мой голос', 'For example: My voice'), ('5–15 секунд чистой речи. Образец и текст сохраняются в слоте.', '5–15 seconds of clean speech. The sample and its text are saved in the slot.'), ('Нажмите и говорите 5–15 секунд', 'Press and speak for 5–15 seconds'), ('Образец ещё не записан', 'No sample recorded yet'), ('Образец голоса', 'Voice sample'), ('Текст образца — что именно произнесено', 'Sample text — what exactly is spoken'), ('Озвучивать сразу после анализа', 'Speak right after the analysis'), ('Добавить эмоции', 'Add emotions'), ('🎙  Образец голоса', '🎙  Voice sample'), ('📂  Свой голос Piper…', '📂  Your Piper voice…'), ('Импорт голоса Piper', 'Import Piper voice'), ('Модель Piper (.onnx)', 'Piper model (.onnx)'), ('Все файлы', 'All files'), ('●  Начать запись', '●  Start recording'), ('■  Остановить запись', '■  Stop recording'),        ('Озвучить', 'Speak'), ('■  Стоп', '■  Stop'), ('Пауза', 'Paused'), ('↩ Исходный текст', '↩ Original text'), ('Процессор', 'CPU'), ('Видеокарта', 'GPU'), ('Piper: процессор, видеокарта не нужна', 'Piper: CPU, no graphics card needed'), ('⚠ Vox требует видеокарту с 8 ГБ видеопамяти', '⚠ Vox needs a graphics card with 8 GB of video memory'), ('ОЗУ: —', 'RAM: —'), ('✅ Готово. Вставьте ссылку на статью или видео, текст или файл.', '✅ Ready. Paste an article or video link, text or file.'), ('✅ Ссылка вставлена', '✅ Link inserted'), ('↩ Возвращён исходный текст', '↩ Original text restored'), ('Обработка…', 'Processing…'), ('Генерация текста…', 'Generating text…'), ('Воспроизведение…', 'Playing…'), ('Остановлено', 'Stopped'), ('Отменено', 'Cancelled'), ('Ошибка звука', 'Audio error'), ('⏳ Синтез...', '⏳ Synthesizing...'), ('❌ Ошибка', '❌ Error'), ('Загрузка статьи…', 'Loading the article…'), ('Анализ вашего текста…', 'Analyzing your text…'), ('Анализ нейросетью…', 'Neural analysis…'), ('Загрузка модели', 'Loading the model'), ('Загрузка на GPU', 'Loading to GPU'), ('Загрузка модели на видеокарту…', 'Loading the model onto the GPU…'), ('Загрузка модели на видеокарту', 'Loading the model onto the GPU'), ('Модель загружена', 'Model loaded'), ('Анализ завершён', 'Analysis finished'), ('Синтез завершён', 'Synthesis finished'), ('Модель GGUF', 'GGUF model'), ('Модель на GPU', 'Model on GPU'), ('Модель ИИ не загружена.', 'The AI model is not loaded.'), ('Модель для анализа не выбрана.', 'No analysis model selected.'), ('Выбрана модель. Загрузится при анализе.', 'Model selected. It loads when the analysis starts.'), ('Сканирование моделей…', 'Scanning models…'), ('Подготовка текста', 'Preparing the text'), ('Проверка объёма', 'Checking the length'), ('⏳ Загрузка VoxCPM2...', '⏳ Loading VoxCPM2...'), ('⏳ Загрузка VoxCPM2 (веса ~5 ГБ)...', '⏳ Loading VoxCPM2 (~5 GB of weights)...'), ('⏳ Подготовка текста…', '⏳ Preparing the text…'), ('⏹ Анализ отменён', '⏹ Analysis cancelled'), ('⏹ Синтез отменён', '⏹ Synthesis cancelled'), ('⏹ Остановлено', '⏹ Stopped'), ('♻️ Модель уже в памяти — переиспользую', '♻️ The model is already in memory — reusing it'), ('✅ VoxCPM2 готова (GPU)', '✅ VoxCPM2 ready (GPU)'), ('❌ VoxCPM2 недоступна', '❌ VoxCPM2 unavailable'), ('❌ Ошибка загрузки', '❌ Loading error'), ('❌ Файл голоса не найден', '❌ Voice file not found'), ('🧹 Видеопамять освобождена после анализа', '🧹 Video memory freed after the analysis'), ('🚀 GPU-сервер:', '🚀 GPU server:'), ('Режим: видеокарта (CUDA)', 'Mode: GPU (CUDA)'), ('Режим: процессор (CUDA выключена)', 'Mode: CPU (CUDA off)'), ('Движок: VoxCPM2 (GPU).', 'Engine: VoxCPM2 (GPU).'), ('Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».', 'No voice selected for speech: record a sample with “🎙 Voice sample”.'), ('Воспроизведение недоступно.', 'Playback is unavailable.'), ('Запись невозможна.', 'Recording is unavailable.'), ('Внимание', 'Warning'), ('Ошибка TTS', 'TTS error'), ('Ошибка VoxCPM2', 'VoxCPM2 error'), ('Микрофон', 'Microphone'), ('Звук', 'Audio'), ('Буфер обмена', 'Clipboard'), ('Образец', 'Sample'), ('Анализ', 'Analysis'), ('Слишком длинный текст', 'Text too long'), ('WAV-файл (5–15 секунд чистой речи)', 'WAV file (5–15 seconds of clean speech)'), ('Выберите модель .gguf для анализа текста', 'Choose a .gguf model for text analysis'), ('Выберите файл (pdf, docx, epub, fb2, rtf, html, txt, md)', 'Choose a file (pdf, docx, epub, fb2, rtf, html, txt, md)'), ('Нечего анализировать', 'Nothing to analyze'), ('Текст слишком короткий или пустой', 'The text is too short or empty'), ('Буфер обмена пуст', 'The clipboard is empty'), ('Буфер пуст. Скопируйте текст для озвучки.', 'The clipboard is empty. Copy the text you want spoken.'), ('Нет текста для озвучки.', 'There is no text to speak.'), ('Голос не выбран.', 'No voice is selected.'), ('Сначала запишите голос или выберите файл.', 'Record a voice first or choose a file.'), ('Введите название голоса.', 'Enter the voice name.'), ('Введите название.', 'Enter a name.'), ('Введите текст образца.', 'Enter the sample text.'), ('Введите новый процент сжатия.', 'Enter the new compression percentage.'), ('Напишите промпт — что сделать с текстом.', 'Write a prompt — what to do with the text.'), ('Процент должен быть от 5 до 100.', 'The percentage must be from 5 to 100.'), ('Укажите процент числом, например 40.', 'Write the percentage as a number, for example 40.'), ('Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»', 'Choose an AI model in the “AI MODEL” card'), ('Запись слишком короткая — нужно 5–15 секунд речи.', 'The recording is too short — 5–15 seconds of speech are needed.'), ('Запишите голос с микрофона\nили выберите WAV-файл.', 'Record a voice with the microphone\nor choose a WAV file.'), ('Запишите голос: «🎙 Образец голоса»', 'Record a voice: “🎙 Voice sample”'), ('Запись недоступна.\nУстановите: pip install sounddevice', 'Recording is unavailable.\nInstall: pip install sounddevice'), ('Старый формат .doc не поддерживается.\nСохраните документ как .docx.', 'The old .doc format is not supported.\nSave the document as .docx.'), ('Установите: pip install pypdf', 'Install: pip install pypdf'), ('Установите: pip install python-docx', 'Install: pip install python-docx'), ('В файле не найден текст (возможно, скан без текстового слоя).', 'No text found in the file (possibly a scan without a text layer).'), ('Нужен файл модели в формате .gguf', 'A model file in .gguf format is required'), ('Удалить этот уровень сжатия?', 'Delete this compression level?'), ('Нужен текст: вставьте ссылку на статью или видео, текст или файл.', 'Text is required: paste an article or video link, text or file.'), ('Хорошо', 'OK'), ('Голос Алсу установлен', 'Alsu voice installed'), ('Встроенный голос добавлен', 'Built-in voice added'), ('Озвучка сохранена', 'Spoken audio saved'), ('Нет озвучки для сохранения — сначала нажмите «Озвучить».', 'Nothing to save yet — press “Speak” first.'), ('Сохранить озвучку', 'Save spoken audio'), ('⏳ Синтез речи…', '⏳ Synthesizing speech…'),
 ('Ссылка на статью или видео (YouTube, Rutube, VK)', 'Article or video link (YouTube, Rutube, VK)'),
 ('⏳ Загрузка субтитров видео…', '⏳ Loading video subtitles…'),
 ('Видео', 'Video'),
@@ -2543,7 +2543,7 @@ class ModernTTSApp(*_APP_BASE):
             "free_after": False,
         }
         self.speech_rate = 1.0
-        self.stress_auto = True          # автоударения RUAccent (все движки, v1.5 dev)
+        self.stress_auto = False         # автоударения RUAccent — по умолчанию ВЫКЛ (Ярослав 07.11.26)
         self._ruaccent_obj = None        # ленивая загрузка модели ударений
         self.vox_fast_var = ctk.BooleanVar(value=False)
         self._sd_stream = None
@@ -3871,8 +3871,8 @@ class ModernTTSApp(*_APP_BASE):
 
         widget.bind("<KeyPress>", on_key, add="+")
 
-    def _attach_text_menu(self, widget, on_insert=None):
-        """Правый клик: Вставить / Копировать / Вырезать / Выделить всё."""
+    def _attach_text_menu(self, widget, on_insert=None, on_stress=None):
+        """Правый клик: в тексте — «Поставить ударение…», Вставить / Копировать / Вырезать / Выделить всё."""
         is_text = widget.winfo_class() == "Text"
 
         def get_selection():
@@ -3923,8 +3923,16 @@ class ModernTTSApp(*_APP_BASE):
                 pass
 
         def popup(event):
+            if is_text:
+                try:   # правый клик ставит курсор в точку клика (как в Word),
+                    widget.mark_set("insert", widget.index(f"@{event.x},{event.y}"))
+                except Exception:  # от него работает пункт «Поставить ударение…»
+                    pass
             menu = Menu(self, tearoff=0)
             _style_tk_menu(menu)
+            if on_stress is not None and is_text:
+                menu.add_command(label=_tr("Поставить ударение…"), command=on_stress)
+                menu.add_separator()
             menu.add_command(label=_tr("Вставить"), command=paste)
             menu.add_command(label=_tr("Копировать"), command=copy)
             menu.add_command(label=_tr("Вырезать"), command=cut)
@@ -3938,6 +3946,115 @@ class ModernTTSApp(*_APP_BASE):
 
         widget.bind("<Button-3>", popup, add="+")
         return popup
+
+    # ---------- ударение в тексте: правый клик / кнопка «Ударение» (Ярослав 07.11.26) ----------
+
+    _ACCENT = "\u0301"   # combining acute — ставится ПОСЛЕ ударной гласной
+
+    def _stress_word_at(self, tb, idx):
+        """Слово под индексом idx → (слово, начало, конец) или (None, None, None)."""
+        accent = self._ACCENT
+
+        def is_word_char(c):
+            return c.isalpha() or c == accent
+
+        try:
+            start = tb.index(f"{idx} - 40 chars")
+            end = tb.index(f"{idx} + 40 chars")
+            window = tb.get(start, end)
+            off = len(tb.get(start, idx))
+        except Exception:
+            return None, None, None
+        left = off
+        while left > 0 and is_word_char(window[left - 1]):
+            left -= 1
+        right = off
+        while right < len(window) and is_word_char(window[right]):
+            right += 1
+        if left == right:
+            return None, None, None
+        try:
+            return (window[left:right],
+                    tb.index(f"{start} + {left} chars"),
+                    tb.index(f"{start} + {right} chars"))
+        except Exception:
+            return None, None, None
+
+    def _stress_variants(self, word):
+        """Варианты слова с ударением на каждую гласную (знак U+0301 после гласной)."""
+        base = word.replace(self._ACCENT, "")
+        return [base[:i + 1] + self._ACCENT + base[i + 1:]
+                for i, c in enumerate(base) if c in self._RU_VOWELS]
+
+    def _open_stress_dialog(self):
+        """Диалог: в слове под курсором выбрать, куда поставить ударение."""
+        box = getattr(self, "result_box", None)
+        tb = getattr(box, "_textbox", None)
+        if tb is None:
+            return
+        try:
+            word, w_start, w_end = self._stress_word_at(tb, tb.index("insert"))
+        except Exception:
+            word = w_start = w_end = None
+        if not word:
+            self.update_status(_tr("⚠ Поставьте курсор на слово, где нужно ударение"))
+            return
+        variants = self._stress_variants(word)
+        if not variants:
+            self.update_status(_tr("⚠ В этом слове нет гласных"))
+            return
+
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Ударение"))
+        dlg.configure(fg_color=COLOR_BG)
+        dlg.transient(self)
+        dlg.resizable(False, False)
+        wrap = ctk.CTkFrame(dlg, fg_color="transparent")
+        wrap.pack(fill="both", expand=True, padx=20, pady=16)
+
+        ctk.CTkLabel(wrap, text=_tr("Куда поставить ударение?"), font=FONT_SMALL,
+                     text_color=COLOR_TEXT_SEC).pack(anchor="w")
+        ctk.CTkLabel(wrap, text=word.replace(self._ACCENT, ""), font=(FONT_FAMILY, 22),
+                     text_color=COLOR_TEXT_MAIN).pack(anchor="w", pady=(2, 12))
+
+        row = ctk.CTkFrame(wrap, fg_color="transparent")
+        row.pack(anchor="w")
+
+        def apply_variant(v):
+            try:
+                tb.delete(w_start, w_end)
+                tb.insert(w_start, v)
+                tb.mark_set("insert", tb.index(f"{w_start} + {len(v)} chars"))
+                tb.focus_set()
+            except Exception as e:
+                print(f"⚠️ ударение: {e}")
+            dlg.destroy()
+            self.update_status(_tr("✅ Ударение поставлено"))
+
+        for v in variants:
+            ctk.CTkButton(row, text=v, height=36, corner_radius=4,
+                          font=(FONT_FAMILY, 18),
+                          fg_color=COLOR_ACCENT_SOFT if v == word else COLOR_CARD2,
+                          hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
+                          border_width=1, border_color=COLOR_BORDER,
+                          command=lambda vv=v: apply_variant(vv)
+                          ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(wrap, text=_tr("Отмена"), command=dlg.destroy, height=28, width=96,
+                      fg_color="transparent", hover_color=COLOR_FILL_SOFT,
+                      border_width=1, border_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_SEC, font=FONT_SMALL
+                      ).pack(anchor="w", pady=(14, 0))
+        dlg.bind("<Escape>", lambda e: dlg.destroy())
+        dlg.after(40, lambda: (dlg.grab_set(), dlg.focus_force()))
+        try:   # окно — по центру над основным, без прыжков
+            dlg.update_idletasks()
+            w, h = dlg.winfo_width(), dlg.winfo_height()
+            x = self.winfo_rootx() + max(0, (self.winfo_width() - w) // 2)
+            y = self.winfo_rooty() + max(0, (self.winfo_height() - h) // 3)
+            dlg.geometry(f"+{x}+{y}")
+        except Exception:
+            pass
 
     # ================= ИНТЕРФЕЙС =================
 
@@ -4404,6 +4521,13 @@ class ModernTTSApp(*_APP_BASE):
                                        text_color=COLOR_TEXT_SEC)
         self.btn_clear.grid(row=0, column=5, padx=(6, 0))
 
+        # «Ударение» — видимая кнопка в шапке текста: понятно, что ударение поставить можно
+        self.btn_stress = ctk.CTkButton(header, text=_tr("Ударение"), command=self._open_stress_dialog,
+                                        width=96, height=28, corner_radius=3, font=FONT_SMALL,
+                                        fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+                                        text_color=COLOR_TEXT_MAIN)
+        self.btn_stress.grid(row=0, column=6, padx=(6, 0))
+
         self.result_box = ctk.CTkTextbox(self.main_area, wrap="word", font=(FONT_FAMILY, 13),
                                          corner_radius=R_CARD, fg_color=COLOR_CARD,
                                          text_color=COLOR_TEXT_MAIN,
@@ -4416,7 +4540,8 @@ class ModernTTSApp(*_APP_BASE):
             tb = self.result_box._textbox
             self._bind_ctrl_v(tb, lambda e: self._paste_result(e))
             self._bind_clipboard_keys(tb)
-            self._attach_text_menu(tb, on_insert=lambda t: self._insert_result(t))
+            self._attach_text_menu(tb, on_insert=lambda t: self._insert_result(t),
+                                   on_stress=self._open_stress_dialog)
             tb.bind("<<Modified>>", self._on_box_modified, add="+")
             tb.bind("<FocusIn>", self._on_box_focus, add="+")
         except Exception as e:
@@ -5992,6 +6117,7 @@ class ModernTTSApp(*_APP_BASE):
     def load_vox(self, show_errors=False):
         if self.vox_model is not None:
             return True
+        self._unload_tts_models(keep="Vox")   # Qwen/Piper — из памяти: две модели не держим
         self._vox_syspath()
         # Антивирус/прокси подменяет сертификат — huggingface_hub без этого падает
         # на проверке ревизии модели ещё до загрузки весов.
@@ -6556,6 +6682,10 @@ class ModernTTSApp(*_APP_BASE):
         cached = self._qwen_models.get(kind)
         if cached is not None:
             return cached
+        # Не держим две голосовые модели: другие режимы Qwen, а также Vox/Piper — из памяти
+        if any(k != kind for k in self._qwen_models):
+            self._qwen_free()
+        self._unload_tts_models(keep="Qwen")
         dev, dt = self._qwen_device_dtype()
         self._safe_ui(lambda: self.update_status("⏳ Загрузка Qwen3-TTS (веса ~5 ГБ)..."))
         try:
@@ -6592,6 +6722,33 @@ class ModernTTSApp(*_APP_BASE):
                 torch.cuda.empty_cache()
         except Exception:
             pass
+
+    def _unload_tts_models(self, keep=None):
+        """Выгрузить голосовые модели из памяти, оставив только движок keep.
+        Две TTS-модели одновременно не держим (просьба Ярослава, 07.11.26)."""
+        freed = []
+        if keep != "Vox" and self.vox_model is not None:
+            self.vox_model = None
+            self.vox_name = None
+            freed.append("Vox")
+        if keep != "Qwen" and getattr(self, "_qwen_models", None):
+            self._qwen_free()
+            freed.append("Qwen")
+        if keep != "Piper" and self.tts_voice is not None:
+            self.tts_voice = None
+            self.current_tts_name = None
+            freed.append("Piper")
+        if freed:
+            gc.collect()
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+            _flog("tts: выгружены из памяти %s (оставлен движок %s)"
+                  % (", ".join(freed), keep or "—"))
+        return freed
 
     def _qwen_prompt(self, model, vid, info):
         """Готовый промпт клона для голоса-образца (кэшируется: создаётся 1 раз на голос)."""
@@ -7171,6 +7328,8 @@ class ModernTTSApp(*_APP_BASE):
         if not path or not os.path.exists(path):
             self.update_status("❌ Файл голоса не найден")
             return
+        self._unload_tts_models(keep="Piper")   # Vox/Qwen — из памяти: две модели не держим
+        self.tts_voice = None                   # старый голос Piper тоже отпускаем
         try:
             self.tts_voice = PiperVoice.load(path)
             self.current_tts_name = name
@@ -7368,7 +7527,7 @@ class ModernTTSApp(*_APP_BASE):
         self.rate_slider.set(rate)
         self.rate_label.configure(text=f"×{rate:.1f}")
         self.vox_fast_var.set(bool(data.get("vox_fast", False)))
-        self.stress_auto = bool(data.get("stress_auto", True))
+        self.stress_auto = bool(data.get("stress_auto", False))
         try:
             self.stress_var.set(self.stress_auto)
         except Exception:
@@ -7471,6 +7630,7 @@ class ModernTTSApp(*_APP_BASE):
 
     def _apply_engine(self, value):
         self.current_engine = value
+        self._unload_tts_models(keep=value)   # в памяти остаётся только выбранный движок
         if value == "Piper":
             self.engine_menu.set("Piper (CPU)")
         elif value == "Vox":
