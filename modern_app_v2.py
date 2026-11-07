@@ -2247,12 +2247,15 @@ def _apply_lang(root):
     stack = [root]
     while stack:
         w = stack.pop()
+        if getattr(w, "_no_auto_tr", False):
+            # помечено «не переводить»: сам виджет и всё ВНУТРИ него не трогаем —
+            # у CTk-компонентов внутри живёт свой tkinter.Label, обход заходил в него
+            continue
         try:
             stack.extend(w.winfo_children())
         except Exception:
             pass
-        if (not isinstance(w, (ctk.CTkOptionMenu, ctk.CTkComboBox))
-                and not getattr(w, "_no_auto_tr", False)):
+        if not isinstance(w, (ctk.CTkOptionMenu, ctk.CTkComboBox)):
             for attr in ("text", "placeholder_text"):
                 try:
                     cur = w.cget(attr)
