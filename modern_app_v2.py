@@ -3655,16 +3655,16 @@ class ModernTTSApp(*_APP_BASE):
         p.pack(fill="x", padx=2, pady=(0, 8))
         self._add_side_edges(p)          # вертикальные «грани» слева и справа
         row = ctk.CTkFrame(p, fg_color="transparent")
-        row.pack(fill="x", padx=8, pady=8)
+        row.pack(fill="x", padx=6, pady=8)
         specs = ((_tr("Видеопамять"), "gpu", COLOR_RED, (0, 0)),
-                 (_tr("Память (ОЗУ)"), "ram", COLOR_GOLD, (24, 0)))
+                 (_tr("Память (ОЗУ)"), "ram", COLOR_GOLD, (20, 0)))
         for cap, key, col, pl in specs:
             ctk.CTkLabel(row, text=cap, font=FONT_TINY, text_color=COLOR_TEXT_SEC,
                          anchor="w").pack(side="left", padx=pl)
-            bar = ctk.CTkProgressBar(row, height=8, corner_radius=4, width=44,
+            bar = ctk.CTkProgressBar(row, height=8, corner_radius=4, width=97,
                                      fg_color=COLOR_BORDER, progress_color=col)
             bar.set(0)
-            bar.pack(side="left", padx=(4, 0))
+            bar.pack(side="left", padx=(3, 0))
             val = ctk.CTkLabel(row, text="…", font=FONT_TINY,
                                text_color=COLOR_TEXT_MAIN, anchor="e")
             val.pack(side="left", padx=(4, 0))
