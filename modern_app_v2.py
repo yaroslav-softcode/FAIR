@@ -206,9 +206,12 @@ def _emo_key(word):
 # Qwen3-TTS — третий движок озвучки (версия 1.5). Модели лежат в models_qwen\
 # рядом с программой: CustomVoice — встроенные голоса, Base — клон по образцу,
 # VoiceDesign — голос из текстового описания.
+# Base (1.7B) — русско-ударный файн-тюн siriusfreak (Apache-2.0): модель слушает
+# знаки ударения U+0301 в тексте («за́мок/замо́к»), голая Qwen-база следовала им
+# лишь в 65% случаев. Репозиторий сам содержит speech_tokenizer.
 # ---------------------------------------------------------------------------
 QWEN_MODELS = {
-    "base":   "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+    "base":   "siriusfreak/qwen3-tts-12hz-1.7b-ru-stress-cf",
     "custom": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
     "design": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
 }
