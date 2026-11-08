@@ -226,6 +226,27 @@ QWEN_HF_TREE = "https://huggingface.co/api/models/{repo}/tree/main?recursive=tru
 QWEN_HF_FILE = "https://huggingface.co/{repo}/resolve/main/{file}"
 QWEN_EXT = (".safetensors", ".json", ".model", ".tiktoken", ".txt", ".py")
 QWEN_BASE_SPEED = 1.0   # Qwen говорит в естественном темпе — ускорение только с ползунка
+
+# --- Windows: не даём дочерним процессам (воркер nano, triton/ptxas и пр.) мигать
+# чёрными консольными окнами. Патч живёт и в воркере: spawn-ребёнок переимпортирует
+# этот файл как __mp_main__, поэтому подпись наследуется всем процессам-потомкам.
+if sys.platform == "win32":
+    try:
+        import _winapi as _wa
+
+        _wa_CreateProcess = _wa.CreateProcess
+
+        def _wa_CreateProcess_quiet(applicationName, commandLine, processAttributes,
+                                    threadAttributes, bInheritHandles, dwCreationFlags,
+                                    newEnvironment, currentDirectory, startupinfo):
+            return _wa_CreateProcess(applicationName, commandLine, processAttributes,
+                                     threadAttributes, bInheritHandles,
+                                     (dwCreationFlags or 0) | 0x08000000,   # CREATE_NO_WINDOW
+                                     newEnvironment, currentDirectory, startupinfo)
+
+        _wa.CreateProcess = _wa_CreateProcess_quiet
+    except Exception:
+        pass
 QWEN_LANGS = ["auto", "Russian", "English", "Chinese", "German", "French", "Spanish",
               "Portuguese", "Italian", "Japanese", "Korean"]
 # встроенный голос CustomVoice: id модели -> (русское имя, род, описание)
@@ -456,6 +477,27 @@ EN_RU_GLOSSARY = [
 ]
 
 VOX_CANDIDATES = ["openbmb/VoxCPM2"]
+
+# voxcpm ставим ТОЛЬКО с GitHub — на коммит рабочей сборки (2.0.3.post23+gee8161e9e).
+# PyPI-релиз 2.0.3 устарел и в приложении НЕ используется (правило Ярослава, 08.11.26).
+# Архив без .git — версию для setuptools_scm подсказываем через SETUPTOOLS_SCM_PRETEND_VERSION.
+VOXCPM_GIT_COMMIT = "ee8161e9e1b7b082cb5721a3a9980da4204401e6"
+VOXCPM_SCM_VERSION = "2.0.3.post23+gee8161e9e"
+VOXCPM_PIP_SPEC = "voxcpm @ https://github.com/OpenBMB/VoxCPM/archive/" + VOXCPM_GIT_COMMIT + ".zip"
+
+# --- Vox Turbo: быстрый четвёртый движок (nano-vllm-voxcpm) — те же веса VoxCPM2, но CUDA-графы.
+# На Windows flash_attn не собирается через pip — берём готовый wheel cp312/cu121/torch2.5.1.
+NANO_PKG_PINS = ["nano-vllm-voxcpm==2.0.5", "triton-windows==3.4.0.post21"]
+FLASH_ATTN_WIN_URL = ("https://github.com/Wisdawn/flash-attention-windows/releases/"
+                      "download/v2.7.4.post1_py312_cu121_torch251/"
+                      "flash_attn-2.7.4.post1-cp312-cp312-win_amd64.whl")
+
+# --- Vox Turbo: быстрый четвёртый движок (nano-vllm-voxcpm) — те же веса VoxCPM2, но CUDA-графы.
+# На Windows flash_attn не собирается через pip — берём готовый wheel cp312/cu121/torch2.5.1.
+NANO_PKG_PINS = ["nano-vllm-voxcpm==2.0.5", "triton-windows==3.4.0.post21"]
+FLASH_ATTN_WIN_URL = ("https://github.com/Wisdawn/flash-attention-windows/releases/"
+                      "download/v2.7.4.post1_py312_cu121_torch251/"
+                      "flash_attn-2.7.4.post1-cp312-cp312-win_amd64.whl")
 
 
 DONATE_URL = "https://www.donationalerts.com/r/yaroslav_khmelev"
@@ -1812,14 +1854,6 @@ _PAIRS += [
     ("✅ Голос 'Маша' активен", "✅ Voice 'Masha' is active"),
 ]
 
-# автоударения RUAccent (v1.5 dev): галочка в карточке ОЗВУЧКА
-_PAIRS += [
-    ("Автоударения (RUAccent)", "Auto stress marks (RUAccent)"),
-    ("✅ Автоударения включены", "✅ Auto stress marks on"),
-    ("Автоударения выключены", "Auto stress marks off"),
-    ("⏳ Загрузка автоударений (RUAccent)…", "⏳ Loading auto stress marks (RUAccent)…"),
-]
-
 _PAIRS += [
     # ---- v10: статусы и ошибки, которые оставались на русском
     ("✅ Настройки восстановлены: Vox, «Свой 1».",
@@ -1860,10 +1894,10 @@ _PAIRS += [
 
 
 _PAIRS += [
-    ("VoxCPM не установлен.\n\npip install voxcpm\n"
-     "или: pip install git+https://github.com/OpenBMB/VoxCPM.git",
-     "VoxCPM is not installed.\n\npip install voxcpm\n"
-     "or: pip install git+https://github.com/OpenBMB/VoxCPM.git"),
+    ("VoxCPM не установлен.\n\npip install git+https://github.com/OpenBMB/VoxCPM.git@"
+     "ee8161e9e1b7b082cb5721a3a9980da4204401e6",
+     "VoxCPM is not installed.\n\npip install git+https://github.com/OpenBMB/VoxCPM.git@"
+     "ee8161e9e1b7b082cb5721a3a9980da4204401e6"),
 ]
 
 _PAIRS += [
@@ -1950,9 +1984,9 @@ _PAIRS += [
     ("Устанавливается дополнение Vox", "Installing the Vox add-on"),
     ("Не получилось", "Failed"),
     ("Python, torch и VoxCPM ставятся в папку приложения. "
-     "Первый раз это занимает 5–15 минут.",
+     "Первый раз это занимает 5–15 минут (для Classic достаточно 8 ГБ видеопамяти).",
      "Python, torch and VoxCPM are installed into the app folder. "
-     "The first run takes 5–15 minutes."),
+     "The first run takes 5–15 minutes (8 GB of VRAM is enough for Classic)."),
     ("Vox — нейроголос по образцу с микрофона.\n\n"
      "Нужен пакет дополнения: переносимый Python + torch + VoxCPM, "
      "≈1,5 ГБ загрузки и ~3 ГБ на диске.\n\nСкачать сейчас?",
@@ -2142,7 +2176,8 @@ _PREFIX_PAIRS = [
      "The mode has been returned to the processor."),
     ("GPU-сервер завершился при загрузке модели.\n",
      "The GPU server stopped while loading the model.\n"),
-    ("VoxCPM не установлен.\n\npip install voxcpm\n", "VoxCPM is not installed.\n\npip install voxcpm\n"),
+    ("VoxCPM не установлен.\n\npip install git+https://github.com/OpenBMB/VoxCPM.git@ee8161e9e1b7b082cb5721a3a9980da4204401e6\n",
+     "VoxCPM is not installed.\n\npip install git+https://github.com/OpenBMB/VoxCPM.git@ee8161e9e1b7b082cb5721a3a9980da4204401e6\n"),
 ]
 
 _GEN_PAT = (("Свой ", "Custom "), ("Новый ", "New "))
@@ -2172,6 +2207,70 @@ def _tr_val(val):
                 return n_open + hit + n_close
             return val
     return table.get(val) or _tr_gen(val) or val
+
+
+_PAIRS += [
+    ("2. Голосовой движок VoxCPM2 — на выбор два варианта (веса общие, ≈4,5 ГБ), можно поставить оба вместе",
+     "2. VoxCPM2 speech engine — two variants to choose from (shared weights, ≈4.5 GB); you can install both"),
+    ("Vox Turbo — быстрее на ~50%; нужно 12 ГБ видеопамяти",
+     "Vox Turbo is ~50% faster; needs 12 GB of video memory"),
+    ("Vox Classic — обычный вариант (медленнее); достаточно 8 ГБ видеопамяти",
+     "Vox Classic — the regular variant (slower); 8 GB of video memory is enough"),
+    ("видеопамяти меньше 8 ГБ — Vox не запустится: Classic нужно 8 ГБ, Turbo — 12 ГБ",
+     "less than 8 GB of video memory — Vox will not run: Classic needs 8 GB, Turbo needs 12 GB"),
+    ("⚠ Для Turbo нужно 12 ГБ видеопамяти (Classic хватает 8 ГБ)",
+     "⚠ Turbo needs 12 GB of video memory (8 GB is enough for Classic)"),
+    ("Vox Classic уже установлен", "Vox Classic is already installed"),
+    ("Vox Turbo уже установлен", "Vox Turbo is already installed"),
+    ("2 · Голосовой движок Vox: GPU-среда…", "2 · Vox speech engine: setting up the GPU environment…"),
+    ("2 · Vox Turbo: установка быстрого варианта…", "2 · Vox Turbo: installing the fast variant…"),
+    ("Vox Turbo не установлен: ", "Vox Turbo was not installed: "),
+    ("GPU-среда не установлена — сначала нужен движок Vox",
+     "The GPU environment is not installed — the Vox engine is required first"),
+    ("GPU-среда не установлена — сначала нужен движок Vox.",
+     "The GPU environment is not installed — the Vox engine is required first."),
+    ("Vox Turbo не удалось загрузить", "Vox Turbo failed to load"),
+    ("Vox Turbo не удалось загрузить — проверь видеопамять и видеокарту",
+     "Vox Turbo failed to load — check your video memory and graphics card"),
+    ("Vox Turbo нужен NVIDIA GPU с 12+ ГБ видеопамяти.",
+     "Vox Turbo requires an NVIDIA GPU with at least 12 GB of VRAM."),
+    ("Vox Turbo вернул пустой фрагмент", "Vox Turbo returned an empty clip"),
+    ("Движок Vox не загружен", "The Vox engine is not loaded"),
+    ("Установка Vox Turbo", "Installing Vox Turbo"),
+    ("Устанавливается быстрый движок", "Installing the fast engine"),
+    ("Ставлю nano-vllm-voxcpm, triton и flash_attn (≈300 МБ)...",
+     "Installing nano-vllm-voxcpm, triton and flash_attn (~300 MB)..."),
+    ("⚙ Настройки Vox", "⚙ Vox settings"),
+    ("⚙ Настройки Vox · Vox Turbo", "⚙ Vox settings · Vox Turbo"),
+    ("⚙ Настройки Vox · Vox Classic", "⚙ Vox settings · Vox Classic"),
+    ("Настройки Vox", "Vox settings"),
+    ("Vox Turbo установлен ✅", "Vox Turbo installed ✅"),
+    ("Не вышло: ", "It failed: "),
+    ("Два движка Vox — одни и те же веса и голоса. Turbo — быстрее на ~50%, Classic — обычный; качество одинаковое.",
+     "Both Vox engines use the same weights and voices. Turbo is ~50% faster; Classic is the regular one. Quality is the same."),
+    ("быстрее на ~50% · нужно 12 ГБ видеопамяти",
+     "~50% faster · needs 12 GB of video memory"),
+    ("Убрать ударение", "Remove stress"),
+    ("✅ Ударение убрано", "✅ Stress mark removed"),
+    ("обычный вариант — достаточно 8 ГБ видеопамяти",
+     "the regular variant — 8 GB of video memory is enough"),
+    ("(работает)", "(running)"),
+    ("Переключить на него", "Switch to it"),
+    ("⚠ Vox Classic — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ",
+     "⚠ Vox Classic needs 8+ GB of VRAM · Vox Turbo needs 12+ GB"),
+    ("Первая фраза Turbo ~15–25 с (прогрев графического ядра), дальше — быстро",
+     "The first Turbo phrase takes ~15-25 seconds (GPU warm-up); after that it is fast"),
+    ("⏳ Загрузка Vox Turbo (веса ~5 ГБ)...", "⏳ Loading Vox Turbo (~5 GB of weights)..."),
+    ("⏳ Загрузка Vox Classic (веса ~5 ГБ)...", "⏳ Loading Vox Classic (~5 GB of weights)..."),
+    ("✅ Vox Turbo готов (GPU)", "✅ Vox Turbo is ready (GPU)"),
+    ("✅ Vox Classic готова (GPU)", "✅ Vox Classic is ready (GPU)"),
+    ("❌ Vox Turbo недоступен", "❌ Vox Turbo is unavailable"),
+    ("❌ Vox Classic недоступна", "❌ Vox Classic is unavailable"),
+    ("Движок: Vox Turbo (GPU).", "Engine: Vox Turbo (GPU)."),
+    ("Движок: Vox Classic (GPU).", "Engine: Vox Classic (GPU)."),
+    ("⏳ Загрузка весов VoxCPM2 (~5 ГБ)...", "⏳ Downloading VoxCPM2 weights (~5 GB)..."),
+    ("⏳ Загрузка Vox Turbo (GPU)...", "⏳ Loading Vox Turbo (GPU)..."),
+]
 
 
 def _tr(text, _deep=0):
@@ -2538,6 +2637,13 @@ class ModernTTSApp(*_APP_BASE):
         self.tts_voice = None
         self.vox_model = None
         self.vox_name = None
+        # --- Vox Turbo: быстрый вариант движка Vox (те же веса, nano-vllm) ---
+        self.vox_turbo = None            # запущенный nano-сервер (держит VRAM-пул)
+        self._turbo_sr = None            # частота вывода из ModelInfoResponse
+        self._turbo_prompt_cache = {}    # голос -> prompt_id внутри движка
+        self._turbo_ref_cache = {}       # файл эталона -> его латенты в движке
+        self._turbo_loop_lock = threading.Lock()   # event loop движка — один поток в моменте
+        self.vox_variant = "turbo"       # "turbo" (быстрый) | "classic" (обычный) — вкладка «⚙ Vox»
         self.current_engine = "Piper"
         self.current_tts_name = None
         # --- Qwen3-TTS (третий движок) ---
@@ -2553,8 +2659,6 @@ class ModernTTSApp(*_APP_BASE):
             "free_after": False,
         }
         self.speech_rate = 1.0
-        self.stress_auto = False         # автоударения RUAccent — по умолчанию ВЫКЛ (Ярослав 07.11.26)
-        self._ruaccent_obj = None        # ленивая загрузка модели ударений
         self.vox_fast_var = ctk.BooleanVar(value=False)
         self._sd_stream = None
 
@@ -3085,14 +3189,15 @@ class ModernTTSApp(*_APP_BASE):
 
     def _apply_setup_preset(self, preset):
         """Заранее отметить нужную галочку мастера, если она активна."""
-        box = getattr(self, "_setup_boxes", {}).get(preset) if preset else None
-        if box is None:
+        boxes = getattr(self, "_setup_boxes", {}).get(preset) if preset else None
+        if boxes is None:
             return
-        try:
-            if str(box.cget("state")) != "disabled":
-                box.select()
-        except Exception:
-            pass
+        for box in (boxes if isinstance(boxes, (tuple, list)) else (boxes,)):
+            try:
+                if str(box.cget("state")) != "disabled":
+                    box.select()
+            except Exception:
+                pass
 
     def _first_run_setup(self, preset=None):
         """Первичная установка: одно окно на три строки — модель анализа (обязательно),
@@ -3159,34 +3264,60 @@ class ModernTTSApp(*_APP_BASE):
 
         r2 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
         r2.pack(fill="x", padx=12, pady=3)
-        self._setup_vox = ctk.BooleanVar(value=bool(gvram and gvram >= 7.5))
-        # галочка прижата к правому краю, текст слева; клик по тексту тоже переключает
-        cb2 = ctk.CTkCheckBox(r2, text="", checkbox_width=18, checkbox_height=18,
-                              fg_color="#c6763a", hover_color="#a95f2c",
-                              variable=self._setup_vox)
-        self._edge_check(cb2, r2, y_off=5)
-        lb2 = ctk.CTkLabel(r2, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
-                           justify="left", wraplength=540,
-                           text=_tr("2. Голосовой движок VoxCPM2 (\u22484,5 ГБ) \u2014 "
-                                    "нужно 8 ГБ видеопамяти"))
-        lb2.pack(side="left", fill="x", expand=True, padx=(10, 30), pady=(5, 1))
-        lb2.bind("<Button-1>", lambda e: self._setup_vox.set(not self._setup_vox.get()))
+        # Vox — два варианта одного движка: Turbo (быстрый) и Classic (обычный); веса общие
+        ctk.CTkLabel(r2, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
+                     justify="left", wraplength=540,
+                     text=_tr("2. Голосовой движок VoxCPM2 — на выбор два варианта "
+                              "(веса общие, ≈4,5 ГБ), можно поставить оба вместе")
+                     ).pack(fill="x", padx=10, pady=(5, 1))
+        # Turbo требует 12 ГБ (пул-резерв 55% должен накрыть веса ≈4,7 ГБ);
+        # Classic достаточно 8 ГБ. На 8–11 ГБ по умолчанию предлагаем Classic.
+        self._setup_vox_turbo = ctk.BooleanVar(value=bool(gvram and gvram >= 11.5))
+        self._setup_vox_classic = ctk.BooleanVar(value=bool(gvram and 8.0 <= gvram < 11.5))
+        vcb = {}
+        for _kind, _var, _txt in (
+                ("turbo", self._setup_vox_turbo,
+                 _tr("Vox Turbo — быстрее на ~50%; нужно 12 ГБ видеопамяти")),
+                ("classic", self._setup_vox_classic,
+                 _tr("Vox Classic — обычный вариант (медленнее); достаточно 8 ГБ видеопамяти"))):
+            fr = ctk.CTkFrame(r2, fg_color="transparent")
+            fr.pack(fill="x", padx=(10, 2), pady=2)
+            cb = ctk.CTkCheckBox(fr, text="", checkbox_width=18, checkbox_height=18,
+                                 fg_color="#c6763a", hover_color="#a95f2c", variable=_var)
+            self._edge_check(cb, fr, y_off=2)
+            lb = ctk.CTkLabel(fr, font=FONT_TINY, text_color=COLOR_TEXT_MAIN, anchor="w",
+                              justify="left", wraplength=520, text=_txt)
+            lb.pack(side="left", fill="x", expand=True, padx=(4, 30))
+            lb.bind("<Button-1>", lambda e, v=_var: v.set(not v.get()))
+            vcb[_kind] = cb
         if self._vox_installed():
-            cb2.select()
-            cb2.configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
-                          border_color="#8a8a8a", state="disabled")
-            ctk.CTkLabel(r2, text="   \u2705 " + _tr("уже установлен"), font=FONT_TINY,
-                         text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=10, pady=(0, 4))
-        elif gvram and gvram < 7.5:
-            cb2.deselect()
-            ctk.CTkLabel(r2, text="   \u26A0 " + _tr("видеопамяти меньше 8 ГБ \u2014 "
-                                                     "Vox может не потянуться, лучше снять галочку"),
+            vcb["classic"].select()
+            vcb["classic"].configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
+                                     border_color="#8a8a8a", state="disabled")
+            ctk.CTkLabel(r2, text="   ✅ " + _tr("Vox Classic уже установлен"), font=FONT_TINY,
+                         text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=10, pady=(0, 2))
+        if self._nano_installed():
+            vcb["turbo"].select()
+            vcb["turbo"].configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
+                                   border_color="#8a8a8a", state="disabled")
+            ctk.CTkLabel(r2, text="   ✅ " + _tr("Vox Turbo уже установлен"), font=FONT_TINY,
+                         text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=10, pady=(0, 2))
+        if gvram and gvram < 8.0:
+            for _cb in vcb.values():
+                if str(_cb.cget("state")) != "disabled":
+                    _cb.configure(state="disabled")
+            self._setup_vox_turbo.set(False)
+            self._setup_vox_classic.set(False)
+            ctk.CTkLabel(r2, text="   ⚠ " + _tr("видеопамяти меньше 8 ГБ — "
+                                                     "Vox не запустится: Classic нужно 8 ГБ, Turbo — 12 ГБ"),
                          font=FONT_TINY, text_color=COLOR_RED, anchor="w",
                          wraplength=560, justify="left").pack(fill="x", padx=10, pady=(0, 4))
         elif not gvram:
-            cb2.deselect()
-            cb2.configure(state="disabled")
-            ctk.CTkLabel(r2, text="   \u26A0 " + _tr("нет видеокарты \u2014 Vox недоступен"),
+            for _cb in vcb.values():
+                _cb.configure(state="disabled")
+            self._setup_vox_turbo.set(False)
+            self._setup_vox_classic.set(False)
+            ctk.CTkLabel(r2, text="   ⚠ " + _tr("нет видеокарты — Vox недоступен"),
                          font=FONT_TINY, text_color=COLOR_RED, anchor="w"
                          ).pack(fill="x", padx=10, pady=(0, 4))
 
@@ -3226,7 +3357,8 @@ class ModernTTSApp(*_APP_BASE):
             self._setup_q17.set(False)
         elif gvram < 5.5:
             qcb["1.7B"].configure(state="disabled")
-        self._setup_boxes = {"vox": cb2, "0.6B": qcb["0.6B"], "1.7B": qcb["1.7B"]}
+        self._setup_boxes = {"vox": (vcb["turbo"],), "vox_classic": (vcb["classic"],),
+                             "0.6B": qcb["0.6B"], "1.7B": qcb["1.7B"]}
         self._apply_setup_preset(preset)
 
         bar = ctk.CTkProgressBar(body, height=10, corner_radius=6, progress_color="#c6763a",
@@ -3289,9 +3421,9 @@ class ModernTTSApp(*_APP_BASE):
                     if not os.path.isfile(gguf_final):
                         set_info(_tr("Модель анализа не докачалась — попробуйте ещё раз"))
                         return
-                if self._setup_vox.get() and not self._vox_installed() \
-                        and not self._setup_cancel.is_set():
-                    set_info(_tr("2 · Дополнение Vox: установка…"))
+                if (self._setup_vox_turbo.get() or self._setup_vox_classic.get()) \
+                        and not self._vox_installed() and not self._setup_cancel.is_set():
+                    set_info(_tr("2 · Голосовой движок Vox: GPU-среда…"))
                     self._vox_cancelled = False
 
                     def vprog(t, v):
@@ -3315,6 +3447,27 @@ class ModernTTSApp(*_APP_BASE):
                         self._ui(self._vox_ready)
                     elif not self._setup_cancel.is_set():
                         set_info(_tr("Vox не установлен: ") + str(detail)[-160:])
+                if self._setup_vox_turbo.get() and not self._nano_installed() \
+                        and self._vox_installed() and not self._setup_cancel.is_set():
+                    set_info(_tr("2 · Vox Turbo: установка быстрого варианта…"))
+                    self._vox_cancelled = False
+
+                    def nline(line):
+                        if self._setup_cancel.is_set():
+                            self._vox_cancelled = True
+                            p = getattr(self, "_vox_proc", None)
+                            try:
+                                if p is not None and p.poll() is None:
+                                    p.kill()
+                            except Exception:
+                                pass
+                        set_info("Vox Turbo · " + str(line)[:120])
+
+                    ok_n, detail_n = self._nano_pip_install(nline)
+                    if ok_n:
+                        self._nano_ok = True
+                    elif not self._setup_cancel.is_set():
+                        set_info(_tr("Vox Turbo не установлен: ") + str(detail_n)[-160:])
                 _q_sizes = [s for s, on in (("0.6B", self._setup_q06.get()),
                                             ("1.7B", self._setup_q17.get())) if on]
                 if _q_sizes and not self._setup_cancel.is_set():
@@ -4008,6 +4161,7 @@ class ModernTTSApp(*_APP_BASE):
     # ---------- ударение в тексте: правый клик / кнопка «Ударение» (Ярослав 07.11.26) ----------
 
     _ACCENT = "\u0301"   # combining acute — ставится ПОСЛЕ ударной гласной
+    _RU_VOWELS = "аеёиоуыэюяАЕЁИОУЫЭЮЯ"   # гласные для ручной расстановки ударений
 
     def _stress_word_at(self, tb, idx):
         """Слово под индексом idx → (слово, начало, конец) или (None, None, None)."""
@@ -4067,6 +4221,10 @@ class ModernTTSApp(*_APP_BASE):
         dlg.configure(fg_color=COLOR_BG)
         dlg.transient(self)
         dlg.resizable(False, False)
+        try:
+            dlg.iconbitmap(self._asset_path("app.ico"))   # фирменный значок в шапке
+        except Exception:
+            pass
         wrap = ctk.CTkFrame(dlg, fg_color="transparent")
         wrap.pack(fill="both", expand=True, padx=20, pady=16)
 
@@ -4078,7 +4236,7 @@ class ModernTTSApp(*_APP_BASE):
         row = ctk.CTkFrame(wrap, fg_color="transparent")
         row.pack(anchor="w")
 
-        def apply_variant(v):
+        def apply_variant(v, status=None):
             try:
                 tb.delete(w_start, w_end)
                 tb.insert(w_start, v)
@@ -4087,7 +4245,7 @@ class ModernTTSApp(*_APP_BASE):
             except Exception as e:
                 print(f"⚠️ ударение: {e}")
             dlg.destroy()
-            self.update_status(_tr("✅ Ударение поставлено"))
+            self.update_status(status or _tr("✅ Ударение поставлено"))
 
         for v in variants:
             ctk.CTkButton(row, text=v, height=36, corner_radius=4,
@@ -4098,11 +4256,22 @@ class ModernTTSApp(*_APP_BASE):
                           command=lambda vv=v: apply_variant(vv)
                           ).pack(side="left", padx=(0, 8))
 
-        ctk.CTkButton(wrap, text=_tr("Отмена"), command=dlg.destroy, height=28, width=96,
+        bottom = ctk.CTkFrame(wrap, fg_color="transparent")
+        bottom.pack(anchor="w", pady=(14, 0))
+        if self._ACCENT in word:
+            ctk.CTkButton(bottom, text=_tr("Убрать ударение"),
+                          command=lambda: apply_variant(word.replace(self._ACCENT, ""),
+                                                        _tr("✅ Ударение убрано")),
+                          height=28, width=150,
+                          fg_color="transparent", hover_color=COLOR_FILL_SOFT,
+                          border_width=1, border_color=COLOR_BORDER,
+                          text_color=COLOR_TEXT_SEC, font=FONT_SMALL
+                          ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(bottom, text=_tr("Отмена"), command=dlg.destroy, height=28, width=96,
                       fg_color="transparent", hover_color=COLOR_FILL_SOFT,
                       border_width=1, border_color=COLOR_BORDER,
                       text_color=COLOR_TEXT_SEC, font=FONT_SMALL
-                      ).pack(anchor="w", pady=(14, 0))
+                      ).pack(side="left")
         dlg.bind("<Escape>", lambda e: dlg.destroy())
         dlg.after(40, lambda: (dlg.grab_set(), dlg.focus_force()))
         try:   # окно — по центру над основным, без прыжков
@@ -4475,6 +4644,14 @@ class ModernTTSApp(*_APP_BASE):
         self.btn_qwen_cfg.grid(row=0, column=1, sticky="ew", padx=(4, 0))
         self.btn_qwen_cfg.bind("<Button-3>", self._qwen_size_menu)
         self.btn_qwen_cfg.bind("<Button-3>", self._qwen_size_menu)
+        # ----- Vox: вкладка движка (видна только когда выбран Vox) — выбор варианта -----
+        self.vox_row = ctk.CTkFrame(tts, fg_color="transparent")
+        self.vox_row.grid_columnconfigure(0, weight=1)
+        self.btn_vox_cfg = ctk.CTkButton(
+            self.vox_row, text=_tr("⚙ Настройки Vox"), height=28, corner_radius=3,
+            font=FONT_SMALL, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+            text_color=COLOR_TEXT_MAIN, command=self._vox_settings_dialog)
+        self.btn_vox_cfg.grid(row=0, column=0, sticky="ew")
         self.qwen_instruct_row = ctk.CTkFrame(tts, fg_color="transparent")
         self.qwen_instruct_row.grid_columnconfigure(1, weight=1)
         self.qwen_instruct = ctk.CTkEntry(
@@ -4509,16 +4686,6 @@ class ModernTTSApp(*_APP_BASE):
         self.rate_label = ctk.CTkLabel(self.rate_row, text="×1.0", font=(FONT_FAMILY, 10, "bold"),
                                        text_color=COLOR_TEXT_MAIN, width=36, anchor="e")
         self.rate_label.grid(row=0, column=2, sticky="e")
-
-        # автоударения RUAccent — общий переключатель для всех движков (v1.5 dev)
-        self.stress_var = ctk.BooleanVar(value=bool(self.stress_auto))
-        self.stress_cb = ctk.CTkCheckBox(tts, text=_tr("Автоударения (RUAccent)"),
-                                         variable=self.stress_var, font=FONT_SMALL,
-                                         command=self._on_stress_toggle,
-                                         fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
-                                         checkbox_width=18, checkbox_height=18,
-                                         text_color=COLOR_TEXT_MAIN)
-        self.stress_cb.pack(fill="x", padx=12, pady=(0, 10), before=self.rate_row)
 
         # «Образец голоса» — отдельная большая кнопка во всю ширину
         self.btn_add_voice = ctk.CTkButton(tts, text="🎙  Образец голоса", height=30,
@@ -5827,13 +5994,13 @@ class ModernTTSApp(*_APP_BASE):
                         pass
         return os.path.isdir(os.path.join(site_dir, "voxcpm"))
 
-    def _run_py(self, args, on_line=None):
+    def _run_py(self, args, on_line=None, env=None):
         """Запустить переносимый питон и вернуть (ok, хвост вывода)."""
         try:
             flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                   text=True, encoding="utf-8", errors="replace",
-                                  creationflags=flags) as proc:
+                                  creationflags=flags, env=env) as proc:
                 self._vox_proc = proc
                 tail = []
                 for line in proc.stdout:
@@ -5901,7 +6068,7 @@ class ModernTTSApp(*_APP_BASE):
             state = "none"
 
         if not os.path.isdir(os.path.join(site_dir, "voxcpm")) or state == "none":
-            def pip_step(extra, lo, hi, title):
+            def pip_step(extra, lo, hi, title, env=None):
                 """Шаг pip: строки вида «Progress 12 of 100» превращаем в проценты."""
                 def line_cb(line):
                     m = re.search(r"Progress (\d+) of (\d+)", line)
@@ -5912,7 +6079,8 @@ class ModernTTSApp(*_APP_BASE):
                     elif on_line:
                         on_line(line)
                 return self._run_py([py_exe, "-m", "pip", "install", "--no-warn-script-location",
-                                     "--progress-bar", "raw", "--target", site_dir] + extra, line_cb)
+                                     "--progress-bar", "raw", "--target", site_dir] + extra, line_cb,
+                                    env=env)
 
             progress("pip…", 0.12)
             get_pip = os.path.join(root, "get-pip.py")
@@ -5929,7 +6097,7 @@ class ModernTTSApp(*_APP_BASE):
             progress("setuptools…", 0.14)
             ok, out = self._run_py([py_exe, "-m", "pip", "install", "--no-warn-script-location",
                                     "--progress-bar", "off", "--upgrade",
-                                    "setuptools", "wheel"], on_line)
+                                    "setuptools", "wheel", "setuptools_scm"], on_line)
             if not ok:
                 return False, "setuptools/wheel:\n" + out
             if self._vox_cancelled:
@@ -5960,8 +6128,9 @@ class ModernTTSApp(*_APP_BASE):
             if whl_path:
                 args += [whl_path, "torchaudio==2.5.1",
                          "--extra-index-url", "https://download.pytorch.org/whl/cu121"]
-            args += ["voxcpm", "transformers==4.49.0"]   # 5.x требует torch>=2.6 и отключает CUDA-сборку 2.5.1
-            ok, out = pip_step(args, 0.50, 0.94, "torch + VoxCPM")
+            args += [VOXCPM_PIP_SPEC, "transformers==4.49.0"]   # voxcpm — только с GitHub (VOXCPM_PIP_SPEC); 5.x требует torch>=2.6 и отключает CUDA-сборку 2.5.1
+            ok, out = pip_step(args, 0.50, 0.94, "torch + VoxCPM",
+                               env={**os.environ, "SETUPTOOLS_SCM_PRETEND_VERSION": VOXCPM_SCM_VERSION})
             if self._vox_cancelled:
                 return False, "Отменено"
             if ok and whl_path:
@@ -5970,7 +6139,7 @@ class ModernTTSApp(*_APP_BASE):
                 except Exception:
                     pass
             if not ok:
-                return False, "pip install voxcpm:\n" + out
+                return False, "pip install VoxCPM (GitHub):\n" + out
             if not os.path.isdir(os.path.join(site_dir, "voxcpm")):
                 return False, "voxcpm не появился в папке дополнения"
 
@@ -6024,7 +6193,7 @@ class ModernTTSApp(*_APP_BASE):
         ctk.CTkLabel(body, font=FONT_TINY, text_color=COLOR_TEXT_SEC, justify="left",
                      wraplength=470,
                      text=_tr("Python, torch и VoxCPM ставятся в папку приложения. "
-                              "Первый раз это занимает 5–15 минут.")
+                              "Первый раз это занимает 5–15 минут (для Classic достаточно 8 ГБ видеопамяти).")
                      ).pack(padx=16, anchor="w")
         bar = ctk.CTkProgressBar(body, height=10, corner_radius=6, progress_color="#c6763a",
                                  fg_color=COLOR_CARD2)
@@ -6134,14 +6303,14 @@ class ModernTTSApp(*_APP_BASE):
 
     VOX_MIN_FREE_GB = 6.0   # 4,7 ГБ весов VoxCPM2 + резерв на диффузию и активации
 
-    def _ask_low_vram(self, free_gb, total_gb):
+    def _ask_low_vram(self, free_gb, total_gb, need_gb=None):
         """Спросить из любого потока: грузить Vox при почти занятой видеопамяти?
         False — пользователь отказался (баг «загружается и не может загрузиться», 06.11.26)."""
         def ask():
             return messagebox.askyesno(
                 _tr("Видеопамять занята"),
                 _tr("Видеопамять почти вся занята другой программой.")
-                + f"\n{_tr('Свободно')} {free_gb:.1f} ГБ, {_tr('нужно')} ≈{self.VOX_MIN_FREE_GB:.0f} ГБ.\n\n"
+                + f"\n{_tr('Свободно')} {free_gb:.1f} ГБ, {_tr('нужно')} ≈{(need_gb or self.VOX_MIN_FREE_GB):.0f} ГБ.\n\n"
                 + _tr("Если загрузить сейчас, видеокарта начнёт делить память между программами: "
                       "загрузка и озвучка будут очень долгими, а чужое приложение будет тормозить.")
                 + "\n\n"
@@ -6165,13 +6334,9 @@ class ModernTTSApp(*_APP_BASE):
         ev.wait(900)
         return bool(res.get("v"))
 
-    def load_vox(self, show_errors=False):
-        if self.vox_model is not None:
-            return True
-        self._unload_tts_models(keep="Vox")   # Qwen/Piper — из памяти: две модели не держим
-        self._vox_syspath()
-        # Антивирус/прокси подменяет сертификат — huggingface_hub без этого падает
-        # на проверке ревизии модели ещё до загрузки весов.
+    def _vox_ssl_patch(self):
+        """Антивирус/прокси подменяет сертификат — huggingface_hub без этого падает
+        на проверке ревизии модели ещё до загрузки весов."""
         if not getattr(self, "_ssl_patched", False):
             try:
                 import requests.adapters as _ra
@@ -6185,6 +6350,22 @@ class ModernTTSApp(*_APP_BASE):
                 self._ssl_patched = True
             except Exception:
                 pass
+
+    def load_vox(self, show_errors=False):
+        if self.vox_model is not None:
+            return True
+        if self._vox_variant_effective() == "turbo":
+            if self._load_vox_turbo(show_errors=show_errors):
+                return True
+            if not self._vox_installed():
+                if show_errors:
+                    self.after(0, lambda: messagebox.showerror(
+                        "Vox Turbo", _tr("Vox Turbo не удалось загрузить — проверь видеопамять и видеокарту")))
+                return False
+            print("⚠️ Vox Turbo не поднялся — включаю Vox Classic")
+        self._unload_tts_models(keep="Vox")   # Qwen/Piper — из памяти: две модели не держим
+        self._vox_syspath()
+        self._vox_ssl_patch()
         local_weights = self._vox_local_weights()
         if local_weights:
             os.environ["HF_HUB_OFFLINE"] = "1"      # веса на месте — сеть не нужна
@@ -6202,6 +6383,16 @@ class ModernTTSApp(*_APP_BASE):
                         "До этого работает Piper с голосами Ирина и Руслан."))
 
             import torch
+            # без консоли sys.stdout/stderr могут быть None — защищаем (иначе torch.compile
+            # падает на .isatty(), а voxcpm ещё и печатает предупреждения в stderr)
+            try:
+                _s = __import__("sys")
+                if _s.stdout is None:
+                    _s.stdout = open(os.devnull, "w", encoding="utf-8")
+                if _s.stderr is None:
+                    _s.stderr = open(os.devnull, "w", encoding="utf-8")
+            except Exception:
+                pass
             cuda_ok = torch.cuda.is_available()
             print(f"🔎 torch {torch.__version__} · CUDA доступна: {cuda_ok}")
             _flog(f"vox: загрузка начата · CUDA={cuda_ok}")
@@ -6225,8 +6416,28 @@ class ModernTTSApp(*_APP_BASE):
             names = [local_weights] if local_weights else []
             names += VOX_CANDIDATES
 
-            # fp16 быстрее на 3070 Ti; если параметр не принят — пробуем дефолт (bf16)
-            kw_list = [{"torch_dtype": torch.float16}, {"dtype": torch.float16}, {}]
+            # optimize=False обязателен: voxcpm делает torch.compile при живом triton
+            # (появился с nano), а компиляция падает в средах без консоли (dynamo isatty).
+            # Шумодав zipenhancer тянется с modelscope.cn: если сети нет — не ждём
+            # таймауты, сразу пробуем вариант без него (фолбэк-кандидаты).
+            _net_ok = True
+            try:
+                import socket
+                socket.create_connection(("modelscope.cn", 443), timeout=2.5).close()
+            except Exception:
+                _net_ok = False
+            _kw_den = [   # с шумодавом (канон): fp16 → дефолт
+                {"torch_dtype": torch.float16, "optimize": False},
+                {"dtype": torch.float16, "optimize": False},
+                {"optimize": False},
+            ]
+            _kw_noden = [  # без шумодава — когда modelscope недоступен
+                {"torch_dtype": torch.float16, "optimize": False, "load_denoiser": False},
+                {"dtype": torch.float16, "optimize": False, "load_denoiser": False},
+                {"optimize": False, "load_denoiser": False},
+            ]
+            kw_list = (_kw_den + _kw_noden) if _net_ok else (_kw_noden + _kw_den)
+            _flog(f"vox: modelscope доступен: {_net_ok}")
             last_err = None
             for name in names:
                 for dev in (["cuda", "auto"] if cuda_ok else ["auto"]):
@@ -6236,6 +6447,9 @@ class ModernTTSApp(*_APP_BASE):
                             _flog(f"vox: from_pretrained dev={dev} kwargs={list(kw) or ['default']}")
                             t0 = time.time()
                             self.vox_model = VoxCPM.from_pretrained(name, device=dev, **kw)
+                            if kw.get("load_denoiser", True) is False:
+                                _flog("vox: загружен БЕЗ шумодава (modelscope недоступен)")
+                                print("⚠️ VoxCPM2: шумодав недоступен — загружаюсь без него")
                             self.vox_name = name
                             self._print_vox_device()
                             _flog(f"vox: загружен за {time.time() - t0:.0f} с")
@@ -6246,9 +6460,13 @@ class ModernTTSApp(*_APP_BASE):
                             continue  # неизвестный kwarg → пробуем следующий
                         except Exception as e:
                             last_err = e
-                            _flog(f"vox: [{name}, {dev}] {type(e).__name__}: {e}")
+                            _msg = str(e).lower()
+                            if "modelscope" in _msg or "e1001" in _msg or "zipenhancer" in _msg:
+                                # сеть к modelscope отвалилась — дальше сразу без шумодава
+                                kw_list = _kw_noden + _kw_den
+                            _flog(f"vox: [{name}, {dev}, {sorted(kw)}] {type(e).__name__}: {e}")
                             print(f"⚠️ VoxCPM2 [{name}, {dev}]: {e}")
-                            break  # ошибка устройства → следующий dev
+                            continue  # перебираем и фолбэки, не сдаёмся с первого раза
             _err_txt = str(last_err or "")
             if "out of memory" in _err_txt.lower():
                 raise Exception(_tr(
@@ -6295,8 +6513,358 @@ class ModernTTSApp(*_APP_BASE):
         except Exception as e:
             print(f"⚠️ Не удалось определить устройство VoxCPM2: {e}")
 
+    # ================= VOX TURBO: быстрый вариант движка Vox =================
+    # Тот же чекпоинт VoxCPM2, что у классического Vox, но inference через nano-vllm
+    # (CUDA-графы + кэш эталона в движке): примерно на 50% быстрее при том же качестве.
+    NANO_PKG_DIRS = ("nanovllm_voxcpm", "flash_attn")
+    NANO_MIN_FREE_GB = 7.0
+
+    def _nano_installed(self):
+        """Ставится ли быстрый движок (nano-vllm-voxcpm + flash_attn) в GPU-среде?
+        В dev-запуске из .venv пакеты видны прямо в sys.path — это тоже «установлено»."""
+        for p in sys.path:
+            try:
+                if p.endswith("site-packages") and all(
+                        os.path.isdir(os.path.join(p, d)) for d in self.NANO_PKG_DIRS):
+                    return True
+            except Exception:
+                pass
+        _, _, site = self._vox_paths()
+        return all(os.path.isdir(os.path.join(site, d)) for d in self.NANO_PKG_DIRS)
+
+    def _nano_syspath(self):
+        _, _, site = self._vox_paths()
+        if os.path.isdir(site) and site not in sys.path:
+            sys.path.insert(0, site)
+
+    def _nano_pip_install(self, on_line=None):
+        """Установка быстрого движка Vox: nano-vllm-voxcpm и triton-windows — pip в overlay
+        среды Vox; flash_attn — готовым wheel cp312/cu121/torch2.5.1 (на Windows не собирается)."""
+        _root, py_dir, site = self._vox_paths()
+        python = os.path.join(py_dir, "python.exe")
+        if not os.path.isfile(python):
+            return False, _tr("GPU-среда не установлена — сначала нужен движок Vox")
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        cmds = [[python, "-m", "pip", "install", "--no-deps", "--no-warn-script-location",
+                 "--target", site] + list(NANO_PKG_PINS),
+                [python, "-m", "pip", "install", "--no-warn-script-location",
+                 "--target", site, FLASH_ATTN_WIN_URL]]
+        for cmd in cmds:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=2400,
+                               encoding="utf-8", errors="replace", creationflags=flags)
+            if r.returncode != 0:
+                return False, ((r.stdout or "") + (r.stderr or ""))[-500:]
+            if on_line:
+                on_line("pip ok")
+        return True, "ok"
+
+    def _vox_var_name(self):
+        return "Vox Turbo" if self._vox_variant_effective() == "turbo" else "Vox Classic"
+
+    def _vox_variant_effective(self):
+        """Реально работающий вариант: если быстрый движок не установлен — обычный."""
+        v = getattr(self, "vox_variant", "turbo")
+        if v == "turbo" and not self._nano_installed():
+            return "classic"
+        return v
+
+    def _vox_var_installed(self, kind):
+        return self._nano_installed() if kind == "turbo" else self._vox_installed()
+
+    def _turbo_shutdown(self):
+        """Гасим nano-движок: он держит до 95% VRAM — при выгрузке отдаём память."""
+        srv = getattr(self, "vox_turbo", None)
+        if srv is None:
+            return
+        self.vox_turbo = None
+        self._turbo_prompt_cache = {}
+        self._turbo_ref_cache = {}
+        try:
+            with self._turbo_loop_lock:
+                srv.stop()   # закрывает event loop движка и гасит его рабочие GPU-процессы
+        except Exception:
+            pass
+
+    def _load_vox_turbo(self, show_errors=False):
+        """Запуск быстрого движка. Веса те же, что у классического Vox: models_vox или
+        кэш huggingface — ничего не перекачивается. Нано по умолчанию резервирует до 95%
+        VRAM: ограничиваем пул, чтобы осталось место модели анализа."""
+        if getattr(self, "vox_turbo", None) is not None:
+            return True
+        self._unload_tts_models(keep="Vox")
+        self._nano_syspath()
+        try:
+            from nanovllm_voxcpm import VoxCPM as TurboVox
+        except Exception as e:
+            print(f"❌ Vox Turbo: пакет не импортируется: {e}")
+            return False
+        local_weights = self._vox_local_weights()
+        if not local_weights:
+            self._vox_ssl_patch()
+            self.after(0, lambda: self.update_status("⏳ Загрузка весов VoxCPM2 (~5 ГБ)..."))
+            try:
+                from huggingface_hub import snapshot_download
+                local_weights = snapshot_download("openbmb/VoxCPM2")
+            except Exception as e:
+                if show_errors:
+                    self.after(0, lambda e=e: messagebox.showerror("Vox Turbo", f"{_tr('Модель не скачана')}: {e}"))
+                return False
+        util = 0.55
+        try:
+            _u, _t = self._gpu_mem_probe()
+            if _u is not None and _t:
+                _free = (_t - _u) / 2 ** 30
+                _tot = _t / 2 ** 30
+                _flog(f"vox turbo: свободно видеопамяти {_free:.1f}/{_tot:.1f} ГиБ")
+                if _free < self.NANO_MIN_FREE_GB:
+                    if not self._ask_low_vram(_free, _tot, self.NANO_MIN_FREE_GB):
+                        _flog("vox turbo: пользователь отказался грузить (мало видеопамяти)")
+                        self.after(0, lambda: self.update_status("⏸ " + _tr("Vox не загружен: мало видеопамяти")))
+                        return False
+        except Exception:
+            pass
+        t0 = time.time()
+        last_err = None
+        for kw in ({}, {"enforce_eager": True}):   # CUDA-графы едят ~2.5 ГБ — не вышло, то без них
+            try:
+                self.after(0, lambda: self.update_status("⏳ Загрузка Vox Turbo (GPU)..."))
+                _flog(f"vox turbo: запуск движка util={util:.2f} kwargs={list(kw) or ['обычно']}")
+                srv = TurboVox.from_pretrained(local_weights, inference_timesteps=10,
+                                               gpu_memory_utilization=util, **kw)
+                info = {}
+                try:
+                    info = srv.get_model_info() or {}
+                except Exception:
+                    pass
+                self.vox_turbo = srv
+                self._turbo_sr = int(info.get("output_sample_rate") or info.get("sample_rate") or 48000)
+                self._turbo_prompt_cache = {}
+                self._turbo_ref_cache = {}
+                self.vox_name = local_weights
+                _flog(f"vox turbo: поднят за {time.time() - t0:.0f} c · sr={self._turbo_sr}")
+                print(f"⚡ Vox Turbo поднят за {time.time() - t0:.0f} c · веса {local_weights} · резерв видеопамяти {util:.0%}")
+                return True
+            except Exception as e:
+                last_err = e
+                _flog(f"vox turbo: {type(e).__name__}: {e}")
+                print(f"⚠️ Vox Turbo: {e}")
+        print(f"❌ Vox Turbo не поднялся: {last_err}")
+        if show_errors:
+            self.after(0, lambda e=last_err: messagebox.showerror(
+                "Vox Turbo", _tr("Vox Turbo не удалось загрузить") + f": {e}\n\n" +
+                _tr("Vox Turbo нужен NVIDIA GPU с 12+ ГБ видеопамяти.")))
+        return False
+
+    def _turbo_prompt(self, ref_path, ref_text):
+        """Эталон голоса загружается в движок один раз и кэшируется по prompt_id —
+        второй ускоритель после CUDA-графов: эталон не переобрабатывается."""
+        cache = getattr(self, "_turbo_prompt_cache", None)
+        if cache is None:
+            cache = self._turbo_prompt_cache = {}
+        key = (os.path.abspath(ref_path or ""), ref_text or "")
+        if key in cache:
+            return cache[key]
+        if len(cache) > 12:
+            cache.clear()
+        with self._turbo_loop_lock:
+            with open(ref_path, "rb") as fh:
+                pid = self.vox_turbo.add_prompt(fh.read(), "wav", ref_text or "")
+        cache[key] = pid
+        return pid
+
+    def _turbo_ref_latents(self, ref_path):
+        """Эталон голоса без расшифровки (клонирование «как есть»): кодирование в латенты
+        кэшируется по файлу — эталон не переобрабатывается на каждой фразе."""
+        cache = getattr(self, "_turbo_ref_cache", None)
+        if cache is None:
+            cache = self._turbo_ref_cache = {}
+        key = os.path.abspath(ref_path)
+        if len(cache) > 12:
+            cache.clear()
+        if key not in cache:
+            with self._turbo_loop_lock:
+                with open(key, "rb") as fh:
+                    cache[key] = self.vox_turbo.encode_latents(fh.read(), "wav")
+        return cache[key]
+
+    def _vox_generate_turbo(self, text, ref_path, ref_text):
+        """Синтез на быстром движке. Частота вывода — из model info движка (у VoxCPM2 — 48 кГц)."""
+        srv = self.vox_turbo
+        if srv is None:
+            raise RuntimeError(_tr("Движок Vox не загружен"))
+        pid = None
+        ref_lat = None
+        has_ref = bool(ref_path and os.path.exists(ref_path))
+        if has_ref:
+            try:
+                if ref_text:
+                    pid = self._turbo_prompt(ref_path, ref_text)
+                else:
+                    ref_lat = self._turbo_ref_latents(ref_path)
+            except Exception as e:
+                print(f"⚠️ Vox Turbo: эталон не загружен в движок ({e}) — говорю базовым голосом")
+                pid = ref_lat = None
+        chunks = []
+        with self._turbo_loop_lock:
+            for w in srv.generate(target_text=text, prompt_id=pid,
+                                  ref_audio_latents=ref_lat):
+                if w is not None:
+                    chunks.append(w)
+        if not chunks:
+            raise RuntimeError(_tr("Vox Turbo вернул пустой фрагмент"))
+        import numpy as _np
+        sr = int(getattr(self, "_turbo_sr", 0) or 48000)
+        return _np.concatenate([_np.asarray(c).reshape(-1) for c in chunks]), sr
+
+    def _vox_set_variant(self, kind):
+        """Переключение варианта движка Vox (вкладка «⚙ Vox settings»): текущий вариант
+        выгружается из видеопамяти, новый грузится по требованию при синтезе."""
+        if kind == "turbo" and not self._nano_installed():
+            kind = "classic"
+        self.vox_variant = kind
+        self.save_settings()
+        self._turbo_shutdown()
+        if self.vox_model is not None:
+            self.vox_model = None
+            self.vox_name = None
+        gc.collect()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+        try:
+            self.btn_vox_cfg.configure(text=_tr("⚙ Настройки Vox · " + self._vox_var_name()))
+        except Exception:
+            pass
+        if self.current_engine == "Vox":
+            threading.Thread(target=self.load_vox_threaded, daemon=True).start()
+
+    def _vox_pick_variant(self, kind, dlg=None):
+        self._vox_set_variant(kind)
+        try:
+            if dlg is not None:
+                dlg.destroy()
+        except Exception:
+            pass
+
+    def _vox_install_variant(self, kind, parent=None):
+        """Установка недостающего варианта движка прямо из вкладки настроек Vox.
+        Обычный вариант ставится готовым диалогом «Дополнение Vox» (среда + torch + voxcpm)."""
+        if kind == "classic":
+            if not self._vox_installed():
+                self._install_vox()
+            return
+        if self._nano_installed():
+            return
+        if not self._vox_installed():
+            messagebox.showwarning(
+                "Vox Turbo", _tr("GPU-среда не установлена — сначала нужен движок Vox."),
+                parent=parent or self)
+            return
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Установка Vox Turbo"))
+        dlg.geometry("560x210")
+        _center_on_parent(dlg)
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        ctk.CTkLabel(dlg, text=_tr("Устанавливается быстрый движок"), font=FONT_SUBHEADER,
+                     text_color=COLOR_HEAD).pack(pady=(16, 2))
+        ctk.CTkLabel(dlg, text=_tr("⚠ Для Turbo нужно 12 ГБ видеопамяти (Classic хватает 8 ГБ)"),
+                     font=FONT_TINY, text_color=COLOR_RED).pack(pady=(0, 2))
+        stage = ctk.CTkLabel(dlg, text=_tr("Ставлю nano-vllm-voxcpm, triton и flash_attn (≈300 МБ)..."),
+                             font=FONT_TINY, text_color=COLOR_TEXT_SEC, justify="left",
+                             wraplength=500, anchor="w")
+        stage.pack(fill="x", padx=16)
+        log_lbl = ctk.CTkLabel(dlg, text="", font=FONT_TINY, text_color=COLOR_TEXT_SEC,
+                               anchor="w", justify="left", wraplength=500)
+        log_lbl.pack(fill="x", padx=16, pady=(6, 6))
+
+        def set_stage(m):
+            self.after(0, lambda m=m: log_lbl.configure(text=str(m)[-160:]))
+
+        def work():
+            ok, detail = self._nano_pip_install(set_stage)
+            if ok:
+                self.after(0, lambda: stage.configure(text=_tr("Vox Turbo установлен ✅")))
+                self.after(0, lambda: self._vox_pick_variant("turbo", None))
+                self.after(2500, lambda: dlg.winfo_exists() and dlg.destroy())
+            else:
+                self.after(0, lambda d=detail: stage.configure(text=_tr("Не вышло: ") + str(d)[-200:]))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _vox_settings_dialog(self):
+        """Вкладка настроек Vox — как «Настройки Qwen», но про выбор варианта движка:
+        быстрый Turbo или обычный Classic. Веса и голоса у них общие."""
+        old = getattr(self, "_vox_cfg_dlg", None)
+        try:
+            if old is not None and old.winfo_exists():
+                old.lift()
+                old.focus_force()
+                return
+        except Exception:
+            pass
+        dlg = ctk.CTkToplevel(self)
+        self._vox_cfg_dlg = dlg
+        dlg.title(_tr("Настройки Vox"))
+        dlg.geometry("600x340")
+        _center_on_parent(dlg)
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        try:
+            dlg.iconbitmap(self._asset_path("app.ico"))   # фирменный значок в шапке
+        except Exception:
+            pass
+        dlg.configure(fg_color=COLOR_BG)   # фон окна в палитре приложения
+        try:
+            dlg.attributes("-topmost", True)
+            dlg.after(500, lambda: dlg.attributes("-topmost", False))
+        except Exception:
+            pass
+        ctk.CTkLabel(dlg, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
+                     justify="left", wraplength=560,
+                     text=_tr("Два движка Vox — одни и те же веса и голоса. Turbo — быстрее на ~50%, Classic — обычный; качество одинаковое.")
+                     ).pack(fill="x", padx=14, pady=(12, 4))
+        cur = self._vox_variant_effective()
+        for kind, title, desc in (
+                ("turbo", "🚀 Vox Turbo", _tr("быстрее на ~50% · нужно 12 ГБ видеопамяти")),
+                ("classic", "🎧 Vox Classic", _tr("обычный вариант — достаточно 8 ГБ видеопамяти"))):
+            fr = ctk.CTkFrame(dlg, fg_color="transparent")
+            fr.pack(fill="x", padx=14, pady=4)
+            ctk.CTkLabel(fr, font=FONT_SMALL,
+                         text_color=COLOR_TEXT_MAIN if kind == cur else COLOR_TEXT_SEC,
+                         anchor="w",
+                         text=title + ("   " + _tr("(работает)") if kind == cur else "")
+                         ).pack(side="left")
+            if kind != cur:
+                if self._vox_var_installed(kind):
+                    ctk.CTkButton(fr, text=_tr("Переключить на него"), height=26, corner_radius=3,
+                                  font=FONT_TINY, fg_color=COLOR_BRAND,
+                                  hover_color=COLOR_BRAND_HOVER, text_color=COLOR_ON_ACCENT,
+                                  command=lambda k=kind: self._vox_pick_variant(k, dlg)
+                                  ).pack(side="right")
+                else:
+                    ctk.CTkButton(fr, text=_tr("Установить"), height=26, corner_radius=3,
+                                  font=FONT_TINY, fg_color="#c6763a", hover_color="#a95f2c",
+                                  text_color="#14100c",
+                                  command=lambda k=kind: self._vox_install_variant(k, dlg)
+                                  ).pack(side="right")
+            ctk.CTkLabel(fr, font=FONT_TINY, text_color=COLOR_TEXT_SEC, anchor="w",
+                         justify="left", wraplength=430, text=desc).pack(side="left", padx=(12, 0))
+        ctk.CTkLabel(dlg, font=FONT_TINY, text_color=COLOR_RED, anchor="w", justify="left",
+                     wraplength=560,
+                     text=_tr("⚠ Vox Classic — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ")
+                     ).pack(fill="x", padx=14, pady=(10, 0))
+        ctk.CTkLabel(dlg, font=FONT_TINY, text_color=COLOR_TEXT_SEC, anchor="w", justify="left",
+                     wraplength=560,
+                     text=_tr("Первая фраза Turbo ~15–25 с (прогрев графического ядра), дальше — быстро")
+                     ).pack(fill="x", padx=14, pady=(2, 8))
+
     def _vox_sr(self):
         m = self.vox_model
+        if m is None:
+            return int(getattr(self, "_turbo_sr", 0) or 48000)
         for attr in ("sample_rate", "target_sample_rate", "sampling_rate", "sr"):
             v = getattr(m, attr, None)
             if isinstance(v, int) and v > 0:
@@ -6304,6 +6872,10 @@ class ModernTTSApp(*_APP_BASE):
         return 24000
 
     def _vox_generate(self, text, ref_path, ref_text, fast=False, actual_rate=1.0):
+        if self.vox_model is None:
+            if getattr(self, "vox_turbo", None) is None:
+                raise RuntimeError(_tr("Движок Vox не загружен"))
+            return self._vox_generate_turbo(text, ref_path, ref_text)
         m = self.vox_model
         t0 = time.time()
 
@@ -6507,6 +7079,17 @@ class ModernTTSApp(*_APP_BASE):
         else:
             self.qwen_row.pack_forget()
             self.qwen_instruct_row.pack_forget()
+
+    def _show_vox_tools(self, show):
+        """Строка настроек Vox — как «Настройки Qwen», но для переключения варианта движка."""
+        if show:
+            self.vox_row.pack(fill="x", padx=12, pady=(0, 6), before=self._tts_voice_row)
+            try:
+                self.btn_vox_cfg.configure(text=_tr("⚙ Настройки Vox · " + self._vox_var_name()))
+            except Exception:
+                pass
+        else:
+            self.vox_row.pack_forget()
 
     def _sync_qwen_instruct(self):
         """Поле инструкции в карточке — read-only зеркало паспорта текущего голоса."""
@@ -6762,6 +7345,9 @@ class ModernTTSApp(*_APP_BASE):
             self.vox_model = None
             self.vox_name = None
             freed.append("Vox")
+        if keep != "Vox" and getattr(self, "vox_turbo", None) is not None:
+            self._turbo_shutdown()
+            freed.append("Vox Turbo")
         if keep != "Qwen" and getattr(self, "_qwen_models", None):
             self._qwen_free()
             freed.append("Qwen")
@@ -7179,6 +7765,10 @@ class ModernTTSApp(*_APP_BASE):
         dlg.geometry("400x560")
         _center_on_parent(dlg)
         dlg.transient(self)
+        try:
+            dlg.iconbitmap(self._asset_path("app.ico"))   # фирменный значок в шапке
+        except Exception:
+            pass
         dlg.configure(fg_color=COLOR_BG)   # фон окна в палитре приложения
         try:
             dlg.attributes("-topmost", True)
@@ -7358,13 +7948,6 @@ class ModernTTSApp(*_APP_BASE):
         self._translate_instruction()   # название уровня и сам промпт — на одном языке
         self.save_settings()
 
-    def _on_stress_toggle(self):
-        """Галочка «Автоударения» — общий переключатель RUAccent для всех движков."""
-        self.stress_auto = bool(self.stress_var.get())
-        self.update_status(_tr("✅ Автоударения включены") if self.stress_auto
-                           else _tr("Автоударения выключены"))
-        self.save_settings()
-
     def save_settings(self):
         try:
             data = {
@@ -7382,7 +7965,7 @@ class ModernTTSApp(*_APP_BASE):
                 "ctx_choices": self.ctx_choices,
                 "speech_rate": self.speech_rate,
                 "vox_fast": bool(self.vox_fast_var.get()),
-                "stress_auto": bool(self.stress_var.get()),
+            "vox_variant": getattr(self, "vox_variant", "turbo"),
                 "qwen_cfg": dict(self.qwen_cfg),
                 "qwen_size": self.qwen_size,
                 "setup_preview": bool(getattr(self, "setup_preview", False)),
@@ -7506,11 +8089,8 @@ class ModernTTSApp(*_APP_BASE):
         self.rate_slider.set(rate)
         self.rate_label.configure(text=f"×{rate:.1f}")
         self.vox_fast_var.set(bool(data.get("vox_fast", False)))
-        self.stress_auto = bool(data.get("stress_auto", False))
-        try:
-            self.stress_var.set(self.stress_auto)
-        except Exception:
-            pass
+        vv = str(data.get("vox_variant") or "turbo").lower()
+        self.vox_variant = vv if vv in ("turbo", "classic") else "turbo"
         qc = data.get("qwen_cfg")
         if isinstance(qc, dict):   # подкрученные параметры движка Qwen
             for key in ("device", "precision", "language"):
@@ -7619,7 +8199,7 @@ class ModernTTSApp(*_APP_BASE):
         hint = getattr(self, "engine_hint", None)
         if hint is not None:
             if value == "Vox":
-                hint.configure(text=_tr("⚠ Vox требует видеокарту с 8 ГБ видеопамяти"),
+                hint.configure(text=_tr("⚠ Vox Classic — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ"),
                                text_color=COLOR_TEXT_MAIN)
             elif value == "Qwen":
                 hint.configure(text=_tr("⚠ Qwen требует видеокарту с 6 ГБ видеопамяти"),
@@ -7671,6 +8251,7 @@ class ModernTTSApp(*_APP_BASE):
                 self.engine_voices["Piper"] = default
                 self.load_tts_on_select()
         self._show_qwen_tools(value == "Qwen")
+        self._show_vox_tools(value == "Vox")
         self._sync_emo_auto()
 
     def _sync_emo_auto(self):
@@ -7802,7 +8383,7 @@ class ModernTTSApp(*_APP_BASE):
             return
         self._apply_engine(eng)
         if eng == "Vox":
-            self.update_status("Движок: VoxCPM2 (GPU).")
+            self.update_status(f"Движок: {self._vox_var_name()} (GPU).")
             if self.vox_model is None:
                 threading.Thread(target=self.load_vox_threaded, daemon=True).start()
         elif eng == "Qwen":
@@ -8117,11 +8698,13 @@ class ModernTTSApp(*_APP_BASE):
 
     def load_vox_threaded(self):
         self._stop_gpu_server()  # освобождаем VRAM: модель анализа не должна мешать Vox
-        self.after(0, lambda: self.update_status("⏳ Загрузка VoxCPM2 (веса ~5 ГБ)..."))
+        _nm = self._vox_var_name()
+        _g, _d = ("готов", "недоступен") if _nm == "Vox Turbo" else ("готова", "недоступна")
+        self.after(0, lambda: self.update_status(f"⏳ Загрузка {_nm} (веса ~5 ГБ)..."))
         if self.load_vox(show_errors=True):
-            self.after(0, lambda: self.update_status("✅ VoxCPM2 готова (GPU)"))
+            self.after(0, lambda: self.update_status(f"✅ {_nm} {_g} (GPU)"))
         else:
-            self.after(0, lambda: self.update_status("❌ VoxCPM2 недоступна"))
+            self.after(0, lambda: self.update_status(f"❌ {_nm} {_d}"))
 
     def on_tts_change(self, value):
         if self.current_engine == "Piper":
@@ -8369,21 +8952,25 @@ class ModernTTSApp(*_APP_BASE):
             try:
                 if not self.load_vox(show_errors=True):
                     raise Exception(_tr("VoxCPM2 недоступна"))
-                m = self.vox_model
-                text = f"({instr}){phrase}"
-                out, last = None, None
-                for kw in ({"cfg_value": 2.0, "inference_timesteps": 10},
-                           {"cfg_value": 2.0}, {}):
-                    try:
-                        out = m.generate(text=text, reference_wav_path=ref_wav, **kw)
-                        break
-                    except TypeError as e:
-                        last = e
-                    except Exception as e:
-                        last = e
-                        break
-                if out is None:
-                    raise Exception(f"VoxCPM2: {last}")
+                _turbo_used = False
+                if self.vox_model is None and getattr(self, "vox_turbo", None) is not None:
+                    _turbo_used = True
+                    out = self._vox_generate_turbo(f"({instr}){phrase}", ref_wav, "")
+                else:
+                    m = self.vox_model
+                    out, last = None, None
+                    for kw in ({"cfg_value": 2.0, "inference_timesteps": 10},
+                               {"cfg_value": 2.0}, {}):
+                        try:
+                            out = m.generate(text=text, reference_wav_path=ref_wav, **kw)
+                            break
+                        except TypeError as e:
+                            last = e
+                        except Exception as e:
+                            last = e
+                            break
+                    if out is None:
+                        raise Exception(f"VoxCPM2: {last}")
                 arr, sr = self._vox_to_int16(out)
                 if len(arr):
                     f32 = arr.astype(np.float32) / 32768.0
@@ -8391,8 +8978,9 @@ class ModernTTSApp(*_APP_BASE):
                     if peak > 0.95:
                         f32 *= 0.95 / peak
                     arr = (np.clip(f32, -1.0, 1.0) * 32767).astype(np.int16)
-                # как просит Ярослав: та же автоподтяжка скорости, что и во всей озвучке FAIR
-                if len(arr):
+                # классик: автоподтяжка скорости ×2, как во всей озвучке FAIR;
+                # Turbo уже в естественном темпе — не ускоряем
+                if len(arr) and not _turbo_used:
                     print(f"🎚 Эмоция «{label}»: {(len(arr) / sr):.2f} с → ускоряем "
                           f"×{VOX_BASE_SPEED:g}, как обычный синтез текста")
                     arr = self._stretch_int16(arr, VOX_BASE_SPEED)
@@ -9734,67 +10322,11 @@ class ModernTTSApp(*_APP_BASE):
 
     # ================= СИНТЕЗ =================
 
-    # ---------------- автоударения RUAccent (все движки, v1.5 dev) ----------------
-    _RU_VOWELS = "аеёиоуыэюяАЕЁИОУЫЭЮЯ"
-
-    @classmethod
-    def _plus_to_acute(cls, text: str) -> str:
-        """Формат RUAccent «+ перед гласной» → U+0301 сразу ПОСЛЕ гласной.
-        Именно этот знак понимают Qwen-чекпойнт, espeak-ng (Piper) и VoxCPM2."""
-        return re.sub(r"\+([" + cls._RU_VOWELS + r"])",
-                      lambda m: m.group(1) + "\u0301", text)
-
-    def _apply_stress(self, text: str) -> str:
-        """Автоматическая расстановка ударений (RUAccent, MIT) — общая для Vox,
-        Qwen и Piper. Группы в скобках не трогаем: это маркеры эмоций/вставки.
-        Встроенные тембры Qwen (CustomVoice) разметку пропускают — она портит их
-        озвучку; СВОИ голоса Qwen (запись/дизайн, клон) размечаются как все."""
-        if not getattr(self, "stress_auto", False) or not text:
-            return text
-        # встроенный голос Qwen — разметка не нужна (свои голоса работают отлично)
-        try:
-            if getattr(self, "current_engine", "") == "Qwen":
-                nm = self.current_tts_name or self.tts_combo.get()
-                if nm in QWEN_DISPLAY:
-                    print("ℹ️ Автоударения: встроенный голос Qwen — разметка пропущена")
-                    return text
-        except Exception:
-            pass
-        try:
-            acc = getattr(self, "_ruaccent_obj", None)
-            if acc is None:
-                self.after(0, lambda: self.update_status(
-                    _tr("⏳ Загрузка автоударений (RUAccent)…")))
-                from ruaccent import RUAccent
-                acc = RUAccent()
-                acc.load(omograph_model_size="turbo2", use_dictionary=True)
-                self._ruaccent_obj = acc
-                _flog("RUAccent: модели загружены (turbo2, словарь)")
-            saved = []
-
-            def _keep(m):
-                saved.append(m.group(0))
-                return "ZQJ"        # без русских гласных — разметка к нему не цепляется
-
-            proto = re.sub(r"\([^()]*\)|\S*[\u0301]\S*", _keep, text)
-            # ↑ неприкосновенны: скобки (маркеры/вставки) и слова, размеченные рукой
-            marked = self._plus_to_acute(acc.process_all(proto))
-            for orig in saved:      # возвращаем скобки по порядку
-                marked = marked.replace("ZQJ", orig, 1)
-            return marked
-        except Exception as e:
-            try:
-                _flog(f"RUAccent: {type(e).__name__}: {e}")
-            except Exception:
-                pass
-            return text
-
     def generate_and_play(self, text: str, play: bool = True):
         temp_file = os.path.join(self.BASE_DIR, "temp_output_pro.wav")
         try:
             orig_text = text
             text = self.normalize_for_tts(text)
-            text = self._apply_stress(text)   # автоударения (RUAccent) — все движки
             rate = self.speech_rate
 
             if self.current_engine == "Vox":
@@ -9803,7 +10335,9 @@ class ModernTTSApp(*_APP_BASE):
                     if not self.load_vox(show_errors=True):
                         raise Exception("Не удалось загрузить VoxCPM2")
 
-                actual_rate = rate * VOX_BASE_SPEED
+                # Turbo (nano) сам говорит в естественном темпе — ×2 ресемпл не нужен
+                _vx_turbo = (self._vox_variant_effective() == "turbo")
+                actual_rate = rate * (1.0 if _vx_turbo else VOX_BASE_SPEED)
                 fast = False
                 self.after(0, lambda: self.update_status(f"⏳ Синтез VoxCPM2 (GPU, ×{actual_rate:.2f})..."))
 
