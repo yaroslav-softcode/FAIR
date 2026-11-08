@@ -2023,75 +2023,6 @@ _PAIRS += [
      "Analysis then runs offline. If you stop, it resumes where it left off."),
 ]
 
-TR_RU_EN = dict(_PAIRS)
-TR_RU_EN.update({
-    "Qwen (GPU)": "Qwen (GPU)",
-    "⚠ Qwen требует видеокарту с 6 ГБ видеопамяти": "⚠ Qwen requires a GPU with 6 GB of VRAM",
-    "✨ Дизайн голоса": "✨ Design voice",
-    "⚙ Настройки Qwen": "⚙ Qwen settings",
-    "Дизайн голоса": "Voice design",
-    "Настройки Qwen3-TTS": "Qwen3-TTS settings",
-    "Движок Qwen": "Qwen engine",
-    "Пакет qwen-tts не установлен — движок Qwen недоступен.":
-        "The qwen-tts package is not installed — the Qwen engine is unavailable.",
-    "Пакет qwen-tts не установлен.": "The qwen-tts package is not installed.",
-    "GPU-среда для Qwen (≈2,5 ГБ)…": "GPU environment for Qwen (≈2.5 GB)…",
-    "GPU-среда не установлена: ": "GPU environment not installed: ",
-    "Пакет Qwen3-TTS (≈30 МБ)…": "Qwen3-TTS package (≈30 MB)…",
-    "3. Голосовой движок Qwen3-TTS — клон голоса по образцу и дизайн голоса по описанию, обе версии можно поставить вместе":
-        "3. Qwen3-TTS voice engine — voice cloning from a sample and voice design from a description; both versions can be installed together",
-    "0.6B — лёгкий (≈5 ГБ), клон голоса по образцу; нужно 4 ГБ видеопамяти":
-        "0.6B — lightweight (≈5 GB), cloning from a sample; needs 4 GB VRAM",
-    "1.7B — качество выше (≈13,5 ГБ), клон голоса и «Дизайн голоса» (моделирование по описанию); нужно 6–8 ГБ":
-        "1.7B — higher quality (≈13.5 GB), cloning plus \u201cVoice Design\u201d (design from a description); needs 6\u20138 GB VRAM",
-    "Движок 0.6B — клон по образцу, нужно 4 ГБ (≈5 ГБ)":
-        "Engine 0.6B — cloning from a sample, needs 4 GB (≈5 GB)",
-    "Движок 1.7B — клон + дизайн голоса по промту, нужно 6–8 ГБ (≈13,5 ГБ)":
-        "Engine 1.7B — cloning + voice design from a prompt, needs 6\u20138 GB (≈13.5 GB)",
-    "Пакет Qwen3-TTS": "Qwen3-TTS package",
-    "Пакет qwen-tts не установлен: ": "The qwen-tts package failed to install: ",
-    "Пакет qwen-tts не установлен. Скачать и установить его? (≈30 МБ)":
-        "The qwen-tts package is not installed. Download and install it? (≈30 MB)",
-    "✅ Пакет Qwen3-TTS установлен.": "✅ The Qwen3-TTS package is installed.",
-    "Пакет qwen-tts не установлен — движок Qwen недоступен. Сначала нужна GPU-среда (движок Vox или первичная установка).":
-        "The qwen-tts package is not installed — the Qwen engine is unavailable. "
-        "First install the GPU environment (Vox engine or first-run setup).",
-    "GPU-среда не установлена — сначала нужен движок Vox.":
-        "The GPU environment is not installed — install the Vox engine first.",
-    "Qwen3-TTS: модели на месте.": "Qwen3-TTS: models are in place.",
-    "Qwen3-TTS: модели не скачаны — докачает при озвучке.":
-        "Qwen3-TTS models are not downloaded — they will download when voicing.",
-    "✅ Модели Qwen3-TTS скачаны.": "✅ Qwen3-TTS models downloaded.",
-    "Заполни описание голоса и текст.": "Fill in the voice description and the text.",
-    "Модель дала тишину — переформулируй описание.":
-        "The model produced silence — rephrase the description.",
-    "Готово — слушаю. Нравится — жми «Сохранить».":
-        "Done — playing. If you like it, press “Save”.",
-    "Сначала прослушай вариант.": "Listen to a take first.",
-    "✅ Голос сохранён в списке — работает как клон.":
-        "✅ Voice saved in the list — it works like a clone.",
-    "Генерирую голос…": "Generating the voice…",
-    "Опиши голос словами — модель его создаст.\n"
-    "Например: «молодой энергичный мужчина, быстрая речь, с улыбкой»":
-        "Describe the voice in words — the model will create it.\n"
-        "Example: \"a young energetic man, fast speech, smiling\".",
-    "Текст прослушки": "Preview text",
-    "Имя голоса в списке": "Voice name in the list",
-    "🔊 Сгенерировать и послушать": "🔊 Generate and listen",
-    "💾 Сохранить": "💾 Save",
-    "Закрыть": "Close",
-    "Устройство": "Device",
-    "Точность": "Precision",
-    "Язык": "Language",
-    "Фиксированное зерно": "Fixed seed",
-    "Зерно (0 — каждый дуб новый)": "Seed (0 — new seed for every take)",
-    "Максимум токенов на фразу": "Max tokens per phrase",
-    "Освобождать память после озвучки": "Free memory after voicing",
-    "✅ Настройки Qwen сохранены.": "✅ Qwen settings saved.",
-    "📥 Скачать модели Qwen": "📥 Download Qwen models",
-    "Освободить память GPU": "Free GPU memory",
-})
-TR_EN_RU = {en: ru for ru, en in _PAIRS}
 
 
 def _shape(s):
@@ -2124,17 +2055,6 @@ def _fill(shape, vals):
     return out
 
 
-TR_RU_EN_T = {}
-TR_EN_RU_T = {}
-for _ru, _en in _PAIRS:
-    _sh_ru, _v_ru = _shape(_ru)
-    _sh_en, _v_en = _shape(_en)
-    if _sh_ru == _sh_en and _v_ru == _v_en:
-        continue
-    if len(_sh_en.split("#")) - 1 == len(_v_ru):
-        TR_RU_EN_T.setdefault(_sh_ru, (_sh_en, len(_v_ru)))
-    if len(_sh_ru.split("#")) - 1 == len(_v_en):
-        TR_EN_RU_T.setdefault(_sh_en, (_sh_ru, len(_v_en)))
 
 
 # Фразы-«обёртки»: после них идёт свободный текст (сообщение об ошибке и т.п.)
@@ -2252,6 +2172,11 @@ _PAIRS += [
      "~50% faster · needs 12 GB of video memory"),
     ("Убрать ударение", "Remove stress"),
     ("✅ Ударение убрано", "✅ Stress mark removed"),
+    ("Видеопамять", "VRAM"),
+    ("Память (ОЗУ)", "RAM"),
+    ("ГБ", "GB"),
+    ("0 ток. · VRAM ≈ 0 · ОЗУ ≈ 0 ГБ", "0 tok. · VRAM ≈ 0 · RAM ≈ 0 GB"),
+    ("0 ток. · ОЗУ ≈ 0 ГБ", "0 tok. · RAM ≈ 0 GB"),
     ("обычный вариант — достаточно 8 ГБ видеопамяти",
      "the regular variant — 8 GB of video memory is enough"),
     ("(работает)", "(running)"),
@@ -2271,6 +2196,91 @@ _PAIRS += [
     ("⏳ Загрузка весов VoxCPM2 (~5 ГБ)...", "⏳ Downloading VoxCPM2 weights (~5 GB)..."),
     ("⏳ Загрузка Vox Turbo (GPU)...", "⏳ Loading Vox Turbo (GPU)..."),
 ]
+
+
+# ── Словари переводов собираются ЗДЕСЬ — ПОСЛЕ всех `_PAIRS +=` (в т.ч. поздних
+# фич): если строить раньше, пары из поздних блоков остаются «немыми».
+TR_RU_EN = dict(_PAIRS)
+TR_RU_EN.update({
+    "Qwen (GPU)": "Qwen (GPU)",
+    "⚠ Qwen требует видеокарту с 6 ГБ видеопамяти": "⚠ Qwen requires a GPU with 6 GB of VRAM",
+    "✨ Дизайн голоса": "✨ Design voice",
+    "⚙ Настройки Qwen": "⚙ Qwen settings",
+    "Дизайн голоса": "Voice design",
+    "Настройки Qwen3-TTS": "Qwen3-TTS settings",
+    "Движок Qwen": "Qwen engine",
+    "Пакет qwen-tts не установлен — движок Qwen недоступен.":
+        "The qwen-tts package is not installed — the Qwen engine is unavailable.",
+    "Пакет qwen-tts не установлен.": "The qwen-tts package is not installed.",
+    "GPU-среда для Qwen (≈2,5 ГБ)…": "GPU environment for Qwen (≈2.5 GB)…",
+    "GPU-среда не установлена: ": "GPU environment not installed: ",
+    "Пакет Qwen3-TTS (≈30 МБ)…": "Qwen3-TTS package (≈30 MB)…",
+    "3. Голосовой движок Qwen3-TTS — клон голоса по образцу и дизайн голоса по описанию, обе версии можно поставить вместе":
+        "3. Qwen3-TTS voice engine — voice cloning from a sample and voice design from a description; both versions can be installed together",
+    "0.6B — лёгкий (≈5 ГБ), клон голоса по образцу; нужно 4 ГБ видеопамяти":
+        "0.6B — lightweight (≈5 GB), cloning from a sample; needs 4 GB VRAM",
+    "1.7B — качество выше (≈13,5 ГБ), клон голоса и «Дизайн голоса» (моделирование по описанию); нужно 6–8 ГБ":
+        "1.7B — higher quality (≈13.5 GB), cloning plus \u201cVoice Design\u201d (design from a description); needs 6\u20138 GB VRAM",
+    "Движок 0.6B — клон по образцу, нужно 4 ГБ (≈5 ГБ)":
+        "Engine 0.6B — cloning from a sample, needs 4 GB (≈5 GB)",
+    "Движок 1.7B — клон + дизайн голоса по промту, нужно 6–8 ГБ (≈13,5 ГБ)":
+        "Engine 1.7B — cloning + voice design from a prompt, needs 6\u20138 GB (≈13.5 GB)",
+    "Пакет Qwen3-TTS": "Qwen3-TTS package",
+    "Пакет qwen-tts не установлен: ": "The qwen-tts package failed to install: ",
+    "Пакет qwen-tts не установлен. Скачать и установить его? (≈30 МБ)":
+        "The qwen-tts package is not installed. Download and install it? (≈30 MB)",
+    "✅ Пакет Qwen3-TTS установлен.": "✅ The Qwen3-TTS package is installed.",
+    "Пакет qwen-tts не установлен — движок Qwen недоступен. Сначала нужна GPU-среда (движок Vox или первичная установка).":
+        "The qwen-tts package is not installed — the Qwen engine is unavailable. "
+        "First install the GPU environment (Vox engine or first-run setup).",
+    "GPU-среда не установлена — сначала нужен движок Vox.":
+        "The GPU environment is not installed — install the Vox engine first.",
+    "Qwen3-TTS: модели на месте.": "Qwen3-TTS: models are in place.",
+    "Qwen3-TTS: модели не скачаны — докачает при озвучке.":
+        "Qwen3-TTS models are not downloaded — they will download when voicing.",
+    "✅ Модели Qwen3-TTS скачаны.": "✅ Qwen3-TTS models downloaded.",
+    "Заполни описание голоса и текст.": "Fill in the voice description and the text.",
+    "Модель дала тишину — переформулируй описание.":
+        "The model produced silence — rephrase the description.",
+    "Готово — слушаю. Нравится — жми «Сохранить».":
+        "Done — playing. If you like it, press “Save”.",
+    "Сначала прослушай вариант.": "Listen to a take first.",
+    "✅ Голос сохранён в списке — работает как клон.":
+        "✅ Voice saved in the list — it works like a clone.",
+    "Генерирую голос…": "Generating the voice…",
+    "Опиши голос словами — модель его создаст.\n"
+    "Например: «молодой энергичный мужчина, быстрая речь, с улыбкой»":
+        "Describe the voice in words — the model will create it.\n"
+        "Example: \"a young energetic man, fast speech, smiling\".",
+    "Текст прослушки": "Preview text",
+    "Имя голоса в списке": "Voice name in the list",
+    "🔊 Сгенерировать и послушать": "🔊 Generate and listen",
+    "💾 Сохранить": "💾 Save",
+    "Закрыть": "Close",
+    "Устройство": "Device",
+    "Точность": "Precision",
+    "Язык": "Language",
+    "Фиксированное зерно": "Fixed seed",
+    "Зерно (0 — каждый дуб новый)": "Seed (0 — new seed for every take)",
+    "Максимум токенов на фразу": "Max tokens per phrase",
+    "Освобождать память после озвучки": "Free memory after voicing",
+    "✅ Настройки Qwen сохранены.": "✅ Qwen settings saved.",
+    "📥 Скачать модели Qwen": "📥 Download Qwen models",
+    "Освободить память GPU": "Free GPU memory",
+})
+TR_EN_RU = {en: ru for ru, en in _PAIRS}
+
+TR_RU_EN_T = {}
+TR_EN_RU_T = {}
+for _ru, _en in _PAIRS:
+    _sh_ru, _v_ru = _shape(_ru)
+    _sh_en, _v_en = _shape(_en)
+    if _sh_ru == _sh_en and _v_ru == _v_en:
+        continue
+    if len(_sh_en.split("#")) - 1 == len(_v_ru):
+        TR_RU_EN_T.setdefault(_sh_ru, (_sh_en, len(_v_ru)))
+    if len(_sh_ru.split("#")) - 1 == len(_v_en):
+        TR_EN_RU_T.setdefault(_sh_en, (_sh_ru, len(_v_en)))
 
 
 def _tr(text, _deep=0):
@@ -3952,7 +3962,7 @@ class ModernTTSApp(*_APP_BASE):
         """Перерисовывает панель памяти: видеопамять — ржавчина, ОЗУ — золото."""
         gu, gt = self._gpu_mem_probe()
         if gu is not None and gt:
-            self.gpu_val.configure(text=f"{gu / 2**30:.0f}/{gt / 2**30:.0f} ГБ")
+            self.gpu_val.configure(text=f"{gu / 2**30:.0f}/{gt / 2**30:.0f} " + _tr("ГБ"))
             self.gpu_bar.set(min(1.0, gu / gt))
         else:
             self.gpu_val.configure(text="—")
@@ -3960,7 +3970,7 @@ class ModernTTSApp(*_APP_BASE):
         rt, ra = self._sys_mem_info()
         if rt:
             used = rt - ra
-            self.ram_val.configure(text=f"{used / 2**30:.0f}/{rt / 2**30:.0f} ГБ")
+            self.ram_val.configure(text=f"{used / 2**30:.0f}/{rt / 2**30:.0f} " + _tr("ГБ"))
             self.ram_bar.set(min(1.0, used / rt))
         else:
             self.ram_val.configure(text="—")
