@@ -2004,6 +2004,16 @@ TR_RU_EN.update({
     "GPU-среда для Qwen (≈2,5 ГБ)…": "GPU environment for Qwen (≈2.5 GB)…",
     "GPU-среда не установлена: ": "GPU environment not installed: ",
     "Пакет Qwen3-TTS (≈30 МБ)…": "Qwen3-TTS package (≈30 MB)…",
+    "3. Голосовой движок Qwen3-TTS — клон голоса по образцу и дизайн голоса по описанию, обе версии можно поставить вместе":
+        "3. Qwen3-TTS voice engine — voice cloning from a sample and voice design from a description; both versions can be installed together",
+    "0.6B — лёгкий (≈5 ГБ), клон голоса по образцу; нужно 4 ГБ видеопамяти":
+        "0.6B — lightweight (≈5 GB), cloning from a sample; needs 4 GB VRAM",
+    "1.7B — качество выше (≈13,5 ГБ), клон голоса и «Дизайн голоса» (моделирование по описанию); нужно 6–8 ГБ":
+        "1.7B — higher quality (≈13.5 GB), cloning plus \u201cVoice Design\u201d (design from a description); needs 6\u20138 GB VRAM",
+    "Движок 0.6B — клон по образцу, нужно 4 ГБ (≈5 ГБ)":
+        "Engine 0.6B — cloning from a sample, needs 4 GB (≈5 GB)",
+    "Движок 1.7B — клон + дизайн голоса по промту, нужно 6–8 ГБ (≈13,5 ГБ)":
+        "Engine 1.7B — cloning + voice design from a prompt, needs 6\u20138 GB (≈13.5 GB)",
     "Пакет Qwen3-TTS": "Qwen3-TTS package",
     "Пакет qwen-tts не установлен: ": "The qwen-tts package failed to install: ",
     "Пакет qwen-tts не установлен. Скачать и установить его? (≈30 МБ)":
@@ -3065,12 +3075,33 @@ class ModernTTSApp(*_APP_BASE):
         except Exception:
             return None, None
 
-    def _first_run_setup(self):
+    def _edge_check(self, cb, row, y_off=0):
+        """Поставить галочку так, чтобы квадрат был вплотную к правому краю строки.
+        У CTkCheckBox после квадрата идёт невидимый хвост подписи 7 px —
+        сдвигаем виджет на +7, хвост (пустой) спрячет parent, квадрат встанет вровень."""
+        cb._text_label.pack_forget()
+        cb.configure(width=25)  # иначе авто-ширина раздувается до 100 px
+        cb.place(relx=1.0, rely=0.5, x=5, anchor="e")  # квадрат в 2 px от края строки
+
+    def _apply_setup_preset(self, preset):
+        """Заранее отметить нужную галочку мастера, если она активна."""
+        box = getattr(self, "_setup_boxes", {}).get(preset) if preset else None
+        if box is None:
+            return
+        try:
+            if str(box.cget("state")) != "disabled":
+                box.select()
+        except Exception:
+            pass
+
+    def _first_run_setup(self, preset=None):
         """Первичная установка: одно окно на три строки — модель анализа (обязательно),
-        Vox (галочка), Qwen3-TTS (выбор размера движка). Видеокарта показана сразу."""
+        Vox (галочка), Qwen3-TTS (выбор размера движка). Видеокарта показана сразу.
+        preset: "vox"/"0.6B"/"1.7B" — заранее отметить нужную галочку."""
         old = getattr(self, "_setup_dialog", None)
         try:
             if old is not None and old.winfo_exists():
+                self._apply_setup_preset(preset)
                 old.lift()
                 old.focus_force()
                 return
@@ -3112,26 +3143,38 @@ class ModernTTSApp(*_APP_BASE):
         r1 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
         r1.pack(fill="x", padx=12, pady=(4, 3))
         done1 = " \u2705" if self.llm_models else ""
+        # обязательный пункт: галочка всегда проставлена и не отключается
+        cb1 = ctk.CTkCheckBox(r1, text="", checkbox_width=18, checkbox_height=18,
+                              fg_color="#9e9e9e", hover_color="#9e9e9e",
+                              border_color="#8a8a8a")
+        self._edge_check(cb1, r1, y_off=6)
+        cb1.select()
+        cb1.configure(state="disabled")
         ctk.CTkLabel(r1, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
-                     justify="left", wraplength=580,
+                     justify="left", wraplength=520,
                      text=_tr("1. Модель для анализа Gemma 4 E4B и сборка для "
                               "видеокарты (\u22485,6 ГБ) \u2014 обязательная часть "
                               "программы") + done1
-                              ).pack(fill="x", padx=10, pady=3)
+                     ).pack(side="left", fill="x", expand=True, padx=(10, 30), pady=3)
 
         r2 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
         r2.pack(fill="x", padx=12, pady=3)
         self._setup_vox = ctk.BooleanVar(value=bool(gvram and gvram >= 7.5))
-        cb2 = ctk.CTkCheckBox(r2, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN,
-                              checkbox_width=18, checkbox_height=18, fg_color="#c6763a",
-                              hover_color="#a95f2c",
-                              text=_tr("2. Голосовой движок VoxCPM2 (\u22484,5 ГБ) \u2014 "
-                                       "нужно 8 ГБ видеопамяти"),
+        # галочка прижата к правому краю, текст слева; клик по тексту тоже переключает
+        cb2 = ctk.CTkCheckBox(r2, text="", checkbox_width=18, checkbox_height=18,
+                              fg_color="#c6763a", hover_color="#a95f2c",
                               variable=self._setup_vox)
-        cb2.pack(fill="x", padx=10, pady=(4, 1))
+        self._edge_check(cb2, r2, y_off=5)
+        lb2 = ctk.CTkLabel(r2, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
+                           justify="left", wraplength=540,
+                           text=_tr("2. Голосовой движок VoxCPM2 (\u22484,5 ГБ) \u2014 "
+                                    "нужно 8 ГБ видеопамяти"))
+        lb2.pack(side="left", fill="x", expand=True, padx=(10, 30), pady=(5, 1))
+        lb2.bind("<Button-1>", lambda e: self._setup_vox.set(not self._setup_vox.get()))
         if self._vox_installed():
             cb2.select()
-            cb2.configure(state="disabled")
+            cb2.configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
+                          border_color="#8a8a8a", state="disabled")
             ctk.CTkLabel(r2, text="   \u2705 " + _tr("уже установлен"), font=FONT_TINY,
                          text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=10, pady=(0, 4))
         elif gvram and gvram < 7.5:
@@ -3150,36 +3193,41 @@ class ModernTTSApp(*_APP_BASE):
         r3 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
         r3.pack(fill="x", padx=12, pady=(3, 4))
         ctk.CTkLabel(r3, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
-                     text=_tr("3. Голосовой движок Qwen3-TTS \u2014 клон голоса по образцу")
-                     ).pack(anchor="w", padx=10, pady=(4, 0))
-        self._setup_qwen = ctk.StringVar(
-            value=("1.7B" if (gvram or 0) >= 5.5 else
-                   "0.6B" if (gvram or 0) >= 3.5 else "нет"))
-        qr = {}
-        _B = (FONT_FAMILY, 10, "bold")
-        for val, segs in (("нет", ((_tr("не устанавливать"), False),)),
-                          ("0.6B", ((_tr("0.6B \u2014 лёгкий (\u22485 ГБ), "), False),
-                                    (_tr("нужно 4 ГБ видеопамяти"), True))),
-                          ("1.7B", ((_tr("1.7B \u2014 качество выше (\u224813,5 ГБ), "), False),
-                                    (_tr("нужно 6\u20138 ГБ видеопамяти"), True),
-                                    (_tr("; «Дизайн голоса» только у 1.7B"), False)))):
+                     justify="left", wraplength=560,
+                     text=_tr("3. Голосовой движок Qwen3-TTS \u2014 клон голоса по "
+                              "образцу и дизайн голоса по описанию, обе версии можно "
+                              "поставить вместе")
+                     ).pack(fill="x", padx=10, pady=(4, 0))
+        # две независимые галочки у правого края: 0.6B и/или 1.7B
+        self._setup_q06 = ctk.BooleanVar(value=bool(gvram and 3.5 <= gvram < 5.5))
+        self._setup_q17 = ctk.BooleanVar(value=bool(gvram and gvram >= 5.5))
+        qcb = {}
+        for size, var, txt in (
+                ("0.6B", self._setup_q06,
+                 _tr("0.6B \u2014 лёгкий (≈5 ГБ), клон голоса по образцу; "
+                     "нужно 4 ГБ видеопамяти")),
+                ("1.7B", self._setup_q17,
+                 _tr("1.7B \u2014 качество выше (≈13,5 ГБ), клон голоса и "
+                     "«Дизайн голоса» (моделирование по описанию); нужно 6\u20138 ГБ"))):
             fr = ctk.CTkFrame(r3, fg_color="transparent")
-            fr.pack(anchor="w", padx=18, pady=2)
-            rb = ctk.CTkRadioButton(fr, text=segs[0][0], variable=self._setup_qwen, value=val,
-                                    font=FONT_TINY, text_color=COLOR_TEXT_MAIN,
-                                    fg_color="#c6763a", hover_color="#a95f2c",
-                                    radiobutton_width=16, radiobutton_height=16)
-            rb.pack(side="left")
-            for txt, bold in segs[1:]:
-                ctk.CTkLabel(fr, text=txt, font=_B if bold else FONT_TINY,
-                             text_color=COLOR_TEXT_MAIN).pack(side="left")
-            qr[val] = rb
+            fr.pack(fill="x", padx=(10, 2), pady=2)
+            cb = ctk.CTkCheckBox(fr, text="", checkbox_width=18, checkbox_height=18,
+                                 fg_color="#c6763a", hover_color="#a95f2c", variable=var)
+            self._edge_check(cb, fr, y_off=2)
+            lb = ctk.CTkLabel(fr, font=FONT_TINY, text_color=COLOR_TEXT_MAIN, anchor="w",
+                              justify="left", wraplength=520, text=txt)
+            lb.pack(side="left", fill="x", expand=True, padx=(4, 30))
+            lb.bind("<Button-1>", lambda e, v=var: v.set(not v.get()))
+            qcb[size] = cb
         if not gvram or gvram < 3.5:
-            for val in ("0.6B", "1.7B"):
-                qr[val].configure(state="disabled")
-            self._setup_qwen.set("нет")
+            for cb in qcb.values():
+                cb.configure(state="disabled")
+            self._setup_q06.set(False)
+            self._setup_q17.set(False)
         elif gvram < 5.5:
-            qr["1.7B"].configure(state="disabled")
+            qcb["1.7B"].configure(state="disabled")
+        self._setup_boxes = {"vox": cb2, "0.6B": qcb["0.6B"], "1.7B": qcb["1.7B"]}
+        self._apply_setup_preset(preset)
 
         bar = ctk.CTkProgressBar(body, height=10, corner_radius=6, progress_color="#c6763a",
                                  fg_color=COLOR_CARD2)
@@ -3267,10 +3315,10 @@ class ModernTTSApp(*_APP_BASE):
                         self._ui(self._vox_ready)
                     elif not self._setup_cancel.is_set():
                         set_info(_tr("Vox не установлен: ") + str(detail)[-160:])
-                if self._setup_qwen.get() in ("0.6B", "1.7B") and not self._setup_cancel.is_set():
-                    self.qwen_size = self._setup_qwen.get()
-                    self.save_settings()
-                    set_info(f"Qwen3-TTS {self.qwen_size}…")
+                _q_sizes = [s for s, on in (("0.6B", self._setup_q06.get()),
+                                            ("1.7B", self._setup_q17.get())) if on]
+                if _q_sizes and not self._setup_cancel.is_set():
+                    set_info(f"Qwen3-TTS {' + '.join(_q_sizes)}\u2026")
 
                     if not self._qwen_installed() and not self._setup_cancel.is_set():
                         if not self._vox_installed():
@@ -3318,12 +3366,22 @@ class ModernTTSApp(*_APP_BASE):
                                 set_info(_tr("Пакет qwen-tts не установлен: ")
                                          + str(detail_pkg)[-160:])
 
-                    def qprog(p, name):
-                        set_info(f"Qwen {self.qwen_size}: {p:.0f}% · {name}")
-                        set_bar(p / 100.0)
+                    for _sz in _q_sizes:          # 0.6B и/или 1.7B — по очереди
+                        if self._setup_cancel.is_set():
+                            break
+                        self.qwen_size = _sz
 
-                    self._qwen_fetch(list(self._qwen_repos().keys()),
-                                     on_progress=qprog, cancel=self._setup_cancel)
+                        def qprog(p, name, _s=_sz):
+                            set_info(f"Qwen {_s}: {p:.0f}% \u00b7 {name}")
+                            set_bar(p / 100.0)
+
+                        self._qwen_fetch(list(self._qwen_repos().keys()),
+                                         on_progress=qprog, cancel=self._setup_cancel)
+                    if "1.7B" in _q_sizes:
+                        self.qwen_size = "1.7B"   # обе — движком по умолчанию ставим старшую
+                    elif "0.6B" in _q_sizes:
+                        self.qwen_size = "0.6B"
+                    self.save_settings()
                 if self._setup_cancel.is_set():
                     return
                 self._ui(self._refresh_voices)
@@ -5929,20 +5987,13 @@ class ModernTTSApp(*_APP_BASE):
         return os.path.isdir(os.path.join(site_dir, "voxcpm"))
 
     def _offer_vox(self):
-        """Диалог «Поставить Vox?» — сам при первом запуске или из движка озвучки."""
+        """«Поставить Vox?» — открываем окно первичной установки с галочкой Vox."""
         self.vox_offer_done = True
         self.save_settings()
-        _flog("предлагаю дополнение Vox")
+        _flog("предлагаю дополнение Vox через окно установки")
         if self.engine_menu.get().startswith("Vox"):
             self._vox_wanted = True
-        if messagebox.askyesno(
-                _tr("Движок Vox"),
-                _tr("Vox — нейроголос по образцу с микрофона.\n\n"
-                    "Нужен пакет дополнения: переносимый Python + torch + VoxCPM, "
-                    "≈1,5 ГБ загрузки и ~3 ГБ на диске.\n\nСкачать сейчас?")):
-            self._install_vox()
-        else:
-            self.after(300, self._first_run_chain)   # следом — модель анализа
+        self._first_run_setup("vox")
 
     def _install_vox(self):
         """Установка дополнения Vox с прогрессом и логом pip."""
@@ -6638,27 +6689,7 @@ class ModernTTSApp(*_APP_BASE):
         if not missing:
             self.update_status(_tr("Qwen3-TTS: модели на месте."))
             return
-        gmap = QWEN_GB_06 if self.qwen_size == "0.6B" else QWEN_GB
-        gb = sum(gmap[k] for k in missing)
-        names = ", ".join(self._qwen_repos()[k].split("/")[-1] for k in missing)
-        if not messagebox.askyesno(
-                _tr("Движок Qwen"),
-                _tr("Не скачаны модели Qwen3-TTS (~{gb} ГБ):\n{names}\n\n"
-                    "Скачать сейчас в папку models_qwen?").format(gb=gb, names=names)):
-            self.update_status(_tr("Qwen3-TTS: модели не скачаны — докачает при озвучке."))
-            return
-
-        def work():
-            try:
-                self._qwen_fetch(missing, on_progress=lambda p, name: self._safe_ui(
-                    lambda p=p, name=name: self.set_progress(int(p), f"Модель Qwen: {name}")))
-                self._safe_ui(lambda: self.set_progress(0, ""))
-                self._safe_ui(lambda: self.update_status(_tr("✅ Модели Qwen3-TTS скачаны.")))
-            except Exception as e:
-                print(f"❌ Загрузка Qwen: {e}")
-                self._safe_ui(lambda e=e: self.update_status(f"❌ Qwen: {e}"))
-                self._safe_ui(lambda: self.set_progress(0, ""))
-        threading.Thread(target=work, daemon=True).start()
+        self._first_run_setup(self.qwen_size)   # докачка через окно установки
 
     def _qwen_device_dtype(self):
         import torch
@@ -6898,10 +6929,11 @@ class ModernTTSApp(*_APP_BASE):
         _style_tk_menu(menu)
         cur = self.qwen_size
         menu.add_command(label=("\u2705 " if cur == "0.6B" else "    ") +
-                         _tr("Движок 0.6B \u2014 нужно 4 ГБ (\u22485 ГБ)"),
+                         _tr("Движок 0.6B \u2014 клон по образцу, нужно 4 ГБ (≈5 ГБ)"),
                          command=lambda: self._qwen_switch_size("0.6B"))
         menu.add_command(label=("\u2705 " if cur == "1.7B" else "    ") +
-                         _tr("Движок 1.7B \u2014 нужно 6\u20138 ГБ (\u224813,5 ГБ)"),
+                         _tr("Движок 1.7B \u2014 клон + дизайн голоса по промту, "
+                             "нужно 6\u20138 ГБ (≈13,5 ГБ)"),
                          command=lambda: self._qwen_switch_size("1.7B"))
         try:
             menu.tk_popup(event.x_root, event.y_root)
@@ -6954,61 +6986,8 @@ class ModernTTSApp(*_APP_BASE):
         threading.Thread(target=work, daemon=True).start()
 
     def _qwen_size_dl_offer(self, size, missing):
-        """Движок {size} не скачан: предложить скачать, показав объём и VRAM."""
-        gb_map = QWEN_GB_06 if size == "0.6B" else QWEN_GB
-        total = sum(gb_map.get(k, 0.0) for k in missing)
-        vram_need = _tr("\u043d\u0443\u0436\u043d\u043e 4 \u0413\u0411 \u0432\u0438\u0434\u0435\u043e\u043f\u0430\u043c\u044f\u0442\u0438") \
-            if size == "0.6B" else \
-            _tr("\u043d\u0443\u0436\u043d\u043e 6\u20138 \u0413\u0411 \u0432\u0438\u0434\u0435\u043e\u043f\u0430\u043c\u044f\u0442\u0438")
-        gname, gvram = self._gpu_summary()
-        dlg = ctk.CTkToplevel(self)
-        dlg.title(_tr("Скачать движок Qwen?"))
-        dlg.geometry("540x250")
-        _center_on_parent(dlg)
-        dlg.resizable(False, False)
-        dlg.transient(self)
-        dlg.configure(fg_color=COLOR_BG)
-        _apply_dialog_icon(dlg)
-        ctk.CTkLabel(dlg, text=f"{_tr('Движок Qwen')} {size} {_tr('ещё не скачан')}",
-                     font=FONT_SUBHEADER, text_color=COLOR_HEAD).pack(pady=(12, 4))
-        ctk.CTkLabel(dlg, text=_tr("Скачать (\u2248{t:.1f} ГБ)?").format(t=total),
-                     font=(FONT_FAMILY, 13, "bold"),
-                     text_color=COLOR_TEXT_MAIN).pack()
-        ctk.CTkLabel(dlg, text=vram_need, font=(FONT_FAMILY, 12, "bold"),
-                     text_color=COLOR_TEXT_MAIN).pack(pady=(2, 0))
-        if gname:
-            need_min = 2.0 if size == "0.6B" else 5.5
-            ok = gvram >= need_min
-            ctk.CTkLabel(dlg, text=f"\U0001f5a5 {gname} \u2014 {gvram:.1f} "
-                                   + _tr("ГБ видеопамяти"),
-                         font=FONT_SMALL,
-                         text_color=COLOR_GOLD if ok else COLOR_RED).pack(pady=(8, 1))
-            if not ok:
-                ctk.CTkLabel(dlg, text=_tr("Вашей видеопамяти может не хватить"),
-                             font=FONT_TINY, text_color=COLOR_RED).pack()
-        else:
-            ctk.CTkLabel(dlg, text=_tr("\U0001f5a5 Видеокарта не найдена"),
-                         font=FONT_SMALL, text_color=COLOR_RED).pack(pady=(8, 1))
-        row = ctk.CTkFrame(dlg, fg_color="transparent")
-        row.pack(pady=(12, 10))
-        ctk.CTkButton(row, text=_tr("Скачать"), width=160, height=32,
-                      corner_radius=3, font=FONT_SMALL,
-                      fg_color="#c6763a", hover_color="#a95f2c",
-                      text_color=COLOR_TEXT_MAIN,
-                      command=lambda: (self._qwen_apply_size(size),
-                                       dlg.destroy())).pack(side="left")
-        ctk.CTkButton(row, text=_tr("Отмена"), width=100, height=32,
-                      corner_radius=3, font=FONT_SMALL, fg_color=COLOR_FILL_SOFT,
-                      hover_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN,
-                      command=dlg.destroy).pack(side="left", padx=8)
-
-        def _fit():
-            try:
-                if dlg.winfo_exists():
-                    dlg.geometry(f"540x{max(190, dlg.winfo_reqheight())}")
-            except Exception:
-                pass
-        dlg.after(60, _fit)
+        """Движок {size} не скачан — окно первичной установки с нужной галочкой."""
+        self._first_run_setup(size)
 
     def _qwen_design_size_offer(self):
         """Дизайн голоса требует движок 1.7B: показать требования и VRAM пользователя."""
@@ -7819,11 +7798,7 @@ class ModernTTSApp(*_APP_BASE):
             self._apply_engine("Piper")
             self.save_settings()
             self._vox_wanted = True
-            if messagebox.askyesno(
-                    _tr("Движок Vox"),
-                    _tr("Для Vox нужно дополнение (переносимый Python + torch + VoxCPM, "
-                        "≈1,5–2,5 ГБ).\n\nСкачать и установить сейчас?")):
-                self._install_vox()
+            self._first_run_setup("vox")
             return
         self._apply_engine(eng)
         if eng == "Vox":
