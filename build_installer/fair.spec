@@ -72,7 +72,7 @@ excludes = [
     # dev-пакеты быстрого Vox-движка (nano): в релизе не нужны, но transformers-скан
     # втягивал их в сборку вместе с библиотеками torch — поймано на сборке 08.11.26
     "flash_attn", "triton",
-    "voxcpm", "f5_tts", "pyarrow", "botocore", "grpc", "datasets", "accelerate",
+    "voxcpm", "nanovllm_voxcpm", "f5_tts", "pyarrow", "botocore", "grpc", "datasets", "accelerate",
     # Qwen3-TTS живёт в переносимой GPU-среде (vox/site), в exe не шьётся
     "qwen_tts",
     "matplotlib", "scipy", "pandas", "IPython", "notebook", "jupyter",
