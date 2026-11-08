@@ -2653,6 +2653,7 @@ class ModernTTSApp(*_APP_BASE):
         self._turbo_prompt_cache = {}    # голос -> prompt_id внутри движка
         self._turbo_ref_cache = {}       # файл эталона -> его латенты в движке
         self._turbo_loop_lock = threading.Lock()   # event loop движка — один поток в моменте
+        self._vox_load_lock = threading.Lock()     # одна загрузка Vox за раз («Озвучить» ждёт фоновую, а не грузит вторую)
         self.vox_variant = "turbo"       # "turbo" (быстрый) | "classic" (обычный) — вкладка «⚙ Vox»
         self.current_engine = "Piper"
         self.current_tts_name = None
@@ -6362,6 +6363,17 @@ class ModernTTSApp(*_APP_BASE):
                 pass
 
     def load_vox(self, show_errors=False):
+        # Быстрый выход: классик уже загружен или turbo-сервер поднят.
+        if self.vox_model is not None or getattr(self, "vox_turbo", None) is not None:
+            return True
+        # ОДНА загрузка за раз: пока движок грузится фоном (переключение движка),
+        # «Озвучить» не запускает вторую копию — ждёт окончания и переиспользует результат.
+        with self._vox_load_lock:
+            if self.vox_model is not None or getattr(self, "vox_turbo", None) is not None:
+                return True
+            return self._load_vox_unlocked(show_errors)
+
+    def _load_vox_unlocked(self, show_errors=False):
         if self.vox_model is not None:
             return True
         if self._vox_variant_effective() == "turbo":
