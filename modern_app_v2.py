@@ -9794,6 +9794,7 @@ class ModernTTSApp(*_APP_BASE):
                 acc = RUAccent()
                 acc.load(omograph_model_size="turbo2", use_dictionary=True)
                 self._ruaccent_obj = acc
+                _flog("RUAccent: модели загружены (turbo2, словарь)")
             saved = []
 
             def _keep(m):

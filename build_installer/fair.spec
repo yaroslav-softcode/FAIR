@@ -18,6 +18,17 @@ try:                                                  # перетаскиван
     datas += collect_data_files("tkinterdnd2")        # tkdnd: tcl-скрипты и бинарники
 except Exception:
     pass
+# RUAccent (автоударения) — модели предзагружены в venv (качали 07.11); кладём нужные
+# части в сборку, чтобы у пользователя не было скачивания ~700 МБ/200 с при первом
+# включении. turbo=320M не берём (в коде turbo2), nn_accent 3M, словарь 23M, koziev 189M
+# (RuleEngine), stress_usage 115M и yo_resolver 14M — load() грузит их безусловно.
+_RC = os.path.join(SRC, ".venv", "Lib", "site-packages", "ruaccent")
+for _d in (os.path.join("nn", "nn_accent"),
+           os.path.join("nn", "nn_omograph", "turbo2"),
+           os.path.join("nn", "nn_stress_usage_predictor"),
+           os.path.join("nn", "nn_yo_homograph_resolver"),
+           "dictionary", "koziev"):
+    datas.append((os.path.join(_RC, _d), "ruaccent/" + _d.replace(os.sep, "/")))
 datas += [
     (os.path.join(SRC, "app.ico"), "."),
     (os.path.join(SRC, "logo.png"), "."),
@@ -58,13 +69,21 @@ hiddenimports = ["llama_cpp", "piper", "onnxruntime", "sounddevice", "pyperclip"
                  # субтитры видео: YouTube и ВК/Rutube-запасной путь
                  "youtube_transcript_api", "yt_dlp", "defusedxml",
                  # drag&drop документов с рабочего стола
-                 "tkinterdnd2"]
+                 "tkinterdnd2",
+                 # автоударения RUAccent: сам пакет + transformers нужен для AutoTokenizer
+                 # в omograph/stress_usage ONNX (torch при этом остаётся исключён —
+                 # берёмся только за токенизаторы, они без torch работают)
+                 "ruaccent", "huggingface_hub", "tokenizers", "transformers",
+                 "pycrfsuite", "razdel"]
 
 excludes = [
     # piper содержит подпакет обучения (piper.train) — он тянет torch на 600 МБ,
-    # а для синтеза речи нужен только onnxruntime
+    # а для синтеза речи нужен только onnxruntime. transformers с 1.6 НЕ исключается:
+    # он нужен ruaccent (AutoTokenizer в omograph/stress_usage ONNX), сам torch и
+    # спутники остаются исключены — AutoTokenizer работает без torch (проверено
+    # импортом 08.11.26: import pycrfsuite, ruaccent -> OK).
     "piper.train", "bitsandbytes", "lightning", "pytorch_lightning", "torchmetrics",
-    "torch", "torchaudio", "torchvision", "transformers", "torchcodec", "ema_pytorch",
+    "torch", "torchaudio", "torchvision", "torchcodec", "ema_pytorch",
     "voxcpm", "f5_tts", "pyarrow", "botocore", "grpc", "datasets", "accelerate",
     # Qwen3-TTS живёт в переносимой GPU-среде (vox/site), в exe не шьётся
     "qwen_tts",
