@@ -65,8 +65,8 @@ hiddenimports = ["llama_cpp", "piper", "onnxruntime", "sounddevice", "pyperclip"
 excludes = [
     # piper содержит подпакет обучения (piper.train) — он тянет torch на 600 МБ,
     # а для синтеза речи нужен только onnxruntime. transformers с 1.6 НЕ исключается:
-    # RUAccent удалён из приложения (08.11.26, решение Ярослава); сам torch и
-    # спутники остаются исключены — вспомогательные токенизаторы живут без torch.
+    # Сам torch и спутники остаются исключены — вспомогательные токенизаторы
+    # живут без torch.
     "piper.train", "bitsandbytes", "lightning", "pytorch_lightning", "torchmetrics",
     "torch", "torchaudio", "torchvision", "torchcodec", "ema_pytorch",
     "voxcpm", "f5_tts", "pyarrow", "botocore", "grpc", "datasets", "accelerate",
