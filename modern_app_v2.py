@@ -2227,6 +2227,8 @@ def _fill(shape, vals):
 # Фразы-«обёртки»: после них идёт свободный текст (сообщение об ошибке и т.п.)
 _PREFIX_PAIRS = [
     ("❌ Ошибка: ", "❌ Error: "),
+    ("🧹 Модель озвучки выгружена из памяти: ",
+     "🧹 Voice model unloaded from memory: "),   # имена движков не переводим
     ("Не удалось загрузить VoxCPM2: ", "Failed to load VoxCPM2: "),
     ("VoxCPM2 generate не сработал: ", "VoxCPM2 generate failed: "),
     ("Не удалось запустить GPU-сервер: ", "Failed to start the GPU server: "),
@@ -2381,6 +2383,19 @@ _PAIRS += [
     ("8,192 ток. (≈13,305 знаков) · ОЗУ ≈ 3.2 ГБ",
      "8,192 tok. (≈13,305 chars) · RAM ≈ 3.2 GB"),
     ("Анализ нейросетью… чанк 2 из 4", "Neural analysis… chunk 2 of 4"),
+]
+
+# —— память: озвучка уступает место модели ИИ + поле числа чанков + «по главам» (10.11.26)
+_PAIRS += [
+    ("по главам", "by chapters"),
+    ("По главам", "By chapters"),
+    ("Ни одной главы в тексте не найдено — разбиваю по числу чанков.",
+     "No chapter found in the text — splitting by the chunk count instead."),
+    ("Глав слишком много (больше 400) — разбиваю по числу чанков.",
+     "Too many chapters (over 400) — splitting by the chunk count instead."),
+    ("Ждём конец озвучки…", "Waiting for the speech to finish…"),
+    ("⏳ Загрузка голоса…", "⏳ Loading the voice…"),
+    ("По главам: частей 3", "By chapters: 3 parts"),
 ]
 
 
@@ -2890,6 +2905,8 @@ class ModernTTSApp(*_APP_BASE):
         self.llm_gpu_var = ctk.BooleanVar(value=False)
         self.chunk_var = ctk.BooleanVar(value=False)      # «Чанки»: анализ текста по частям
         self.chunk_count_var = ctk.StringVar(value="4")   # на сколько частей делить
+        self._chunk_count_ok = "4"     # последнее годное число в поле (пустое/ноль откатываем)
+        self.chapters_var = ctk.BooleanVar(value=False)   # «по главам»: чанки = главы текста
         self._progress_window = None   # окно прогресса при анализе по чанкам (lo, hi)
         self._gpu_server = None
         self._gpu_server_port = None
@@ -2904,6 +2921,7 @@ class ModernTTSApp(*_APP_BASE):
         self.llm_model_path = None
         self.llm_model_ctx = None
         self.is_processing = False
+        self._synth_busy = False       # озвучка в своём потоке: анализ ждёт её конца перед выгрузкой
         self._analysis_thread = None
         self.tts_models = {}
         self.llm_models = {}
@@ -4974,8 +4992,10 @@ class ModernTTSApp(*_APP_BASE):
         self.lbl_mode_gpu.pack(side="left")
 
         # Справа — разбивка на чанки: текст считается по частям (для длинных текстов).
-        # В ряду с Процессор/Видеокарта: элементы ужаты (свитчи 36, меню 42, короткие
-        # паддинги), чтобы строка села плотно и без переноса (финал 09.11.26)
+        # В ряду с Процессор/Видеокарта: элементы ужаты (свитчи 36, поле 40, короткие
+        # паддинги), чтобы строка села плотно и без переноса (финал 09.11.26).
+        # 10.11.26 (просьба Ярослава): вместо выпадающего меню 2–16 — поле с клавиатуры,
+        # ограничение снято совсем: можно 28, 30, 100 — сколько наберёшь.
         chunk_box = ctk.CTkFrame(gpu_row, fg_color="transparent")
         chunk_box.pack(side="right")
         self.lbl_chunks = ctk.CTkLabel(chunk_box, text="Разбить на чанки", font=FONT_SMALL,
@@ -4986,22 +5006,41 @@ class ModernTTSApp(*_APP_BASE):
                                       button_color="#fffdf6", button_hover_color="#fffdf6",
                                       command=self._on_chunks_toggle)
         self.chunk_cb.pack(side="left", padx=(2, 0))
-        self.chunk_menu = ctk.CTkOptionMenu(chunk_box, values=[str(i) for i in range(2, 17)],
-                                            width=42, height=26, font=FONT_TINY,
-                                            corner_radius=3, fg_color=COLOR_CARD2,
-                                            button_color=COLOR_FILL_SOFT,
-                                            button_hover_color=COLOR_SELECT,
-                                            text_color=COLOR_TEXT_MAIN,
-                                            dropdown_fg_color="#fffdf6",
-                                            dropdown_text_color=COLOR_TEXT_MAIN,
-                                            dropdown_hover_color=COLOR_SELECT,
-                                            command=self._on_chunks_count)
-        self.chunk_menu.pack(side="left")
-        self._sync_chunk_menu()
+        self.chunk_entry = ctk.CTkEntry(chunk_box, textvariable=self.chunk_count_var,
+                                        width=40, height=26, corner_radius=3,
+                                        fg_color=COLOR_CARD2, border_color=COLOR_BORDER,
+                                        text_color=COLOR_TEXT_MAIN, font=FONT_TINY,
+                                        justify="center")
+        self.chunk_entry.pack(side="left", padx=(0, 0))
+        self.chunk_entry.bind("<KeyRelease>", self._on_chunk_key)
+        self.chunk_entry.bind("<FocusOut>", self._commit_chunk_count)
+        self.chunk_entry.bind("<Return>", self._commit_chunk_count)
 
-        self.llm_limit_label = ctk.CTkLabel(ai, text="…", font=FONT_TINY,
+        # Строкой ниже, справа: подпись «по главам» слева и галочка справа от неё
+        # (просьба Ярослава 10.11.26). Включённая галочка = чанки берутся по главам
+        # текста: метки импорта fb2/epub [[…]] либо распознанные заголовки глав.
+        chap_row = ctk.CTkFrame(ai, fg_color="transparent")
+        chap_row.pack(fill="x", padx=12, pady=(0, 4))
+        chap_box = ctk.CTkFrame(chap_row, fg_color="transparent")
+        chap_box.pack(side="right")
+        self.lbl_chapters = ctk.CTkLabel(chap_box, text="по главам", font=FONT_SMALL,
+                                         text_color=COLOR_TEXT_SEC, anchor="e")
+        self.lbl_chapters.pack(side="left")
+        self.chapters_cb = ctk.CTkCheckBox(chap_box, text="", variable=self.chapters_var,
+                                           width=22, checkbox_width=18, checkbox_height=18,
+                                           corner_radius=3, border_width=1,
+                                           border_color=COLOR_BORDER, fg_color=COLOR_BRAND,
+                                           hover_color=COLOR_BRAND_HOVER,
+                                           checkmark_color="#fffdf6", font=FONT_TINY,
+                                           command=self._on_chapters_toggle)
+        self.chapters_cb.pack(side="left", padx=(6, 0))
+        # строка с токенами/знаками/VRAM переехала сюда же: слева она, галочка
+        # «по главам» справа — отдельной строкой вислового текста больше нет
+        # (просьба Ярослава 10.11.26)
+        self.llm_limit_label = ctk.CTkLabel(chap_row, text="…", font=FONT_TINY,
                                             text_color=COLOR_TEXT_SEC, anchor="w")
-        self.llm_limit_label.pack(fill="x", padx=12, pady=(0, 4))
+        self.llm_limit_label.pack(side="left", fill="x", expand=True)
+        self._sync_chunk_menu()
 
         ctx_row = ctk.CTkFrame(ai, fg_color="transparent")
         ctx_row.pack(fill="x", padx=12, pady=(0, 7))
@@ -6049,10 +6088,18 @@ class ModernTTSApp(*_APP_BASE):
         return chapters, book_title
 
 
+    def _chapter_marked(self, c):
+        """Глава с служебной меткой заголовка «[[Заголовок]]»: по ней чанки
+        режутся по главам, когда включена галочка «по главам» (10.11.26).
+        В анализ и озвучку метка не уходит — её снимает _unmark_chapters."""
+        t = re.sub(r"[\[\]]", "", (c.get("title") or "")).strip()[:120]
+        body = (c.get("text") or "").strip()
+        return (f"[[{t}]]\n\n" + body) if t else body
+
     def _book_dialog(self, chapters, book_title, path):
         """Диалог выбора глав для книг (FB2/EPUB): вся книга целиком или одна глава."""
         base = book_title or os.path.basename(path)
-        whole = "\n\n".join(c["text"] for c in chapters).strip()
+        whole = "\n\n".join(self._chapter_marked(c) for c in chapters).strip()
         items = [{"title": "📖 Вся книга целиком", "text": whole, "name": base}]
         for i, c in enumerate(chapters, 1):
             t = c["title"]
@@ -8415,7 +8462,8 @@ class ModernTTSApp(*_APP_BASE):
                 "emo_auto": bool(self.emo_auto_var.get() if self.current_engine in ("Vox", "Qwen")
                                   else self._emo_pref),
                 "chunks_on": bool(self.chunk_var.get()),
-                "chunks_count": int(self.chunk_count_var.get() or "4"),
+                "chunks_count": self._chunks_settings()[1],
+                "chunks_by": bool(self.chapters_var.get()),
                 "custom_voices": self.custom_voices,
                 "engine_voices": self.engine_voices,
                 "ctx_choices": self.ctx_choices,
@@ -8531,10 +8579,15 @@ class ModernTTSApp(*_APP_BASE):
         self._emo_pref = bool(data.get("emo_auto", False))
         self.emo_auto_var.set(self._emo_pref and self.current_engine == "Vox")
         self.chunk_var.set(bool(data.get("chunks_on", False)))
+        # границы числа чанков снимли: сколько человек набрал, столько и частей
         try:
-            self.chunk_count_var.set(str(max(2, min(16, int(data.get("chunks_count", 4))))))
+            _cc = max(1, int(data.get("chunks_count", 4)))
         except Exception:
-            self.chunk_count_var.set("4")
+            _cc = 4
+        self.chunk_count_var.set(str(_cc))
+        self._chunk_count_ok = str(_cc)
+        self.chapters_var.set(bool(data.get("chunks_by", False)))
+        self._sync_chunk_menu()
         self.model_offer_muted = bool(data.get("model_offer_muted", False))
         self.voices_seeded = bool(data.get("voices_seeded", False))
         self.vox_offer_done = bool(data.get("vox_offer_done", False))
@@ -8721,12 +8774,20 @@ class ModernTTSApp(*_APP_BASE):
 
     # ---- чанки (09.11.26): разбивка длинного текста на части при анализе ----
     def _sync_chunk_menu(self, *_):
-        """Меню числа чанков живо только при включённом тумблере «Чанки»."""
+        """Поле числа чанков живёт только при включённом тумблере «Чанки»;
+        галочка «по главам» — тоже только тогда. При включённой галочке поле числа
+        гаснет: чанков будет столько, сколько глав в тексте."""
         try:
-            self.chunk_menu.set(self.chunk_count_var.get() or "4")
-            self.chunk_menu.configure(state="normal" if self.chunk_var.get() else "disabled")
+            on = bool(self.chunk_var.get())
+            chap = on and bool(self.chapters_var.get())
+            self.chunk_entry.configure(state="normal" if (on and not chap) else "disabled")
+            if not on:
+                self.chunk_count_var.set(self._chunk_count_ok)
             self.lbl_chunks.configure(
-                text_color=COLOR_TEXT_MAIN if self.chunk_var.get() else COLOR_TEXT_SEC)
+                text_color=COLOR_TEXT_MAIN if on else COLOR_TEXT_SEC)
+            self.chapters_cb.configure(state="normal" if on else "disabled")
+            self.lbl_chapters.configure(
+                text_color=COLOR_TEXT_MAIN if chap else COLOR_TEXT_SEC)
         except Exception:
             pass
 
@@ -8734,14 +8795,43 @@ class ModernTTSApp(*_APP_BASE):
         self.save_settings()
         self._sync_chunk_menu()
 
-    def _on_chunks_count(self, value=None):
-        # Выбор числа из меню ОБЯЗАН попасть в chunk_count_var: без этого анализ
-        # всегда брал дефолт «4», сколько бы ни выбрали (баг нашёл Ярослав 09.11.26).
+    def _on_chapters_toggle(self):
+        # «по главам» без чанков бессмысленна: тумблер «Чанки» включаем сами
+        # (просьба Ярослава 10.11.26)
         try:
-            if value is not None:
-                self.chunk_count_var.set(str(value))
+            if self.chapters_var.get() and not self.chunk_var.get():
+                self.chunk_var.set(True)
         except Exception:
             pass
+        self.save_settings()
+        self._sync_chunk_menu()
+
+    def _on_chunk_key(self, *_):
+        """В поле числа чанков проходят только цифры (буквы/минус срезаются)."""
+        try:
+            raw = self.chunk_count_var.get() or ""
+            clean = re.sub(r"\D", "", raw)
+            if clean != raw:
+                self.chunk_count_var.set(clean)
+        except Exception:
+            pass
+
+    def _commit_chunk_count(self, *_):
+        """Число из поля ОБЯЗАНО доходить до настроек: раньше выбор жил только в
+        виджете-меню и анализ брал дефолт (баг нашла связка 09.11.26). Верхней
+        границы нет — сколько набрал, столько частей; пустое поле или ноль =
+        откат к последнему годному значению."""
+        try:
+            n = int(re.sub(r"\D", "", self.chunk_count_var.get() or "") or 0)
+        except Exception:
+            n = 0
+        if n < 1:
+            try:
+                n = max(1, int(self._chunk_count_ok))
+            except Exception:
+                n = 4
+        self._chunk_count_ok = str(n)
+        self.chunk_count_var.set(str(n))
         self.save_settings()
 
     def _pick_setup_pack(self, label):
@@ -9490,7 +9580,7 @@ class ModernTTSApp(*_APP_BASE):
                     for kw in ({"cfg_value": 2.0, "inference_timesteps": 10},
                                {"cfg_value": 2.0}, {}):
                         try:
-                            out = m.generate(text=text, reference_wav_path=ref_wav, **kw)
+                            out = m.generate(text=f"({instr}){phrase}", reference_wav_path=ref_wav, **kw)
                             break
                         except TypeError as e:
                             last = e
@@ -10400,7 +10490,9 @@ class ModernTTSApp(*_APP_BASE):
     # ---- чанки (09.11.26): разбивка текста на части для анализа ----
 
     def _chunks_settings(self):
-        """Состояние тумблера «Чанки» и выбранное число частей."""
+        """Состояние тумблера «Чанки» и выбранное число частей.
+        10.11.26 (просьба Ярослава): верхней границы нет — 28, 30, 100… сколько
+        набрал в поле, столько и частей; нижняя — 1 (ноль означал бы «не считать»)."""
         try:
             on = bool(self.chunk_var.get())
         except Exception:
@@ -10409,7 +10501,98 @@ class ModernTTSApp(*_APP_BASE):
             n = int(self.chunk_count_var.get() or "4")
         except Exception:
             n = 4
-        return on, max(2, min(64, n))
+        return on, max(1, n)
+
+    def _chapters_setting(self):
+        """Галочка «по главам» в карточке «МОДЕЛЬ ИИ»."""
+        try:
+            return bool(self.chapters_var.get())
+        except Exception:
+            return False
+
+    # ---- главы текста (10.11.26, просьба Ярослава): чанки по главам ----
+    def _chap_res(self):
+        """Regex-набор для глав (компилируем один раз)."""
+        cache = getattr(self, "_chap_re_cache", None)
+        if not cache:
+            cache = self._chap_re_cache = (
+                # метка главы: отдельная строка [[Заголовок]] — её ставит импорт fb2/epub
+                re.compile(r"^[ \t]*\[\[(.{1,90}?)\]\][ \t]*$", re.M),
+                # заголовок со словом «глава/часть/том/…», «Chapter 12»
+                re.compile(r"^(?:глав[аыие]?|главе|chapter|части[ya]?|часть|том|"
+                           r"книг[аи]|part|section|canto|песн[яи])\b", re.I),
+                # «12. Весна» / «12) Весна»
+                re.compile(r"^\d{1,3}\s*[.)\-–—]\s*\S"),
+                # римские: «XII» / «XII.»
+                re.compile(r"^[IVXLCDM]{1,5}[.)]?$"),
+            )
+        return cache
+
+    def _unmark_chapters(self, text):
+        """Снять метки глав [[…]], оставив сам заголовок: модель и озвучка
+        должны видеть обычный текст, а не служебные скобки."""
+        return re.sub(r"\[\[(.{1,90}?)\]\]", r"\1", text or "")
+
+    def _chapter_head_line(self, line, prev_blank, next_blank):
+        """Похожа ли строка на заголовок главы (для текста, вставленного вручную,
+        где меток импорта нет). Короткая строка с отбивкой сверху и снизу плюс
+        ключевой признак — это он."""
+        s = line.strip()
+        if not (2 <= len(s) <= 90):
+            return False
+        mark, word, num, roman = self._chap_res()
+        if word.match(s):
+            return True
+        if roman.match(s):
+            return prev_blank and next_blank
+        if num.match(s):                      # «3. Весна» — просим отбивку с двух сторон
+            return prev_blank and next_blank
+        if (prev_blank and next_blank and len(s) <= 60
+                and s.upper() == s and sum(c.isalpha() for c in s) >= 3):
+            return True                       # ЗАГЛАВАМИ — обычно название главы
+        return False
+
+    def _split_by_chapters(self, raw):
+        """Разбить текст по главам.
+
+        Сначала ищем метки импорта [[Заголовок]] (fb2/epub — они встают при
+        выборе главы в окне импорта и при вставке книги целиком). Если меток нет,
+        распознаём заголовки глав в самом тексте. Возвращает список частей
+        (метка снята, но заголовок остался строкой — структура видна модели)
+        или [] — глав не нашли, тогда разбор идёт по числу чанков.
+        """
+        raw = (raw or "").replace("\r\n", "\n").replace("\r", "\n")
+        lines = raw.split("\n")
+        mark = self._chap_res()[0]
+        cuts = [i for i, ln in enumerate(lines) if mark.match(ln)]
+        if not cuts:
+            cuts = []
+            for i, ln in enumerate(lines):
+                if not ln.strip():
+                    continue
+                prev_blank = (i == 0) or not lines[i - 1].strip()
+                nxt = lines[i + 1] if i + 1 < len(lines) else ""
+                if self._chapter_head_line(ln, prev_blank, not nxt.strip()):
+                    cuts.append(i)
+        if not cuts:
+            return []
+        if len(cuts) > 400:                   # защита от ложных срабатываний
+            return None                       # None = «глав слишком много»
+        parts = []
+        pre = "\n".join(lines[:cuts[0]]).strip()
+        if pre:
+            parts.append(pre)                 # то, что до первой главы (посвящение и т.п.)
+        for k, i in enumerate(cuts):
+            j = cuts[k + 1] if k + 1 < len(cuts) else len(lines)
+            block = "\n".join(lines[i:j]).strip()
+            first, sep, rest = block.partition("\n")
+            m = mark.match(first)
+            if m:
+                head = m.group(1).strip()     # метку снимаем, заголовок оставляем
+                block = f"{head}\n\n{rest.strip()}" if rest.strip() else head
+            if block:
+                parts.append(block)
+        return [p for p in parts if p.strip()]
 
     def _split_for_chunks(self, text, n, hard_limit=None):
         """Режем текст на части для анализа. Границы — только по концам предложений.
@@ -10549,12 +10732,14 @@ class ModernTTSApp(*_APP_BASE):
             self._last_pct = -1
             self.after(0, lambda: self.stats_label.configure(text=""))
 
+            raw_text = ""
             if source_text:
+                raw_text = source_text
                 text = re.sub(r'\s+', ' ', source_text).strip()
                 self.after(0, lambda: self.update_status("Анализ вашего текста…"))
             else:
                 self.after(0, lambda: self.update_status("Загрузка статьи…"))
-                text = self.fetch_and_clean_text(url)
+                text = raw_text = self.fetch_and_clean_text(url)
             self.after(0, lambda: self.set_progress(5, "Подготовка текста"))
 
             # «Без изменений»: без авто-эмоций текст идёт в озвучку как есть, модель не нужна.
@@ -10577,8 +10762,35 @@ class ModernTTSApp(*_APP_BASE):
                 return
 
             limit = self.model_limits.get(llm_name, FALLBACK_CHARS)
-            n_chars = len(text)
             chunks_on, chunks_want = self._chunks_settings()
+
+            # «по главам» (просьба Ярослава 10.11.26): чанки берутся по главам текста,
+            # а не по набранному в поле числу. Метки [[Заголовок]] ставит импорт fb2/epub;
+            # для текста, вставленного вручную, главы ищем по заголовкам. Служебные [[…]]
+            # перед моделью снимаются — остаётся сам заголовок строкой.
+            chap_on = chunks_on and self._chapters_setting()
+            chapter_parts = []
+            if chap_on:
+                parts = self._split_by_chapters(raw_text)
+                if parts:
+                    chapter_parts = [re.sub(r'\s+', ' ', self._unmark_chapters(p)).strip()
+                                     for p in parts]
+                    chapter_parts = [p for p in chapter_parts if p]
+                if chapter_parts:
+                    text = " ".join(chapter_parts)
+                    print(f"📚 По главам: частей {len(chapter_parts)}")
+                else:
+                    chap_on = False
+                    msg = ("Глав слишком много (больше 400) — разбиваю по числу чанков."
+                           if parts is None else
+                           "Ни одной главы в тексте не найдено — разбиваю по числу чанков.")
+                    self.after(0, lambda m=msg: messagebox.showwarning("По главам", m))
+            elif "[[" in text:
+                # галочка выключена: служебные метки импорта не должны попадать ни
+                # в анализ, ни в озвучку — остаётся только сам заголовок
+                text = self._unmark_chapters(text)
+                raw_text = self._unmark_chapters(raw_text)
+            n_chars = len(text)
             need_n = max(2, -(-n_chars // max(1, limit)))   # минимум частей, чтобы текст влез
 
             if not chunks_on and n_chars > limit:
@@ -10594,7 +10806,7 @@ class ModernTTSApp(*_APP_BASE):
                     msg = msg.replace(",", " ")
                 self.after(0, lambda m=msg: messagebox.showwarning("Слишком длинный текст", m))
                 raise TooLong(msg)
-            if chunks_on and chunks_want < need_n:
+            if chunks_on and not chap_on and chunks_want < need_n:
                 if UI_LANG == "en":
                     msg = (f"You selected {chunks_want} chunks: {n_chars:,} characters cannot fit "
                            f"into that many parts — one part holds up to {limit:,} characters. "
@@ -10620,6 +10832,31 @@ class ModernTTSApp(*_APP_BASE):
                 raise Exception(f"Файл модели не найден: {path}")
 
             n_ctx = self.model_ctx.get(llm_name, 4096)
+
+            # ---- память: озвучка уступает место модели ИИ (просьба Ярослава 10.11.26) ----
+            # Голосовая модель (Vox — несколько ГБ VRAM, Qwen/Piper — RAM) обязана уйти
+            # из памяти ДО загрузки модели анализа: иначе обе не влезают, и загрузка ИИ
+            # падает или уходит в оффлоад. Выгружаем ВСЕГДА, а не только в режиме
+            # «Видеокарта». Если включено «Озвучивать сразу после анализа», движок
+            # поднимется заново сам — со статусом «⏳ Загрузка голоса…».
+            # Озвучку посреди синтеза не рвём: сначала ждём её конца.
+            _waited = False
+            while getattr(self, "_synth_busy", False) and not self.cancel_event.is_set():
+                if not _waited:
+                    self.after(0, lambda: self.update_status("Ждём конец озвучки…"))
+                    _waited = True
+                time.sleep(0.5)
+            if self.cancel_event.is_set():
+                raise Cancelled()
+            try:
+                freed = self._unload_tts_models(keep=None)
+            except Exception as e:
+                print(f"⚠️ Озвучку выгрузить не удалось: {e}")
+                freed = []
+            if freed:
+                print(f"🧹 Озвучка выгружена перед загрузкой модели ИИ: {', '.join(freed)}")
+                self.after(0, lambda f=", ".join(freed): self.update_status(
+                    "🧹 Модель озвучки выгружена из памяти: " + f))
 
             if self.llm_gpu_var.get():
                 self.after(0, lambda: self.update_status("Загрузка модели на видеокарту…"))
@@ -10682,7 +10919,17 @@ class ModernTTSApp(*_APP_BASE):
             if chunks_on:
                 # Анализ по частям: текст режется на чанки. Предложение с маркером
                 # эмоции не разрывается и завершает свой чанк — см. _split_for_chunks().
-                parts_in = self._split_for_chunks(text, chunks_want, hard_limit=limit)
+                if chap_on:
+                    # «по главам» (просьба Ярослава 10.11.26): границы чанков — главы
+                    # текста; глава крупнее лимита модели дорезается по предложениям.
+                    parts_in = []
+                    for p in chapter_parts:
+                        if len(p) > limit:
+                            parts_in.extend(self._split_for_chunks(p, 0, hard_limit=limit))
+                        else:
+                            parts_in.append(p)
+                else:
+                    parts_in = self._split_for_chunks(text, chunks_want, hard_limit=limit)
                 n_parts = len(parts_in)
                 print(f"🧩 Анализ по чанкам: {n_parts} части")
                 done, sum_tok, sum_el, any_tr = [], 0, 0.0, False
@@ -10787,6 +11034,9 @@ class ModernTTSApp(*_APP_BASE):
 
     def _play_wav(self, path):
         """Играет WAV внутри приложения, чтобы кнопка «Стоп» реально работала."""
+        # синтез закончен, играет уже готовый файл: модель озвучки больше не
+        # занята, и анализ может выгрузить её из памяти, не испортив звук
+        self._synth_busy = False
         try:
             with wave.open(path) as w:
                 sr = w.getframerate()
@@ -10988,6 +11238,8 @@ class ModernTTSApp(*_APP_BASE):
         else:  # Piper — голосовой объект должен быть готов до синтеза
             if not self.tts_voice:
                 if self.tts_combo.get():
+                    # голос выгрузил анализ перед моделью ИИ — поднимаем заново
+                    self.update_status("⏳ Загрузка голоса…")
                     self.load_tts_on_select()
                 if not self.tts_voice:
                     messagebox.showwarning("Внимание", "Голос не выбран.")
@@ -11065,6 +11317,16 @@ class ModernTTSApp(*_APP_BASE):
             print(f"\u26a0\ufe0f \u043f\u043e\u0442\u043e\u0447\u043d\u0430\u044f \u043e\u0437\u0432\u0443\u0447\u043a\u0430: \u0447\u0430\u043d\u043a {i + 1} \u043d\u0435 \u0432\u044b\u0448\u0435\u043b: {e}")
 
     def generate_and_play(self, text: str, play: bool = True):
+        """Точка входа озвучки (зовёт и окно, и fair_api). Флаг _synth_busy нужен
+        анализу: перед выгрузкой голосовой модели он ждёт конец синтеза, чтобы не
+        снять движок посреди генерации (просьба Ярослава 10.11.26)."""
+        self._synth_busy = True
+        try:
+            return self._synth_guarded(text, play=play)
+        finally:
+            self._synth_busy = False
+
+    def _synth_guarded(self, text: str, play: bool = True):
         temp_file = os.path.join(self.BASE_DIR, "temp_output_pro.wav")
         try:
             orig_text = text
@@ -11073,7 +11335,8 @@ class ModernTTSApp(*_APP_BASE):
 
             if self.current_engine == "Vox":
                 if self.vox_model is None:
-                    self.after(0, lambda: self.update_status("⏳ Загрузка VoxCPM2..."))
+                    # движок выгрузил анализ (или сменился режим) — поднимаем заново
+                    self.after(0, lambda: self.update_status("⏳ Загрузка голоса…"))
                     if not self.load_vox(show_errors=True):
                         raise Exception("Не удалось загрузить VoxCPM2")
 
@@ -11171,8 +11434,11 @@ class ModernTTSApp(*_APP_BASE):
                 if not self._qwen_ready(need_kind):
                     self._safe_ui(lambda: self.update_status("⏳ Скачиваю модель Qwen3-TTS..."))
                     self._qwen_fetch([need_kind], cancel=self.cancel_event)
-                self.after(0, lambda: self.update_status(f"⏳ Синтез Qwen3-TTS (×{actual_rate:.2f})..."))
+                if self._qwen_models.get(need_kind) is None:
+                    # движок выгрузил анализ (или сменился режим) — поднимаем заново
+                    self.after(0, lambda: self.update_status("⏳ Загрузка голоса…"))
                 model = self._qwen_model(need_kind)
+                self.after(0, lambda: self.update_status(f"⏳ Синтез Qwen3-TTS (×{actual_rate:.2f})..."))
                 lang = self.qwen_cfg.get("language") or "auto"
                 lang = None if lang == "auto" else lang
                 # поле инструкции в карточке — только зеркало; характер живёт
