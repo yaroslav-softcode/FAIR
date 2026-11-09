@@ -877,6 +877,21 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                       font=FONT_NORMAL, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                       text_color=COLOR_TEXT_MAIN).grid(row=0, column=1, sticky="ew", padx=(5, 0))
 
+        # «🔁 Передать в Вокс» — низ окна под Qwen: образец, записанный для Qwen,
+        # копиируется ещё и в список голосов Вокс (просьба Ярослава, 09.11.26)
+        self.btn_to_vox = None
+        if (not self.emotion_mode and getattr(self.app, "current_engine", "") == "Qwen"
+                and (self._cur_info() or {}).get("path")):
+            self.btn_to_vox = ctk.CTkButton(body, text="🔁  " + _tr("Передать в Вокс"),
+                                            height=30, corner_radius=3, font=FONT_SMALL,
+                                            fg_color=COLOR_FILL_SOFT, hover_color=COLOR_SELECT,
+                                            text_color=COLOR_TEXT_MAIN, border_width=1,
+                                            border_color=COLOR_BORDER,
+                                            command=self._transfer_to_vox)
+            self.btn_to_vox.pack(fill="x", padx=18, pady=(0, 8))
+            self._base_geo = "470x" + str(int(self._base_geo.split("x")[1]) + 42)
+            self.geometry(self._base_geo)
+
         # «🗑 Удалить голос» — прямо в окне образца (Ярослав, 05.11.26): видно,
         # когда слот уже заполнен и движок Vox/Qwen
         self.btn_del = None
@@ -1150,6 +1165,35 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         """Инфо слота в этом окне: ключи custom_voices — строки, slot_id — число."""
         return (self.existing.get(self.slot_id)
                 or self.existing.get(str(self.slot_id)) or {})
+
+    def _transfer_to_vox(self):
+        """Копия образца Qwen в список голосов Вокс: новый слот с меткой engine=Vox.
+        Файл копируется, а не ссылка: удаление голоса на одном движке не должно
+        ломать образец на другом (просьба Ярослава, 09.11.26)."""
+        app = self.app
+        info = self._cur_info() or {}
+        src = (info.get("path") or "").strip()
+        if not src or not os.path.exists(src):
+            self.lbl_rec_time.configure(text=_tr("У голоса нет образца — сначала запишите его."),
+                                        text_color=COLOR_RED)
+            return
+        try:
+            vid = app._first_empty_voice()[0] or app._next_voice_id()
+            dst = os.path.join(BASE_DIR, f"my_voice_{vid}_vox.wav")
+            shutil.copyfile(src, dst)
+        except Exception as e:
+            print(f"❌ Передать в Вокс: {e}")
+            self.lbl_rec_time.configure(text=_tr("Не удалось скопировать образец") + f": {e}",
+                                        text_color=COLOR_RED)
+            return
+        text = (self.entry_text.get("1.0", "end-1c").strip() or info.get("text")
+                or self.DEFAULT_TEXT)
+        name = ((self.entry_name.get() or "").strip() or (info.get("name") or "").strip()
+                or "Мой голос")
+        app._apply_custom_voice(dst, text, str(vid), name, engine="Vox")
+        self.lbl_rec_time.configure(
+            text=_tr("✅ Образец передан в Вокс — он появился в списке голосов Vox."),
+            text_color=COLOR_TEXT_MAIN)
 
     def _delete_from_dialog(self):
         """Удалить голос прямо из окна «Образец голоса» (Ярослав, 05.11.26).
@@ -2201,7 +2245,7 @@ _PAIRS += [
 # ── Словари переводов собираются ЗДЕСЬ — ПОСЛЕ всех `_PAIRS +=` (в т.ч. поздних
 # фич): если строить раньше, пары из поздних блоков остаются «немыми».
 TR_RU_EN = dict(_PAIRS)
-TR_RU_EN.update({
+_XLAT_EXTRA = {
     "Qwen (GPU)": "Qwen (GPU)",
     "⚠ Qwen требует видеокарту с 6 ГБ видеопамяти": "⚠ Qwen requires a GPU with 6 GB of VRAM",
     "✨ Дизайн голоса": "✨ Design voice",
@@ -2267,12 +2311,24 @@ TR_RU_EN.update({
     "✅ Настройки Qwen сохранены.": "✅ Qwen settings saved.",
     "📥 Скачать модели Qwen": "📥 Download Qwen models",
     "Освободить память GPU": "Free GPU memory",
-})
+    # передача образца Qwen в список голосов Vox (просьба Ярослава, 09.11.26)
+    "Передать в Вокс": "Send to Vox",
+    "У голоса нет образца — сначала запишите его.":
+        "This voice has no sample — record one first.",
+    "Не удалось скопировать образец": "Failed to copy the sample",
+    "✅ Образец передан в Вокс — он появился в списке голосов Vox.":
+        "✅ Sample sent to Vox — it now appears in the Vox voice list.",
+}
+TR_RU_EN.update(_XLAT_EXTRA)
+# ОБРАТНАЯ сторона тоже обязательна: без неё строки, созданные по-английски
+# (подсказка движка, кнопки Qwen), при переключении на русский остаются
+# «без перевода» — в EN→RU их не было вовсе (жалоба Ярослава, 09.11.26)
 TR_EN_RU = {en: ru for ru, en in _PAIRS}
+TR_EN_RU.update({en: ru for ru, en in _XLAT_EXTRA.items()})
 
 TR_RU_EN_T = {}
 TR_EN_RU_T = {}
-for _ru, _en in _PAIRS:
+for _ru, _en in _PAIRS + list(_XLAT_EXTRA.items()):
     _sh_ru, _v_ru = _shape(_ru)
     _sh_en, _v_en = _shape(_en)
     if _sh_ru == _sh_en and _v_ru == _v_en:
@@ -4739,30 +4795,31 @@ class ModernTTSApp(*_APP_BASE):
         self.char_count_label = ctk.CTkLabel(header, text="", font=FONT_TINY, text_color=COLOR_TEXT_SEC)
         self.char_count_label.grid(row=0, column=1, padx=(10, 0), sticky="w")
 
+        # порядок в шапке (Ярослав, 09.11.26): «Ударение» идёт ПЕРЕД «Вставить»,
+        # остальные кнопки сдвинуты вправо
+        self.btn_stress = ctk.CTkButton(header, text=_tr("Ударение"), command=self._open_stress_dialog,
+                                        width=96, height=28, corner_radius=3, font=FONT_SMALL,
+                                        fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+                                        text_color=COLOR_TEXT_MAIN)
+        self.btn_stress.grid(row=0, column=3, padx=(6, 0))
+
         self.btn_paste_text = ctk.CTkButton(header, text="Вставить", command=self.paste_own_text,
                                             width=92, height=28, corner_radius=3, font=FONT_SMALL,
                                             fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                                             text_color=COLOR_TEXT_MAIN)
-        self.btn_paste_text.grid(row=0, column=3, padx=(6, 0))
+        self.btn_paste_text.grid(row=0, column=4, padx=(6, 0))
 
         self.btn_file = ctk.CTkButton(header, text="Файл", command=self.insert_file,
                                       width=80, height=28, corner_radius=3, font=FONT_SMALL,
                                       fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                                       text_color=COLOR_TEXT_MAIN)
-        self.btn_file.grid(row=0, column=4, padx=(6, 0))
+        self.btn_file.grid(row=0, column=5, padx=(6, 0))
 
         self.btn_clear = ctk.CTkButton(header, text="Очистить", command=self._clear_box,
                                        width=90, height=28, corner_radius=3, font=FONT_SMALL,
                                        fg_color="transparent", hover_color=COLOR_FILL_SOFT,
                                        text_color=COLOR_TEXT_SEC)
-        self.btn_clear.grid(row=0, column=5, padx=(6, 0))
-
-        # «Ударение» — видимая кнопка в шапке текста: понятно, что ударение поставить можно
-        self.btn_stress = ctk.CTkButton(header, text=_tr("Ударение"), command=self._open_stress_dialog,
-                                        width=96, height=28, corner_radius=3, font=FONT_SMALL,
-                                        fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
-                                        text_color=COLOR_TEXT_MAIN)
-        self.btn_stress.grid(row=0, column=6, padx=(6, 0))
+        self.btn_clear.grid(row=0, column=6, padx=(6, 0))
 
         self.result_box = ctk.CTkTextbox(self.main_area, wrap="word", font=(FONT_FAMILY, 13),
                                          corner_radius=R_CARD, fg_color=COLOR_CARD,
@@ -7661,6 +7718,8 @@ class ModernTTSApp(*_APP_BASE):
         _center_on_parent(dlg)
         dlg.transient(self)
         dlg.configure(fg_color=COLOR_BG)   # фон окна в палитре приложения
+        _apply_dialog_icon(dlg)                       # фирменный значок FAIR вместо квадрата Tk
+        dlg.after(150, lambda: _apply_dialog_icon(dlg))
         try:
             dlg.attributes("-topmost", True)
             dlg.after(500, lambda: dlg.attributes("-topmost", False))
@@ -7688,6 +7747,21 @@ class ModernTTSApp(*_APP_BASE):
                               fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
                               text_color=COLOR_TEXT_MAIN, placeholder_text="Дизайн 1")
         name_e.pack(fill="x", padx=16)
+        # вставка в три поля: Ctrl+V в любой раскладке, Shift+Insert и контекстное
+        # меню по правому клику — в окне дизайна раньше вставка не работала (Ярослав, 09.11.26)
+        def _paste_entry(w):
+            t = self._clip_text()
+            if not t:
+                return
+            try:
+                w.delete("sel.first", "sel.last")
+            except Exception:
+                pass
+            w.insert("insert", t)
+        for _e in (ins, txt, name_e):
+            self._bind_ctrl_v(_e._entry, lambda ev, w=_e._entry, f=_paste_entry: f(w))
+            self._bind_clipboard_keys(_e._entry)
+            self._attach_text_menu(_e._entry)
         status = ctk.CTkLabel(dlg, text="", font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
                               anchor="w", justify="left", wraplength=400)
         status.pack(fill="x", padx=16, pady=(10, 6))
@@ -7762,9 +7836,11 @@ class ModernTTSApp(*_APP_BASE):
                 self._sync_qwen_instruct()
             status.configure(text=_tr("✅ Голос сохранён в списке — работает как клон."))
 
+        # главное действие окна — в фирменном медно-оранжевом, как главные кнопки
+        # программы (просьба Ярослава, 09.11.26)
         ctk.CTkButton(dlg, text="🔊 " + _tr("Сгенерировать и послушать"), height=30,
-                      corner_radius=3, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
-                      text_color=COLOR_TEXT_MAIN, command=gen).pack(fill="x", padx=16, pady=(2, 4))
+                      corner_radius=3, fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                      text_color="#fffdf6", command=gen).pack(fill="x", padx=16, pady=(2, 4))
         ctk.CTkButton(dlg, text="💾 " + _tr("Сохранить"), height=30, corner_radius=3,
                       fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                       text_color=COLOR_TEXT_MAIN, command=keep).pack(fill="x", padx=16, pady=(0, 4))
@@ -10344,6 +10420,29 @@ class ModernTTSApp(*_APP_BASE):
 
     # ================= СИНТЕЗ =================
 
+    def _seg_emit(self, i, total, arr, sr, ch=1):
+        """Поточная озвучка для игры: отдаём готовый чанк наружу по мере синтеза.
+
+        Работает только если вызывающий (fair_api /tts) подставил _seg_hook;
+        при обычной озвучке в окне хука нет — путь не меняется.
+        """
+        h = getattr(self, "_seg_hook", None)
+        if h is None:
+            return
+        try:
+            a = np.asarray(arr, dtype=np.int16).reshape(-1)
+            n = max(1, int(sr * 0.015))          # 15 ms заворот на краях, чтобы стык не щёлкал
+            if len(a) > 2 * n:
+                w = np.linspace(0.0, 1.0, n, dtype=np.float32)
+                f = a.astype(np.float32)
+                f[:n] *= w
+                f[-n:] *= w[::-1]
+                a = f.astype(np.int16)
+            a = np.concatenate([a, np.zeros(int(sr * 0.07), dtype=np.int16)])  # та же пауза, что в _join_chunks
+            h(i, total, a, sr, ch)
+        except Exception as e:
+            print(f"\u26a0\ufe0f \u043f\u043e\u0442\u043e\u0447\u043d\u0430\u044f \u043e\u0437\u0432\u0443\u0447\u043a\u0430: \u0447\u0430\u043d\u043a {i + 1} \u043d\u0435 \u0432\u044b\u0448\u0435\u043b: {e}")
+
     def generate_and_play(self, text: str, play: bool = True):
         temp_file = os.path.join(self.BASE_DIR, "temp_output_pro.wav")
         try:
@@ -10412,6 +10511,7 @@ class ModernTTSApp(*_APP_BASE):
                     arr = self._stretch_int16(arr, actual_rate)
                     sr_out = sr
                     segs.append(arr)
+                    self._seg_emit(i, len(chunks), arr, sr_out)
                 if skipped:
                     print(f"⚠️ Всего пропущено чанков: {skipped}")
 
@@ -10490,6 +10590,7 @@ class ModernTTSApp(*_APP_BASE):
                     arr = self._stretch_int16(arr, actual_rate)
                     sr_out = sr
                     segs.append(arr)
+                    self._seg_emit(i, len(chunks), arr, sr_out)
                 if skipped:
                     print(f"⚠️ Всего пропущено чанков: {skipped}")
                 if not segs:
@@ -10525,6 +10626,7 @@ class ModernTTSApp(*_APP_BASE):
                         raise Cancelled()
                     self._safe_ui(lambda i=idx, n=total: self.set_progress(
                         int(i * 95 / max(1, n)), f"Синтез {i + 1}/{n}"))
+                    _p0 = len(all_bytes)     # потоковая озвучка: начало этого куска
                     try:
                         gen = self.tts_voice.synthesize(piece, cfg) if cfg is not None else self.tts_voice.synthesize(piece)
                     except TypeError:
@@ -10540,6 +10642,9 @@ class ModernTTSApp(*_APP_BASE):
                             if sr is None: sr, ch = chunk.sample_rate, chunk.sample_channels
                     if idx < total - 1:  # естественная пауза между фрагментами
                         all_bytes.append(np.zeros(int((sr or 22050) * 0.12), dtype=np.int16).tobytes())
+                    self._seg_emit(idx, total,
+                                   np.frombuffer(b"".join(all_bytes[_p0:]), dtype=np.int16),
+                                   sr or 22050, ch or 1)
 
                 if not all_bytes:
                     raise Exception("Piper не сгенерировал аудио")
