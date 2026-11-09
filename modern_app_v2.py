@@ -3585,22 +3585,26 @@ class ModernTTSApp(*_APP_BASE):
         r1 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
         r1.pack(fill="x", padx=12, pady=(4, 3))
         done1 = " \u2705" if self.llm_models else ""
-        # обязательный пункт: галочка всегда проставлена и не отключается
-        cb1 = ctk.CTkCheckBox(r1, text="", checkbox_width=18, checkbox_height=18,
-                              fg_color="#9e9e9e", hover_color="#9e9e9e",
-                              border_color="#8a8a8a")
-        self._edge_check(cb1, r1, y_off=6)
-        cb1.select()
-        cb1.configure(state="disabled")
+        # 09.11.26 (вечер): заголовок — полной строкой, как в пунктах 2 и 3.
+        # Было side="left" — из-за него три подписи моделей уезжали в узкую
+        # правую колонку и обрезались. Серый чекбокс («обязательный пункт»)
+        # убран за ненадобностью; при необходимости вернуть, раскомментировав:
+        # cb1 = ctk.CTkCheckBox(r1, text="", checkbox_width=18, checkbox_height=18,
+        #                       fg_color="#9e9e9e", hover_color="#9e9e9e",
+        #                       border_color="#8a8a8a")
+        # self._edge_check(cb1, r1, y_off=6)
+        # cb1.select()
+        # cb1.configure(state="disabled")
         ctk.CTkLabel(r1, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
                      justify="left", wraplength=520,
                      text=_tr("1. Модель для анализа — можно поставить все три или "
                               "минимум одну; сборка для видеокарты \u2014 обязательная "
                               "часть программы") + done1
-                     ).pack(side="left", fill="x", expand=True, padx=(10, 30), pady=3)
+                     ).pack(fill="x", padx=(10, 30), pady=3)
 
         # выбор LLM-моделей (09.11.26): чекбоксы — можно поставить все три или минимум
-        # одну; по умолчанию отмечен QVikhr (вихрь); уже скачанные не перекачиваются
+        # одну; по умолчанию отмечен QVikhr (вихрь); уже скачанные не перекачиваются;
+        # снять последнюю галочку нельзя (минимум одна модель всегда активна)
         self._setup_llm_vars = {}
         for _p in self.MODEL_PACKS:
             _note = (_p.get("note_en") if UI_LANG == "en" else _p.get("note")) or ""
@@ -3617,7 +3621,19 @@ class ModernTTSApp(*_APP_BASE):
             _lb = ctk.CTkLabel(_fr, font=FONT_TINY, text_color=COLOR_TEXT_MAIN, anchor="w",
                                justify="left", wraplength=520, text=_txt)
             _lb.pack(side="left", fill="x", expand=True, padx=(4, 30))
-            _lb.bind("<Button-1>", lambda e, v=_var: v.set(not v.get()))
+
+            # 09.11.26 (вечер): нельзя снять все три — минимум одна модель
+            def _guard_llm(v=_var):
+                if not v.get() and not any(x.get()
+                                           for x in self._setup_llm_vars.values()):
+                    v.set(True)   # последнюю не отдаём: анализ без модели невозможен
+
+            def _click_llm(v=_var):
+                v.set(not v.get())
+                _guard_llm(v)
+
+            _cb.configure(command=lambda v=_var: _guard_llm(v))
+            _lb.bind("<Button-1>", lambda e, f=_click_llm: f())
             self._setup_llm_vars[_p["name"]] = _var
 
         r2 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
@@ -3655,14 +3671,20 @@ class ModernTTSApp(*_APP_BASE):
             vcb["classic"].select()
             vcb["classic"].configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
                                      border_color="#8a8a8a", state="disabled")
-            ctk.CTkLabel(r2, text="   ✅ " + _tr("Vox уже установлен"), font=FONT_TINY,
-                         text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=10, pady=(0, 2))
+            # 09.11.26 (вечер): строка «Vox уже установлен» убрана — дублировала
+            # серую галочку «уже стоит»; вернуть при необходимости:
+            # ctk.CTkLabel(r2, text="   ✅ " + _tr("Vox уже установлен"), font=FONT_TINY,
+            #              text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x",
+            #              padx=10, pady=(0, 2))
         if self._nano_installed():
             vcb["turbo"].select()
             vcb["turbo"].configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
                                    border_color="#8a8a8a", state="disabled")
-            ctk.CTkLabel(r2, text="   ✅ " + _tr("Vox Turbo уже установлен"), font=FONT_TINY,
-                         text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=10, pady=(0, 2))
+            # 09.11.26 (вечер): строка «Vox Turbo уже установлен» убрана — дублировала
+            # серую галочку «уже стоит»; вернуть при необходимости:
+            # ctk.CTkLabel(r2, text="   ✅ " + _tr("Vox Turbo уже установлен"), font=FONT_TINY,
+            #              text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x",
+            #              padx=10, pady=(0, 2))
         if gvram and gvram < 8.0:
             for _cb in vcb.values():
                 if str(_cb.cget("state")) != "disabled":
