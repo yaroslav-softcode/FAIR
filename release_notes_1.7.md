@@ -7,6 +7,7 @@
 
 **Three analysis models to choose from**
 - During setup you can now pick: QVikhr 3-4B (~2.5 GB, good emotion recognition), Gemma 4 E4B (~5 GB), or Gemma 4 12B (~7.4 GB, uncensored). The choice is available both in the first-run window and in the "model needed" dialog.
+- Models are ticked with checkboxes: you can install one, two or all three (QVikhr is pre-selected; at least one is required).
 - Under the model you now see how much text fits: "8 192 tok. (≈13 306 characters) · VRAM …".
 
 **Alsu voice now ships with emotions**
@@ -14,6 +15,7 @@
 
 **Vox**
 - The regular engine is now simply "Vox" (the fast one is "Vox Turbo"); in setup Vox is marked "(recommended)".
+- In the setup window Vox is now listed first and pre-selected; Vox Turbo is below it.
 
 **One-pass analysis**
 - The second "volume fitting" model pass was removed: the model now runs exactly once in every mode (10–80%, translation, etc.).
@@ -33,6 +35,7 @@
 
 **Три модели анализа на выбор**
 - При установке можно выбрать: QVikhr 3-4B (≈2,5 ГБ, хорошее распознавание эмоций), Gemma 4 E4B (≈5 ГБ) или Gemma 4 12B (≈7,4 ГБ, без цензуры). Выбор — и в окне первичной установки, и в окне «Нужна модель».
+- Модели отмечаются галочками: можно поставить одну, две или все три (по умолчанию отмечен QVikhr; минимум одну).
 - Под моделью теперь видно, сколько текста влезает: «8 192 ток. (≈13 306 знаков) · VRAM…».
 
 **Голос Алсу — с эмоциями из коробки**
@@ -40,6 +43,7 @@
 
 **Vox**
 - Обычный движок теперь называется просто «Vox» (быстрый — «Vox Turbo»); в установке у Vox пометка «(рекомендуется)».
+- В окне установки Vox теперь сверху и отмечен по умолчанию; Vox Turbo — ниже.
 
 **Анализ за один проход**
 - Убрана «добивка» объёма вторым прогоном модели: теперь модель вызывается ровно один раз во всех режимах (10–80%, перевод и т. д.).

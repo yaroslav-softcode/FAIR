@@ -2369,11 +2369,11 @@ _PAIRS += [
 _PAIRS += [
     ("Чанки", "Chunks"),
     ("Разбить на чанки", "Split into chunks"),
-    ("1. Модель для анализа — на выбор: QVikhr 3-4B (хорошее распознавание эмоций), "
-     "Gemma 4 E4B или Gemma 4 12B (без цензуры); сборка для видеокарты — обязательная "
-     "часть программы",
-     "1. Analysis model — choose: QVikhr 3-4B (good emotion recognition), Gemma 4 E4B "
-     "or Gemma 4 12B (uncensored); the GPU build is a required part of the program"),
+    ("1. Модель для анализа — можно поставить все три или минимум одну; сборка "
+     "для видеокарты — обязательная часть программы",
+     "1. Analysis model — you can install all three or at least one; the GPU build "
+     "is a required part of the program"),
+    ("Отметьте минимум одну модель для анализа", "Select at least one model for analysis"),
     ("Мало контекста", "Not enough context"),
     ("Эмоции добавлены", "Emotions added"),
     ("8,192 ток. (≈13,305 знаков) · VRAM ≈ 3.2 · ОЗУ ≈ 3.2 ГБ",
@@ -3594,22 +3594,31 @@ class ModernTTSApp(*_APP_BASE):
         cb1.configure(state="disabled")
         ctk.CTkLabel(r1, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
                      justify="left", wraplength=520,
-                     text=_tr("1. Модель для анализа — на выбор: QVikhr 3-4B (хорошее "
-                              "распознавание эмоций), Gemma 4 E4B или Gemma 4 12B "
-                              "(без цензуры); сборка для видеокарты \u2014 "
-                              "обязательная часть программы") + done1
+                     text=_tr("1. Модель для анализа — можно поставить все три или "
+                              "минимум одну; сборка для видеокарты \u2014 обязательная "
+                              "часть программы") + done1
                      ).pack(side="left", fill="x", expand=True, padx=(10, 30), pady=3)
 
-        # выбор LLM-модели (09.11.26): по умолчанию — уже скачанная, иначе первая
-        self._setup_pack = next(
-            (p for p in self.MODEL_PACKS
-             if os.path.isfile(os.path.join(self.BASE_DIR, "models_llm", p["name"]))),
-            self.MODEL_PACKS[0])
-        seg_pack = SegmentToggle(body, values=[p["label"] for p in self.MODEL_PACKS],
-                                 height=26, command=self._pick_setup_pack)
-        seg_pack.pack(fill="x", padx=12, pady=(0, 3))
-        if self._setup_pack is not self.MODEL_PACKS[0]:
-            seg_pack._choose(self._setup_pack["label"])
+        # выбор LLM-моделей (09.11.26): чекбоксы — можно поставить все три или минимум
+        # одну; по умолчанию отмечен QVikhr (вихрь); уже скачанные не перекачиваются
+        self._setup_llm_vars = {}
+        for _p in self.MODEL_PACKS:
+            _note = (_p.get("note_en") if UI_LANG == "en" else _p.get("note")) or ""
+            _size = (_p.get("size_text_en") if UI_LANG == "en"
+                     else _p.get("size_text")) or ""
+            _txt = _p["label"] + (f" ({_note})" if _note else "") \
+                + (f" — {_size}" if _size else "")
+            _fr = ctk.CTkFrame(r1, fg_color="transparent")
+            _fr.pack(fill="x", padx=(10, 2), pady=2)
+            _var = ctk.BooleanVar(value=(_p is self.MODEL_PACKS[0]))
+            _cb = ctk.CTkCheckBox(_fr, text="", checkbox_width=18, checkbox_height=18,
+                                  fg_color="#c6763a", hover_color="#a95f2c", variable=_var)
+            self._edge_check(_cb, _fr, y_off=2)
+            _lb = ctk.CTkLabel(_fr, font=FONT_TINY, text_color=COLOR_TEXT_MAIN, anchor="w",
+                               justify="left", wraplength=520, text=_txt)
+            _lb.pack(side="left", fill="x", expand=True, padx=(4, 30))
+            _lb.bind("<Button-1>", lambda e, v=_var: v.set(not v.get()))
+            self._setup_llm_vars[_p["name"]] = _var
 
         r2 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
         r2.pack(fill="x", padx=12, pady=3)
@@ -3620,16 +3629,18 @@ class ModernTTSApp(*_APP_BASE):
                               "(веса общие, ≈4,5 ГБ), можно поставить оба вместе")
                      ).pack(fill="x", padx=10, pady=(5, 1))
         # Turbo требует 12 ГБ (пул-резерв 55% должен накрыть веса ≈4,7 ГБ);
-        # Classic достаточно 8 ГБ. На 8–11 ГБ по умолчанию предлагаем Classic.
-        self._setup_vox_turbo = ctk.BooleanVar(value=bool(gvram and gvram >= 11.5))
-        self._setup_vox_classic = ctk.BooleanVar(value=bool(gvram and 8.0 <= gvram < 11.5))
+        # Classic достаточно 8 ГБ.
+        # 09.11.26: Vox — сверху и отмечен по умолчанию («рекомендуется»),
+        # Vox Turbo — ниже и без галочки.
+        self._setup_vox_turbo = ctk.BooleanVar(value=False)
+        self._setup_vox_classic = ctk.BooleanVar(value=bool(gvram and gvram >= 8.0))
         vcb = {}
         for _kind, _var, _txt in (
-                ("turbo", self._setup_vox_turbo,
-                 _tr("Vox Turbo — быстрее на ~50%; нужно 12 ГБ видеопамяти")),
                 ("classic", self._setup_vox_classic,
                  _tr("Vox (рекомендуется) — обычный вариант (медленнее); достаточно 8 ГБ "
-                     "видеопамяти"))):
+                     "видеопамяти")),
+                ("turbo", self._setup_vox_turbo,
+                 _tr("Vox Turbo — быстрее на ~50%; нужно 12 ГБ видеопамяти"))):
             fr = ctk.CTkFrame(r2, fg_color="transparent")
             fr.pack(fill="x", padx=(10, 2), pady=2)
             cb = ctk.CTkCheckBox(fr, text="", checkbox_width=18, checkbox_height=18,
@@ -3707,7 +3718,8 @@ class ModernTTSApp(*_APP_BASE):
             self._setup_q17.set(False)
         elif gvram < 5.5:
             qcb["1.7B"].configure(state="disabled")
-        self._setup_boxes = {"vox": (vcb["turbo"],), "vox_classic": (vcb["classic"],),
+        # 09.11.26: пресет «vox» отмечает Vox (рекомендуется), а не Turbo
+        self._setup_boxes = {"vox": (vcb["classic"],), "vox_classic": (vcb["classic"],),
                              "0.6B": qcb["0.6B"], "1.7B": qcb["1.7B"]}
         self._apply_setup_preset(preset)
 
@@ -3749,11 +3761,20 @@ class ModernTTSApp(*_APP_BASE):
 
         def work():
             try:
-                pack = getattr(self, "_setup_pack", None) or self.MODEL_PACKS[0]
-                self._dl_pack = pack   # качаем именно выбранную модель
-                gguf_final = os.path.join(self.BASE_DIR, "models_llm", pack["name"])
-                if not os.path.isfile(gguf_final) and not self._setup_cancel.is_set():
-                    set_info(_tr(f"1 \u00b7 {pack['label']} ({pack['size_text']}) "
+                # 09.11.26: моделей может быть отмечено несколько (все три или минимум
+                # одну) — качаем выбранные по очереди, уже скачанные пропускаем
+                _llm_packs = self._setup_llm_chosen()
+                if not _llm_packs and not self._setup_cancel.is_set():
+                    set_info(_tr("Отметьте минимум одну модель для анализа"))
+                    return
+                for pack in _llm_packs:
+                    if self._setup_cancel.is_set():
+                        break
+                    self._dl_pack = pack   # качаем выбранные модели по очереди
+                    gguf_final = os.path.join(self.BASE_DIR, "models_llm", pack["name"])
+                    if os.path.isfile(gguf_final):
+                        continue
+                    set_info(_tr(f"1 · {pack['label']} ({pack['size_text']}) "
                                  "+ сборка для видеокарты…"))
                     holder = ctk.CTkToplevel(self)
                     holder.withdraw()
@@ -3761,10 +3782,10 @@ class ModernTTSApp(*_APP_BASE):
                     self._dl_cancel = self._setup_cancel
                     self._download_model(holder, bar, info, btnfake)
 
-                    def _kill_holder():
+                    def _kill_holder(h=holder):
                         try:
-                            if holder.winfo_exists():
-                                holder.destroy()
+                            if h.winfo_exists():
+                                h.destroy()
                         except Exception:
                             pass
                     self._ui(_kill_holder)
@@ -8702,11 +8723,23 @@ class ModernTTSApp(*_APP_BASE):
         self.save_settings()
 
     def _pick_setup_pack(self, label):
-        """Выбор LLM-модели в окне первичной установки (из трёх)."""
+        """Выбор LLM-модели в окне первичной установки.
+        (С 09.11.26 не используется: модель выбирается чекбоксами — см.
+        _setup_llm_chosen; оставлено на случай возврата сегмента.)"""
         for p in self.MODEL_PACKS:
             if p["label"] == label:
                 self._setup_pack = p
                 break
+
+    def _setup_llm_chosen(self):
+        """Модели, отмеченные чекбоксами в окне первичной установки (список паков)."""
+        vars_ = getattr(self, "_setup_llm_vars", None) or {}
+        out = []
+        for p in self.MODEL_PACKS:
+            v = vars_.get(p["name"])
+            if v is not None and v.get():
+                out.append(p)
+        return out
 
     def _sync_emo_auto(self):
         """«Добавить эмоции» имеет смысл только на Vox: на Piper переключатель гаснет."""
