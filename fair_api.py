@@ -20,6 +20,21 @@
          "play": false }                           — играть звук в колонки приложения
   -> {"ok": true, "audio_path": "C:\\...\\mcp_audio\\fair_...wav", "text": "...", ...}
 
+  POST /tts      озвучить готовый текст для игры (drawosek и т.п.) — без ИИ-анализа
+       { "text": "Не ведаю я про то.",
+         "engine": "vox" | "vox_turbo" | "qwen" | "piper",
+         "voice": "имя голоса",                   — список в GET /status
+         "speed": 1.0, "play": false,
+         "stream": true }                         — ответить сразу, звук по частям
+  -> {"ok": true, "task": "142231_a1b2c3", "dir": "C:/.../game_audio/142231_a1b2c3"}
+  GET  /tts/task/<id>   готовность реплики:
+       {"done": 2, "total": 5, "fraction": 0.4,
+        "segs": [{"i": 0, "file": ".../seg_000.wav", "sr": 48000,
+                  "seconds": 1.9, "ready_after": 2.4}, ...],
+        "finished": false, "error": null, "audio_path": "...", "seconds": 6.1}
+       Правило игры: начинать воспроизведение, когда fraction >= 0.5 — первые
+       чанки уже на диске, остальные досинтезываются во время речи.
+
 Тяжёлую работу делают собственные методы приложения (summarize_text,
 generate_and_play) — обработка по MCP не отличается от нажатия пользователем
 «Запустить анализ» и «Озвучить». Кнопка «Стоп» в окне отменяет и MCP-запрос.
@@ -32,6 +47,7 @@ import secrets
 import shutil
 import threading
 import time
+import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
@@ -141,6 +157,12 @@ def _status_body(app):
                          and i.get("path") and os.path.exists(i.get("path") or "")]
     cur["piper_voices"] = sorted(app.tts_models.keys())
     cur["llm_models"] = sorted(app.llm_models.keys())
+    # игра (drawosek) по этим ключам рисует выбор движка и голоса
+    import modern_app_v2 as mav
+    cur["qwen_voices"] = sorted(getattr(mav, "QWEN_DISPLAY", set()))
+    cur["vox_ready"] = bool(app._vox_installed())
+    cur["nano_installed"] = bool(app._nano_installed())
+    cur["qwen_installed"] = bool(app._qwen_installed())
     return cur
 
 
@@ -301,6 +323,236 @@ def _speak(app, p):
         app._mcp_busy = False
 
 
+# ---------- озвучка для игр: /tts ----------
+#
+# Игра просит озвучить уже готовую реплику. ИИ-анализа и виджетов окна тут нет:
+# движок жжёт текст чанками, каждый готовый чанк сразу ложится в отдельный wav,
+# а игра через /tts/task/<id> видит долю готовности и начинает говорить пораньше.
+
+TTS_DIR = "game_audio"
+TTS_TASKS_MAX = 40
+_tts_tasks = {}
+_tts_lock = threading.Lock()
+
+
+def _tts_prune(app):
+    """Не копить старые папки игровых реплик: сутки полежала — и в мусор."""
+    root = os.path.join(app.BASE_DIR, TTS_DIR)
+    try:
+        for name in os.listdir(root):
+            d = os.path.join(root, name)
+            try:
+                if os.path.isdir(d) and time.time() - os.path.getmtime(d) > 86400:
+                    shutil.rmtree(d, ignore_errors=True)
+            except OSError:
+                pass
+    except OSError:
+        pass
+    with _tts_lock:
+        while len(_tts_tasks) > TTS_TASKS_MAX:
+            _tts_tasks.pop(next(iter(_tts_tasks)))
+
+
+def _tts_engine(app, wanted):
+    """engine из запроса -> (движок, вариант Vox)."""
+    w = (wanted or "").strip().lower()
+    if w in ("vox", "vox_classic", "vox classic", "classic"):
+        return "Vox", "classic"
+    if w in ("vox_turbo", "turbo", "vox fast"):
+        if not app._nano_installed():
+            raise ApiError("Быстрый Vox не установлен — включите его в окне FAIR "
+                           "или просите engine=vox")
+        return "Vox", "turbo"
+    if w in ("qwen", "qwen3", "qwen3-tts"):
+        if not app._qwen_installed():
+            raise ApiError("Qwen3-TTS не установлен — включите движок Qwen в окне FAIR "
+                           "или просите engine=vox")
+        return "Qwen", None
+    if w == "piper":
+        return "Piper", None
+    raise ApiError("нужен engine: vox | vox_turbo | qwen | piper")
+
+
+def _tts_voice(app, engine, name):
+    """Голос проверить и при нужде загрузить. Выбранный в окне голос не трогаем."""
+    import modern_app_v2 as mav
+    if engine == "Vox":
+        if not app._vox_installed():
+            raise ApiError("Дополнение Vox не установлено — включите движок Vox в окне FAIR")
+        _id, info = app._find_voice(name)
+        if not info or not (info.get("path") and os.path.exists(info.get("path") or "")):
+            filled = [i.get("name") for _, i in app._voice_items()
+                      if isinstance(i, dict) and i.get("name")
+                      and i.get("path") and os.path.exists(i.get("path") or "")]
+            raise ApiError(f"Vox-голос «{name}» не готов. Доступны: "
+                           f"{', '.join(n for n in filled if n) or 'нет — запишите образец'}")
+        app.current_tts_name = name
+    elif engine == "Qwen":
+        if name not in mav.QWEN_DISPLAY:
+            _id, info = app._find_voice(name)
+            if not info or not (info.get("path") and os.path.exists(info.get("path") or "")):
+                raise ApiError(f"Qwen-голос «{name}» не готов. Встроенные: "
+                               f"{', '.join(sorted(mav.QWEN_DISPLAY))}, либо свой образец")
+        app.current_tts_name = name
+    else:
+        path = app.tts_models.get(name)
+        if not path or not os.path.exists(path):
+            raise ApiError(f"Piper-голос «{name}» не найден. Доступны: "
+                           f"{', '.join(sorted(app.tts_models))}")
+        if app.tts_voice is None or app.current_tts_name != name:
+            app.tts_voice = mav.PiperVoice.load(path)
+            app.current_tts_name = name
+    app._synth_voice_key = name
+
+
+def _tts_emotion_text(app, text, emotion, engine, voice):
+    """Разметка эмоцией так, как её понимает движок FAIR.
+
+    Маркер `(эмоция)` действует только до конца предложения — ставим его на каждое.
+    Vox умеет эмоцию ТОЛЬКО через записанный образец речи: если у голоса эмоций нет,
+    маркер озвучился бы вслух — тогда текст оставляем чистым (ремарка уже удалена
+    вызывающей стороной). Qwen принимает разметку всегда — эмоция уходит в инструкцию
+    из EMOTION_TAB. Piper эмоций не знает.
+    """
+    if not emotion:
+        return text
+    import modern_app_v2 as mav
+    if emotion not in getattr(mav, "EMOTION_TAB", {}):
+        raise ApiError(f"неизвестная эмоция «{emotion}» — ключи смотри в EMOTION_TAB")
+    if engine == "Qwen":
+        supported = True
+    elif engine == "Vox":
+        try:
+            emos = app._emotion_samples(voice) or {}
+            supported = app._emo_stem(emotion) in emos     # именно эта эмоция есть у голоса?
+        except Exception:
+            supported = False
+    else:
+        supported = False
+    if not supported:
+        print(f"⚠ эмоция «{emotion}»: движок {engine} её так не окрасит — говорю ровно")
+        return text
+    parts = [s for s in re.split(r"(?<=[.!?…])\s+", text) if s.strip()]
+    return " ".join(f"({emotion}) {s}" for s in parts)
+
+
+def _tts(app, p):
+    """Озвучить готовый текст для игры. stream=true — ответить сразу и отдавать
+    реплику по чанкам; играть игра начинает по своему правилу (fraction >= 0.5)."""
+    text = re.sub(r"\s+", " ", (p.get("text") or "")).strip()
+    if len(text) < 2:
+        raise ApiError("Пустой текст")
+    if getattr(app, "_mcp_busy", False):
+        raise ApiError("FAIR сейчас обрабатывает запрос через MCP — подожди немного")
+    if getattr(app, "_tts_busy", False):
+        raise ApiError("FAIR сейчас озвучивает другую реплику — подожди окончания")
+    if app.is_processing:
+        raise ApiError("Приложение занято другой задачей — попробуйте позже")
+
+    engine, variant = _tts_engine(app, p.get("engine"))
+    name = (p.get("voice") or "").strip()
+    if not name:
+        raise ApiError("Нужен voice=... (список голосов — в GET /status)")
+    _tts_voice(app, engine, name)
+
+    emotion = (p.get("emotion") or "").strip().lower() or None
+    synth_text = _tts_emotion_text(app, text, emotion, engine, name)
+
+    speed = p.get("speed", 1.0)
+    if not isinstance(speed, (int, float)) or not 0.2 <= float(speed) <= 3.0:
+        raise ApiError("speed — число от 0.2 до 3.0")
+
+    _tts_prune(app)
+    tid = time.strftime("%H%M%S") + "_" + secrets.token_hex(3)
+    tdir = os.path.join(app.BASE_DIR, TTS_DIR, tid)
+    os.makedirs(tdir, exist_ok=True)
+    task = {"id": tid, "dir": tdir, "engine": engine, "voice": name, "text": text,
+            "emotion": emotion,
+            "segs": [], "done": 0, "total": 0, "started": time.time(),
+            "finished": False, "error": None, "audio_path": None, "seconds": None}
+    with _tts_lock:
+        _tts_tasks[tid] = task
+
+    def hook(i, total, arr, sr, ch):
+        # вызывается из потока синтеза: готовый чанк -> wav -> отчёт о прогрессе
+        task["total"] = total
+        path = os.path.join(tdir, f"seg_{i:03d}.wav")
+        with wave.open(path, "wb") as f:
+            f.setnchannels(ch)
+            f.setsampwidth(2)
+            f.setframerate(sr)
+            f.writeframes(arr.tobytes())
+        task["segs"].append({"i": i, "file": path, "sr": sr,
+                             "seconds": round(len(arr) / float(sr), 2),
+                             "ready_after": round(time.time() - task["started"], 2)})
+        task["done"] = max(task["done"], i + 1)
+
+    def run():
+        app._tts_busy = True
+        app._seg_hook = hook
+        old = (app.current_engine, app.speech_rate)
+        app.is_processing = True
+        app.cancel_event.clear()
+        try:
+            app.current_engine = engine
+            app.speech_rate = float(speed)
+            if engine == "Vox":
+                # Вариант переключаем ТОЛЬКО штатным путём: он выгружает чужой движок из
+                # VRAM и держит в согласии «какой вариант выбран» с «какая модель реально
+                # синтезирует». Классик без ×2-ресемпла (или турбо с ним) — ровно тот
+                # случай «вдвое медленнее/быстрее», который чинили в окне FAIR.
+                _eff = app._vox_variant_effective()
+                need = variant != _eff
+                if not need:
+                    if variant == "turbo":
+                        need = getattr(app, "vox_model", None) is not None   # просят турбо, а в памяти Classic
+                    else:
+                        need = getattr(app, "vox_turbo", None) is not None   # просят Classic, а в памяти Turbo
+                if need:
+                    try:
+                        app._vox_set_variant(variant)
+                    except Exception as e:
+                        # не получилось — оставляем как есть: движок сам выберет работающий,
+                        # а ×2-ресемпл достанется тому, кто в памяти (звук ровный)
+                        print(f"⚠ /tts: переключение варианта Vox не удалось: {e}")
+            task["audio_path"] = app.generate_and_play(synth_text, play=bool(p.get("play")))
+            task["finished"] = True
+        except Exception as e:
+            task["error"] = str(e)
+            task["finished"] = True
+        finally:
+            task["seconds"] = round(time.time() - task["started"], 1)
+            app.current_engine, app.speech_rate = old
+            app._seg_hook = None
+            app.is_processing = False
+            app._tts_busy = False
+
+    if p.get("stream"):
+        threading.Thread(target=run, daemon=True).start()
+        return {"ok": True, "task": tid, "dir": tdir, "engine": engine, "voice": name,
+                "how": f"опрашивай GET /tts/task/{tid} и начинай играть, "
+                       f"когда fraction >= 0.5"}
+
+    run()
+    if task["error"]:
+        raise ApiError(task["error"])
+    return {"ok": True, "task": tid, "audio_path": task["audio_path"], "segs": task["segs"],
+            "engine": engine, "voice": name, "emotion": emotion,
+            "chars": len(text), "seconds": task["seconds"]}
+
+
+def _tts_task(tid):
+    t = _tts_tasks.get(tid)
+    if not t:
+        raise ApiError("Задача не найдена — проверь id (или FAIR перезапускали)")
+    return {"ok": True, "id": tid, "done": t["done"], "total": t["total"],
+            "fraction": round(t["done"] / t["total"], 3) if t["total"] else 0.0,
+            "segs": list(t["segs"]), "finished": t["finished"], "error": t["error"],
+            "audio_path": t["audio_path"], "seconds": t["seconds"],
+            "engine": t["engine"], "voice": t["voice"], "emotion": t.get("emotion"),
+            "audio_seconds": round(sum(s["seconds"] for s in t["segs"]), 2)}
+
+
 # ---------- HTTP ----------
 
 class _Handler(BaseHTTPRequestHandler):
@@ -330,6 +582,11 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._send(200, _status_body(app))
             except Exception as e:
                 return self._send(200, {"ok": False, "error": str(e)})
+        if self.path.startswith("/tts/task/"):
+            try:
+                return self._send(200, _tts_task(self.path.rstrip("/").split("/")[-1]))
+            except ApiError as e:
+                return self._send(200, {"ok": False, "error": str(e)})
         return self._send(404, {"ok": False, "error": "неизвестный путь"})
 
     def do_POST(self):
@@ -352,5 +609,14 @@ class _Handler(BaseHTTPRequestHandler):
                 import traceback
                 print(f"❌ FAIR API: {e}\n{traceback.format_exc()}")
                 _status(app, "🤖 MCP: ошибка")
+                return self._send(200, {"ok": False, "error": f"Внутренняя ошибка FAIR: {e}"})
+        if path == "/tts":
+            try:
+                return self._send(200, _tts(app, p))
+            except ApiError as e:
+                return self._send(200, {"ok": False, "error": str(e)})
+            except Exception as e:
+                import traceback
+                print(f"❌ FAIR API /tts: {e}\n{traceback.format_exc()}")
                 return self._send(200, {"ok": False, "error": f"Внутренняя ошибка FAIR: {e}"})
         return self._send(404, {"ok": False, "error": "неизвестный путь"})
