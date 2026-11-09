@@ -34,6 +34,16 @@ datas += [
     # приложение регистрирует их в слотах при первом запуске
     (os.path.join(SRC, "voices_builtin", "alsu_ref.wav"), "voices_builtin"),
     (os.path.join(SRC, "voices_builtin", "john_ref.wav"), "voices_builtin"),
+    # эмоции Алсу, записанные с микрофона (синтезированные в дистрибутив не идут) —
+    # досеиваются к её слоту при первом запуске и при обновлении
+    (os.path.join(SRC, "voices_builtin", "alsu_emo_radostnyy.wav"), "voices_builtin"),
+    (os.path.join(SRC, "voices_builtin", "alsu_emo_strogiy.wav"), "voices_builtin"),
+    (os.path.join(SRC, "voices_builtin", "alsu_emo_gnevnyy.wav"), "voices_builtin"),
+    (os.path.join(SRC, "voices_builtin", "alsu_emo_nezhnyy.wav"), "voices_builtin"),
+    (os.path.join(SRC, "voices_builtin", "alsu_emo_veselyy.wav"), "voices_builtin"),
+    (os.path.join(SRC, "voices_builtin", "alsu_emo_ispugannyy.wav"), "voices_builtin"),
+    (os.path.join(SRC, "voices_builtin", "alsu_emo_komandnyy.wav"), "voices_builtin"),
+    (os.path.join(SRC, "voices_builtin", "alsu_emo_shepotom.wav"), "voices_builtin"),
     # MCP-мост к Гермесу: исходник кладём рядом с exe (отладка; рабочий — fair_mcp.exe)
     (os.path.join(SRC, "fair_mcp.py"), "."),
     # инструкция «как подключить FAIR к Hermes по MCP» — для другого компьютера

@@ -337,6 +337,18 @@ def emotion_marker_rule(names):
             "маркер действует до конца предложения. Придумывать другие имена в скобках нельзя.")
 
 
+# маркеры эмоций в тексте: скобка с именем из справочника (с учётом словоформ).
+# Разбивка на чанки использует это правило: предложение с эмоцией не разрывается
+# и ЗАВЕРШАЕТ свой чанк (просьба Ярослава, 09.11.26).
+_EMOTION_KEYS = frozenset(_emo_key(n) for n in EMOTION_NAMES)
+_EMO_IN_TEXT_RE = re.compile(r"\(([^()\n]{1,40})\)")
+
+
+def has_emotion_marker(s):
+    """True, если в тексте есть маркер эмоции вида (радостный) из справочника."""
+    return any(_emo_key(m) in _EMOTION_KEYS for m in _EMO_IN_TEXT_RE.findall(s or ""))
+
+
 # CUDA-колесо torch для дополнения Vox: качаем сами, чтобы видеть проценты
 TORCH_CU_WHL_NAME = "torch-2.5.1+cu121-cp312-cp312-win_amd64.whl"
 TORCH_CU_WHL_URL = ("https://download.pytorch.org/whl/cu121/"
@@ -783,6 +795,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         self.audio_int16 = None
         self.selected_path = None
         self._loaded_path = None
+        self._emo_playing = None      # эмоция, которая сейчас прослушивается (кнопка ▶)
         self.slot_id = str(slot_id) if slot_id is not None else None
 
         body = ctk.CTkFrame(self, fg_color=COLOR_PANEL, corner_radius=R_PANEL,
@@ -1009,9 +1022,18 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         except Exception:
             pass
         ent.pack(fill="x", padx=10, pady=(10, 4))
-        stat = ctk.CTkLabel(rowf, text="— " + _tr("не задана"), font=FONT_TINY,
+        srow = ctk.CTkFrame(rowf, fg_color="transparent")
+        srow.pack(fill="x", padx=12)
+        stat = ctk.CTkLabel(srow, text="— " + _tr("не задана"), font=FONT_TINY,
                             text_color=COLOR_TEXT_SEC, anchor="w")
-        stat.pack(fill="x", padx=12)
+        stat.pack(side="left")
+        # «▶» у статуса — прослушать записанную эмоцию (просьба Ярослава, 09.11.26):
+        # видна только когда эмоция записана — показом управляет refresh_emotion_rows
+        play = ctk.CTkButton(srow, text="▶", width=26, height=18, corner_radius=3,
+                             font=FONT_TINY, fg_color="transparent",
+                             hover_color=COLOR_SELECT, border_width=1,
+                             border_color=COLOR_BORDER, text_color=COLOR_TEXT_SEC,
+                             command=lambda i=i: self._emo_play(i))
         brow = ctk.CTkFrame(rowf, fg_color="transparent")
         brow.pack(fill="x", padx=10, pady=(4, 10))
         brow.grid_columnconfigure(1, weight=1)
@@ -1037,8 +1059,8 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
             ent.insert(0, self.EMO_PRESETS[i])   # три основные эмоции уже вписаны
         ent.bind("<KeyRelease>", lambda e: (self._rows_visibility(),
                                             self._refresh_emotions()))
-        self._emo_rows.append({"frame": rowf, "ent": ent, "stat": stat, "rec": rec,
-                               "syn": syn, "del": dlt, "label": ""})
+        self._emo_rows.append({"frame": rowf, "ent": ent, "stat": stat, "play": play,
+                               "rec": rec, "syn": syn, "del": dlt, "label": ""})
 
     def _ensure_rows(self, n):
         """Достроить строк, чтобы их было не меньше n (списка-потолка нет)."""
@@ -1220,6 +1242,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         info = self._cur_info()
         row = self._emo_rows[idx]
         pre = (row["ent"].get() or "").strip() or row["label"] or ""
+        self._stop_emo_play()      # открылась запись — прежнее прослушивание глушим
         VoiceRecorderDialog(self, self._emotion_saved, self.slot_id, pre or None,
                             self.existing, emotion_mode=True,
                             voice_label=info.get("name") or "",
@@ -1270,6 +1293,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                                    _tr("Удалить") + f" «{label}»? "
                                    + _tr("Образец эмоции будет стёрт с диска."), parent=self):
             return
+        self._stop_emo_play()      # удаляем — глушим её прослушивание
         self.app.delete_emotion(self.slot_id, label)
         self._refresh_emotions()
 
@@ -1331,6 +1355,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
             messagebox.showerror("Микрофон", "Запись недоступна.\nУстановите: pip install sounddevice", parent=self)
             return
         self._stop_sample_play()      # новая запись — прежнее прослушивание ни к чему
+        self._stop_emo_play()
         if not self.recording:
             self.frames = []
             try:
@@ -1447,10 +1472,106 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
             pass
         self._sample_done()
 
+    # ---------- прослушивание записанной эмоции (просьба Ярослава, 09.11.26) ----------
+
+    def _emo_sample_path(self, label):
+        """Путь к записанному образцу эмоции этого слота (или None)."""
+        for src in (getattr(self.app, "custom_voices", None), self.existing):
+            try:
+                info = (src or {}).get(str(self.slot_id)) or {}
+            except Exception:
+                info = {}
+            smp = (info.get("samples") or {}).get(label) or {}
+            path = smp.get("path") or ""
+            if path and os.path.exists(path):
+                return path
+        return None
+
+    def _emo_play_btns(self, playing=""):
+        """«⏹» — на кнопке играющей эмоции, «▶» — на остальных."""
+        for r in self._emo_rows:
+            try:
+                r["play"].configure(
+                    text="⏹" if playing and (r["ent"].get() or "").strip() == playing
+                    else "▶")
+            except Exception:
+                pass
+
+    def _emo_play(self, idx):
+        """«▶» у статуса «записана»: прослушать образец эмоции.
+        Повторное нажатие — стоп, как у прослушивания образца."""
+        row = self._emo_rows[idx]
+        label = (row["ent"].get() or "").strip()
+        if not label:
+            return
+        if self._emo_playing == label:
+            self._stop_emo_play()
+            return
+        path = self._emo_sample_path(label)
+        if not path:
+            messagebox.showinfo(
+                _tr("Внимание"),
+                _tr("Образец эмоции не найден — запишите или синтезируйте её заново."),
+                parent=self)
+            return
+        if not SD_AVAILABLE:
+            try:
+                os.startfile(path)
+            except Exception as e:
+                messagebox.showerror("Звук", str(e), parent=self)
+            return
+        self._stop_sample_play()      # звучит что-то одно
+        self._stop_emo_play()
+        try:
+            with wave.open(path) as w:
+                fs = w.getframerate() or self.rec_fs
+                data = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+        except Exception as e:
+            messagebox.showerror("Звук", str(e), parent=self)
+            return
+        if len(data) == 0:
+            return
+        self._emo_playing = label
+        self._emo_play_btns(label)
+        threading.Thread(target=self._emo_play_worker, args=(data, fs, label),
+                         daemon=True).start()
+
+    def _emo_play_worker(self, data, fs, label):
+        try:
+            sd.play(data, samplerate=fs, blocking=True)
+        except Exception:
+            pass
+        try:
+            self.after(0, lambda: self._emo_done(label))
+        except Exception:
+            pass
+
+    def _emo_done(self, label):
+        """Поток доиграл — вернуть «▶», если всё ещё играет та же эмоция."""
+        if self._emo_playing != label:
+            return
+        self._emo_playing = None
+        self._emo_play_btns("")
+
+    def _stop_emo_play(self):
+        """Заглушить прослушивание эмоции (если что-то играет)."""
+        if self._emo_playing is None:
+            return
+        self._emo_playing = None
+        try:
+            sd.stop()
+        except Exception:
+            pass
+        self._emo_play_btns("")
+
     def destroy(self):
-        # закрыть окно — заглушить незавершённое прослушивание записи
+        # закрыть окно — заглушить незавершённое прослушивание записи и эмоции
         try:
             self._stop_sample_play()
+        except Exception:
+            pass
+        try:
+            self._stop_emo_play()
         except Exception:
             pass
         super().destroy()
@@ -1979,6 +2100,8 @@ _PAIRS += [
     ("название эмоции (например: радостный)", "emotion name (e.g. cheerful)"),
     ("не задана", "not set"),
     ("записана", "recorded"),
+    ("Образец эмоции не найден — запишите или синтезируйте её заново.",
+     "The emotion sample was not found — record or synthesize it again."),
     ("синтезирована", "synthesized"),
     ("Синтез идёт — подожди.", "Synthesis is running — wait."),
     ("Синтез эмоции доступен для движка Vox.", "Emotion synthesis works with the Vox engine."),
@@ -2028,9 +2151,9 @@ _PAIRS += [
     ("Устанавливается дополнение Vox", "Installing the Vox add-on"),
     ("Не получилось", "Failed"),
     ("Python, torch и VoxCPM ставятся в папку приложения. "
-     "Первый раз это занимает 5–15 минут (для Classic достаточно 8 ГБ видеопамяти).",
+     "Первый раз это занимает 5–15 минут (для Vox достаточно 8 ГБ видеопамяти).",
      "Python, torch and VoxCPM are installed into the app folder. "
-     "The first run takes 5–15 minutes (8 GB of VRAM is enough for Classic)."),
+     "The first run takes 5–15 minutes (8 GB of VRAM is enough for Vox)."),
     ("Vox — нейроголос по образцу с микрофона.\n\n"
      "Нужен пакет дополнения: переносимый Python + torch + VoxCPM, "
      "≈1,5 ГБ загрузки и ~3 ГБ на диске.\n\nСкачать сейчас?",
@@ -2178,13 +2301,13 @@ _PAIRS += [
      "2. VoxCPM2 speech engine — two variants to choose from (shared weights, ≈4.5 GB); you can install both"),
     ("Vox Turbo — быстрее на ~50%; нужно 12 ГБ видеопамяти",
      "Vox Turbo is ~50% faster; needs 12 GB of video memory"),
-    ("Vox Classic — обычный вариант (медленнее); достаточно 8 ГБ видеопамяти",
-     "Vox Classic — the regular variant (slower); 8 GB of video memory is enough"),
-    ("видеопамяти меньше 8 ГБ — Vox не запустится: Classic нужно 8 ГБ, Turbo — 12 ГБ",
-     "less than 8 GB of video memory — Vox will not run: Classic needs 8 GB, Turbo needs 12 GB"),
-    ("⚠ Для Turbo нужно 12 ГБ видеопамяти (Classic хватает 8 ГБ)",
-     "⚠ Turbo needs 12 GB of video memory (8 GB is enough for Classic)"),
-    ("Vox Classic уже установлен", "Vox Classic is already installed"),
+    ("Vox (рекомендуется) — обычный вариант (медленнее); достаточно 8 ГБ видеопамяти",
+     "Vox (recommended) — the regular variant (slower); 8 GB of video memory is enough"),
+    ("видеопамяти меньше 8 ГБ — Vox не запустится: ему нужно 8 ГБ, Turbo — 12 ГБ",
+     "less than 8 GB of video memory — Vox will not run: it needs 8 GB, Turbo needs 12 GB"),
+    ("⚠ Для Turbo нужно 12 ГБ видеопамяти (Vox хватает 8 ГБ)",
+     "⚠ Turbo needs 12 GB of video memory (8 GB is enough for Vox)"),
+    ("Vox уже установлен", "Vox is already installed"),
     ("Vox Turbo уже установлен", "Vox Turbo is already installed"),
     ("2 · Голосовой движок Vox: GPU-среда…", "2 · Vox speech engine: setting up the GPU environment…"),
     ("2 · Vox Turbo: установка быстрого варианта…", "2 · Vox Turbo: installing the fast variant…"),
@@ -2210,8 +2333,8 @@ _PAIRS += [
     ("Настройки Vox", "Vox settings"),
     ("Vox Turbo установлен ✅", "Vox Turbo installed ✅"),
     ("Не вышло: ", "It failed: "),
-    ("Два движка Vox — одни и те же веса и голоса. Turbo — быстрее на ~50%, Classic — обычный; качество одинаковое.",
-     "Both Vox engines use the same weights and voices. Turbo is ~50% faster; Classic is the regular one. Quality is the same."),
+    ("Два движка Vox — одни и те же веса и голоса. Turbo быстрее на ~50%, обычный — медленнее; качество одинаковое.",
+     "Both Vox engines use the same weights and voices. Turbo is ~50% faster, the regular one is slower; quality is the same."),
     ("быстрее на ~50% · нужно 12 ГБ видеопамяти",
      "~50% faster · needs 12 GB of video memory"),
     ("Убрать ударение", "Remove stress"),
@@ -2225,20 +2348,39 @@ _PAIRS += [
      "the regular variant — 8 GB of video memory is enough"),
     ("(работает)", "(running)"),
     ("Переключить на него", "Switch to it"),
-    ("⚠ Vox Classic — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ",
-     "⚠ Vox Classic needs 8+ GB of VRAM · Vox Turbo needs 12+ GB"),
+    ("⚠ Vox — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ",
+     "⚠ Vox needs 8+ GB of VRAM · Vox Turbo needs 12+ GB"),
     ("Первая фраза Turbo ~15–25 с (прогрев графического ядра), дальше — быстро",
      "The first Turbo phrase takes ~15-25 seconds (GPU warm-up); after that it is fast"),
     ("⏳ Загрузка Vox Turbo (веса ~5 ГБ)...", "⏳ Loading Vox Turbo (~5 GB of weights)..."),
-    ("⏳ Загрузка Vox Classic (веса ~5 ГБ)...", "⏳ Loading Vox Classic (~5 GB of weights)..."),
+    ("⏳ Загрузка Vox (веса ~5 ГБ)...", "⏳ Loading Vox (~5 GB of weights)..."),
     ("✅ Vox Turbo готов (GPU)", "✅ Vox Turbo is ready (GPU)"),
-    ("✅ Vox Classic готова (GPU)", "✅ Vox Classic is ready (GPU)"),
+    ("✅ Vox готова (GPU)", "✅ Vox is ready (GPU)"),
     ("❌ Vox Turbo недоступен", "❌ Vox Turbo is unavailable"),
-    ("❌ Vox Classic недоступна", "❌ Vox Classic is unavailable"),
+    ("❌ Vox недоступна", "❌ Vox is unavailable"),
     ("Движок: Vox Turbo (GPU).", "Engine: Vox Turbo (GPU)."),
-    ("Движок: Vox Classic (GPU).", "Engine: Vox Classic (GPU)."),
+    ("Движок: Vox (GPU).", "Engine: Vox (GPU)."),
     ("⏳ Загрузка весов VoxCPM2 (~5 ГБ)...", "⏳ Downloading VoxCPM2 weights (~5 GB)..."),
     ("⏳ Загрузка Vox Turbo (GPU)...", "⏳ Loading Vox Turbo (GPU)..."),
+]
+
+
+# ── Чанки, окна контекста, память со знаками (09.11.26)
+_PAIRS += [
+    ("Чанки", "Chunks"),
+    ("Разбить на чанки", "Split into chunks"),
+    ("1. Модель для анализа — на выбор: QVikhr 3-4B (хорошее распознавание эмоций), "
+     "Gemma 4 E4B или Gemma 4 12B (без цензуры); сборка для видеокарты — обязательная "
+     "часть программы",
+     "1. Analysis model — choose: QVikhr 3-4B (good emotion recognition), Gemma 4 E4B "
+     "or Gemma 4 12B (uncensored); the GPU build is a required part of the program"),
+    ("Мало контекста", "Not enough context"),
+    ("Эмоции добавлены", "Emotions added"),
+    ("8,192 ток. (≈13,305 знаков) · VRAM ≈ 3.2 · ОЗУ ≈ 3.2 ГБ",
+     "8,192 tok. (≈13,305 chars) · VRAM ≈ 3.2 · RAM ≈ 3.2 GB"),
+    ("8,192 ток. (≈13,305 знаков) · ОЗУ ≈ 3.2 ГБ",
+     "8,192 tok. (≈13,305 chars) · RAM ≈ 3.2 GB"),
+    ("Анализ нейросетью… чанк 2 из 4", "Neural analysis… chunk 2 of 4"),
 ]
 
 
@@ -2746,6 +2888,9 @@ class ModernTTSApp(*_APP_BASE):
         self._emo_pref = False       # что выбрал пользователь, когда движок Vox
         self._emo_markers_on = False
         self.llm_gpu_var = ctk.BooleanVar(value=False)
+        self.chunk_var = ctk.BooleanVar(value=False)      # «Чанки»: анализ текста по частям
+        self.chunk_count_var = ctk.StringVar(value="4")   # на сколько частей делить
+        self._progress_window = None   # окно прогресса при анализе по чанкам (lo, hi)
         self._gpu_server = None
         self._gpu_server_port = None
         self._gpu_server_model = None
@@ -2836,12 +2981,26 @@ class ModernTTSApp(*_APP_BASE):
             pass
 
     # ---------------- модель анализа: первая загрузка с докачкой ----------------
-    MODEL_PACK = {
-        "name": "gemma-4-E4B-it-Q4_K_M.gguf",
-        "url": ("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/"
-                "resolve/main/gemma-4-E4B-it-Q4_K_M.gguf"),
-        "size": 4_977_171_584,
-    }
+    # Три модели на выбор (09.11.26, просьба Ярослава): лёгкая русская, базовая
+    # и крупная 12B. Скачиваются с Hugging Face, докачка — по .part.
+    MODEL_PACKS = [
+        {"name": "QVikhr-3-4B-Instruction-Q4_K_M.gguf",
+         "url": ("https://huggingface.co/Vikhrmodels/QVikhr-3-4B-Instruction-GGUF/"
+                 "resolve/main/QVikhr-3-4B-Instruction-Q4_K_M.gguf"),
+         "size": 2_497_281_088, "label": "QVikhr 3-4B", "size_text": "≈2,5 ГБ",
+         "size_text_en": "≈2.5 GB", "note": "хорошее распознавание эмоций",
+         "note_en": "good emotion recognition"},
+        {"name": "gemma-4-E4B-it-Q4_K_M.gguf",
+         "url": ("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/"
+                 "resolve/main/gemma-4-E4B-it-Q4_K_M.gguf"),
+         "size": 4_977_171_584, "label": "Gemma 4 E4B", "size_text": "≈5 ГБ",
+         "size_text_en": "≈5 GB"},
+        {"name": "Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf",
+         "url": ("https://huggingface.co/HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced/"
+                 "resolve/main/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf"),
+         "size": 7_381_381_760, "label": "Gemma 4 12B", "size_text": "≈7,4 ГБ",
+         "size_text_en": "≈7.4 GB", "note": "без цензуры", "note_en": "uncensored"},
+    ]
 
     def _seed_bundled_voices(self):
         """Первый запуск установленной версии: голос Piper из комплекта → models/."""
@@ -2879,7 +3038,7 @@ class ModernTTSApp(*_APP_BASE):
 
         dlg = ctk.CTkToplevel(self)
         dlg.title(_tr("Модель ИИ"))
-        dlg.geometry("540x310")
+        dlg.geometry("540x360")
         _center_on_parent(dlg)
         dlg.resizable(False, False)
         dlg.transient(self)
@@ -2901,16 +3060,51 @@ class ModernTTSApp(*_APP_BASE):
         body.pack(fill="both", expand=True, padx=12, pady=12)
 
         ctk.CTkLabel(body, text=_tr("Нужна модель для анализа текста"), font=FONT_SUBHEADER,
-                     text_color=COLOR_HEAD).pack(pady=(16, 4))
-        if self._cuda_wanted():
-            mtxt = _tr("Gemma 4 E4B и сборка для видеокарты NVIDIA, ≈5,6 ГБ — скачиваются один раз "
-                       "(Hugging Face и GitHub).\nДальше приложение работает без интернета. "
-                       "Если прервать, докачается с места.")
-        else:
-            mtxt = _tr("Gemma 4 E4B, ≈5 ГБ — скачивается один раз с Hugging Face.\n"
-                       "Дальше анализ идёт без интернета. Если прервать, докачается с места.")
-        ctk.CTkLabel(body, justify="left", wraplength=470, font=FONT_TINY,
-                     text_color=COLOR_TEXT_SEC, text=mtxt).pack(padx=16, anchor="w")
+                     text_color=COLOR_HEAD).pack(pady=(12, 2))
+
+        # выбор из трёх моделей (09.11.26): QVikhr 3-4B / Gemma 4 E4B / Gemma 4 12B
+        packs = self.MODEL_PACKS
+        if getattr(self, "_dl_pack", None) not in packs:
+            self._dl_pack = packs[0]
+
+        mtxt_lbl = ctk.CTkLabel(body, justify="left", wraplength=470, font=FONT_TINY,
+                                text_color=COLOR_TEXT_SEC, text="")
+
+        def _blurb(pack):
+            note, note_en = pack.get("note") or "", pack.get("note_en") or ""
+            if UI_LANG == "en":
+                extra = f", {note_en}" if note_en else ""
+                if self._cuda_wanted():
+                    return (f"{pack['label']} ({pack['size_text_en']}{extra}) and the NVIDIA GPU "
+                            "build are downloaded once (Hugging Face and GitHub).\n"
+                            "The app then works without the internet. If interrupted, it resumes.")
+                return (f"{pack['label']} ({pack['size_text_en']}{extra}) is downloaded once "
+                        "from Hugging Face.\nThe analysis then runs without the internet. "
+                        "If interrupted, it resumes.")
+            extra = f", {note}" if note else ""
+            if self._cuda_wanted():
+                return (f"{pack['label']} ({pack['size_text']}{extra}) и сборка для видеокарты "
+                        "NVIDIA — скачиваются один раз (Hugging Face и GitHub).\n"
+                        "Дальше приложение работает без интернета. Если прервать, докачается "
+                        "с места.")
+            return (f"{pack['label']} ({pack['size_text']}{extra}) — скачивается один раз "
+                    "с Hugging Face.\nДальше анализ идёт без интернета. Если прервать, "
+                    "докачается с места.")
+
+        def _pick(label):
+            for p in packs:
+                if p["label"] == label:
+                    self._dl_pack = p
+                    break
+            mtxt_lbl.configure(text=_blurb(self._dl_pack))
+
+        seg = SegmentToggle(body, values=[p["label"] for p in packs], height=28,
+                            command=_pick)
+        seg.pack(fill="x", padx=16, pady=(4, 2))
+        if self._dl_pack is not packs[0]:
+            seg._choose(self._dl_pack["label"])   # вернуть прошлый выбор
+        mtxt_lbl.configure(text=_blurb(self._dl_pack))
+        mtxt_lbl.pack(padx=16, anchor="w")
 
         bar = ctk.CTkProgressBar(body, height=10, corner_radius=6, progress_color="#c6763a",
                                  fg_color=COLOR_CARD2)
@@ -2968,7 +3162,7 @@ class ModernTTSApp(*_APP_BASE):
 
     def _download_model(self, dlg, bar, info, btn):
         """Качает GGUF в models_llm/<имя>.part, затем — сборку видеокарты (пакетом, один раз)."""
-        pack = self.MODEL_PACK
+        pack = getattr(self, "_dl_pack", None) or self.MODEL_PACKS[0]
         folder = os.path.join(self.BASE_DIR, "models_llm")
         os.makedirs(folder, exist_ok=True)
         final = os.path.join(folder, pack["name"])
@@ -3074,7 +3268,7 @@ class ModernTTSApp(*_APP_BASE):
         except Exception:
             pass
         self.scan_models()
-        name = self.MODEL_PACK["name"]
+        name = (getattr(self, "_dl_pack", None) or self.MODEL_PACKS[0])["name"]
         disp = next((d for d, a in self.llm_display.items() if a == name), None)
         if disp:
             self.llm_combo.set(disp)
@@ -3142,7 +3336,27 @@ class ModernTTSApp(*_APP_BASE):
     # регистрируются в слотах при первом запуске (_seed_builtin_vox_voices)
     BUILTIN_VOX_VOICES = (
         {"name": "Алсу", "file": "alsu_ref.wav",
-         "text": "Привет. Это образец моего голоса для синтеза речи."},
+         "text": "Привет. Это образец моего голоса для синтеза речи.",
+         # записанные с микрофона эмоции Алсу (alsu_emo_*.wav едут в установщике);
+         # синтезированные образцы в дистрибутив не попадают никогда
+         "emos": {
+             "радостный": {"file": "alsu_emo_radostnyy.wav",
+                           "text": "Ура! Наконец-то получилось! Это же здорово, правда?"},
+             "строгий": {"file": "alsu_emo_strogiy.wav",
+                         "text": "Проверь за собой. Сделай так как следует, потом я проверю."},
+             "гневный": {"file": "alsu_emo_gnevnyy.wav",
+                         "text": "Это возмутительно! Так с людьми поступать нельзя!"},
+             "нежный": {"file": "alsu_emo_nezhnyy.wav",
+                        "text": "Как же я тебя люблю… Ты мой самый родной человек."},
+             "весёлый": {"file": "alsu_emo_veselyy.wav",
+                         "text": "Ой, как здорово! Обожаю такие дни, просто праздник какой-то!"},
+             "испуганный": {"file": "alsu_emo_ispugannyy.wav",
+                            "text": "Господи… Что это было? Там кто-то есть, я что-то слышала!"},
+             "командный": {"file": "alsu_emo_komandnyy.wav",
+                           "text": "Все остановились и слушают. Работаем по плану, время пошло."},
+             "шёпотом": {"file": "alsu_emo_shepotom.wav",
+                         "text": "Тссс… Говорю совсем тихо, чтобы никто случайно не услышал."},
+         }},
         {"name": "Джон", "file": "john_ref.wav",
          "text": "What is something that recently moved you?"},
     )
@@ -3184,8 +3398,64 @@ class ModernTTSApp(*_APP_BASE):
             self.builtin_vox_seeded = True
             if added:
                 self.update_status(f"✅ {_tr('Встроенный голос добавлен')}: {', '.join(added)}")
+            self._seed_builtin_vox_emotions()   # эмоции Алсу — отдельным учётом
         except Exception as e:
             print(f"⚠️ Встроенные голоса: {e}")
+
+    def _seed_builtin_vox_emotions(self):
+        """Досеивает эмоции встроенных голосов (у «Алсу» — записанные с микрофона).
+
+        Отдельный учёт от самих голосов: «Алсу» у старого пользователя уже посеяна,
+        а эмоции к ней должны доехать обновлением. Маркер seeded_builtin_emo хранит
+        имена голосов; эмоции, которые пользователь записал сам, не перезаписываются,
+        а уже посеянную и затем удалённую эмоцию повторный запуск не воскрешает.
+        Отсутствующий (удалённый/заменённый) голос не трогаем — как и с голосами.
+        """
+        try:
+            seeded = [str(n).strip() for n in (getattr(self, "seeded_builtin_emo", None) or [])
+                      if str(n).strip()]
+            low = {s.lower() for s in seeded}
+            by_file = {}
+            for key, item in (self.custom_voices or {}).items():
+                if not isinstance(item, dict):
+                    continue
+                base = os.path.basename(str(item.get("path", "")).replace("\\", "/")).lower()
+                if base:
+                    by_file.setdefault(base, str(key))
+            added = {}
+            for v in self.BUILTIN_VOX_VOICES:
+                name = str(v.get("name", "")).strip()
+                emos = v.get("emos") or {}
+                if not emos or name.lower() in low:
+                    continue
+                slot = by_file.get(str(v.get("file", "")).lower())
+                if slot is None:              # голос удалён/заменён — не воскрешаем
+                    continue
+                item = self.custom_voices[slot]
+                samples = item.get("samples")
+                if not isinstance(samples, dict):
+                    samples = {}
+                    item["samples"] = samples
+                for label, spec in emos.items():
+                    if label in samples:
+                        continue
+                    if isinstance(spec, str):
+                        fname, text = spec, ""
+                    else:
+                        fname, text = str(spec.get("file", "")), str(spec.get("text", ""))
+                    wav = os.path.join(self._asset_path("voices_builtin"), fname)
+                    if not (fname and os.path.isfile(wav)):
+                        continue
+                    samples[label] = {"path": wav, "text": text}
+                    added.setdefault(name, []).append(label)
+                seeded.append(name)
+                low.add(name.lower())
+            if added:
+                parts = [f"{n} — {len(ls)}" for n, ls in added.items()]
+                self.update_status(f"✅ {_tr('Эмоции добавлены')}: {', '.join(parts)}")
+            self.seeded_builtin_emo = seeded
+        except Exception as e:
+            print(f"⚠️ Эмоции встроенных голосов: {e}")
 
     def _first_run_chain(self):
         """Первый запуск: голоса → дополнение Vox → модель анализа (по одному шагу)."""
@@ -3324,10 +3594,22 @@ class ModernTTSApp(*_APP_BASE):
         cb1.configure(state="disabled")
         ctk.CTkLabel(r1, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
                      justify="left", wraplength=520,
-                     text=_tr("1. Модель для анализа Gemma 4 E4B и сборка для "
-                              "видеокарты (\u22485,6 ГБ) \u2014 обязательная часть "
-                              "программы") + done1
+                     text=_tr("1. Модель для анализа — на выбор: QVikhr 3-4B (хорошее "
+                              "распознавание эмоций), Gemma 4 E4B или Gemma 4 12B "
+                              "(без цензуры); сборка для видеокарты \u2014 "
+                              "обязательная часть программы") + done1
                      ).pack(side="left", fill="x", expand=True, padx=(10, 30), pady=3)
+
+        # выбор LLM-модели (09.11.26): по умолчанию — уже скачанная, иначе первая
+        self._setup_pack = next(
+            (p for p in self.MODEL_PACKS
+             if os.path.isfile(os.path.join(self.BASE_DIR, "models_llm", p["name"]))),
+            self.MODEL_PACKS[0])
+        seg_pack = SegmentToggle(body, values=[p["label"] for p in self.MODEL_PACKS],
+                                 height=26, command=self._pick_setup_pack)
+        seg_pack.pack(fill="x", padx=12, pady=(0, 3))
+        if self._setup_pack is not self.MODEL_PACKS[0]:
+            seg_pack._choose(self._setup_pack["label"])
 
         r2 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
         r2.pack(fill="x", padx=12, pady=3)
@@ -3346,7 +3628,8 @@ class ModernTTSApp(*_APP_BASE):
                 ("turbo", self._setup_vox_turbo,
                  _tr("Vox Turbo — быстрее на ~50%; нужно 12 ГБ видеопамяти")),
                 ("classic", self._setup_vox_classic,
-                 _tr("Vox Classic — обычный вариант (медленнее); достаточно 8 ГБ видеопамяти"))):
+                 _tr("Vox (рекомендуется) — обычный вариант (медленнее); достаточно 8 ГБ "
+                     "видеопамяти"))):
             fr = ctk.CTkFrame(r2, fg_color="transparent")
             fr.pack(fill="x", padx=(10, 2), pady=2)
             cb = ctk.CTkCheckBox(fr, text="", checkbox_width=18, checkbox_height=18,
@@ -3361,7 +3644,7 @@ class ModernTTSApp(*_APP_BASE):
             vcb["classic"].select()
             vcb["classic"].configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
                                      border_color="#8a8a8a", state="disabled")
-            ctk.CTkLabel(r2, text="   ✅ " + _tr("Vox Classic уже установлен"), font=FONT_TINY,
+            ctk.CTkLabel(r2, text="   ✅ " + _tr("Vox уже установлен"), font=FONT_TINY,
                          text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=10, pady=(0, 2))
         if self._nano_installed():
             vcb["turbo"].select()
@@ -3376,7 +3659,7 @@ class ModernTTSApp(*_APP_BASE):
             self._setup_vox_turbo.set(False)
             self._setup_vox_classic.set(False)
             ctk.CTkLabel(r2, text="   ⚠ " + _tr("видеопамяти меньше 8 ГБ — "
-                                                     "Vox не запустится: Classic нужно 8 ГБ, Turbo — 12 ГБ"),
+                                                     "Vox не запустится: ему нужно 8 ГБ, Turbo — 12 ГБ"),
                          font=FONT_TINY, text_color=COLOR_RED, anchor="w",
                          wraplength=560, justify="left").pack(fill="x", padx=10, pady=(0, 4))
         elif not gvram:
@@ -3466,9 +3749,12 @@ class ModernTTSApp(*_APP_BASE):
 
         def work():
             try:
-                gguf_final = os.path.join(self.BASE_DIR, "models_llm", self.MODEL_PACK["name"])
+                pack = getattr(self, "_setup_pack", None) or self.MODEL_PACKS[0]
+                self._dl_pack = pack   # качаем именно выбранную модель
+                gguf_final = os.path.join(self.BASE_DIR, "models_llm", pack["name"])
                 if not os.path.isfile(gguf_final) and not self._setup_cancel.is_set():
-                    set_info(_tr("1 · Gemma 4 E4B + сборка для видеокарты (≈5,6 ГБ)…"))
+                    set_info(_tr(f"1 \u00b7 {pack['label']} ({pack['size_text']}) "
+                                 "+ сборка для видеокарты…"))
                     holder = ctk.CTkToplevel(self)
                     holder.withdraw()
                     btnfake = ctk.CTkButton(holder, text="")
@@ -4634,15 +4920,41 @@ class ModernTTSApp(*_APP_BASE):
                                          text_color=COLOR_TEXT_MAIN, anchor="w")
         self.lbl_mode_cpu.pack(side="left")
 
-        self.llm_gpu_cb = ctk.CTkSwitch(gpu_row, text="", variable=self.llm_gpu_var, width=40,
+        self.llm_gpu_cb = ctk.CTkSwitch(gpu_row, text="", variable=self.llm_gpu_var, width=36,
                                         progress_color=COLOR_BRAND, fg_color=COLOR_SWITCH_OFF,
                                         button_color="#fffdf6", button_hover_color="#fffdf6",
                                         command=self._on_gpu_toggle)
-        self.llm_gpu_cb.pack(side="left", padx=8)
+        self.llm_gpu_cb.pack(side="left", padx=6)
 
         self.lbl_mode_gpu = ctk.CTkLabel(gpu_row, text="Видеокарта", font=FONT_SMALL,
                                          text_color=COLOR_TEXT_SEC, anchor="w")
         self.lbl_mode_gpu.pack(side="left")
+
+        # Справа — разбивка на чанки: текст считается по частям (для длинных текстов).
+        # В ряду с Процессор/Видеокарта: элементы ужаты (свитчи 36, меню 42, короткие
+        # паддинги), чтобы строка села плотно и без переноса (финал 09.11.26)
+        chunk_box = ctk.CTkFrame(gpu_row, fg_color="transparent")
+        chunk_box.pack(side="right")
+        self.lbl_chunks = ctk.CTkLabel(chunk_box, text="Разбить на чанки", font=FONT_SMALL,
+                                       text_color=COLOR_TEXT_SEC, anchor="e")
+        self.lbl_chunks.pack(side="left")
+        self.chunk_cb = ctk.CTkSwitch(chunk_box, text="", variable=self.chunk_var, width=36,
+                                      progress_color=COLOR_BRAND, fg_color=COLOR_SWITCH_OFF,
+                                      button_color="#fffdf6", button_hover_color="#fffdf6",
+                                      command=self._on_chunks_toggle)
+        self.chunk_cb.pack(side="left", padx=(2, 0))
+        self.chunk_menu = ctk.CTkOptionMenu(chunk_box, values=[str(i) for i in range(2, 17)],
+                                            width=42, height=26, font=FONT_TINY,
+                                            corner_radius=3, fg_color=COLOR_CARD2,
+                                            button_color=COLOR_FILL_SOFT,
+                                            button_hover_color=COLOR_SELECT,
+                                            text_color=COLOR_TEXT_MAIN,
+                                            dropdown_fg_color="#fffdf6",
+                                            dropdown_text_color=COLOR_TEXT_MAIN,
+                                            dropdown_hover_color=COLOR_SELECT,
+                                            command=self._on_chunks_count)
+        self.chunk_menu.pack(side="left")
+        self._sync_chunk_menu()
 
         self.llm_limit_label = ctk.CTkLabel(ai, text="…", font=FONT_TINY,
                                             text_color=COLOR_TEXT_SEC, anchor="w")
@@ -5198,14 +5510,14 @@ class ModernTTSApp(*_APP_BASE):
             # оставаться частично в отображённом файле), в ОЗУ — служебная часть
             vram = weights + kvn + int(0.30 * 2**30)
             ram = int(0.75 * 2**30) + weights * 0.55 + kvn * 0.25
-            txt = _tr(f"{used:,} ток. · VRAM ≈ {gib(vram):.1f} · ОЗУ ≈ {gib(ram):.1f} ГБ")
+            txt = _tr(f"{used:,} ток. (≈{chars:,} знаков) · VRAM ≈ {gib(vram):.1f} · ОЗУ ≈ {gib(ram):.1f} ГБ")
             gu, gt = self._gpu_mem_probe()
             if gu is not None and gt:
                 free_v = gt - gu
         else:
             # режим «процессор»: всё — и веса, и кэш — лежит в системной ОЗУ
             ram = weights * 1.05 + kvn + int(0.35 * 2**30)
-            txt = _tr(f"{used:,} ток. · ОЗУ ≈ {gib(ram):.1f} ГБ")
+            txt = _tr(f"{used:,} ток. (≈{chars:,} знаков) · ОЗУ ≈ {gib(ram):.1f} ГБ")
 
         rt, ra = self._sys_mem_info()
         known = bool(ra) or free_v is not None
@@ -6261,7 +6573,7 @@ class ModernTTSApp(*_APP_BASE):
         ctk.CTkLabel(body, font=FONT_TINY, text_color=COLOR_TEXT_SEC, justify="left",
                      wraplength=470,
                      text=_tr("Python, torch и VoxCPM ставятся в папку приложения. "
-                              "Первый раз это занимает 5–15 минут (для Classic достаточно 8 ГБ видеопамяти).")
+                              "Первый раз это занимает 5–15 минут (для Vox достаточно 8 ГБ видеопамяти).")
                      ).pack(padx=16, anchor="w")
         bar = ctk.CTkProgressBar(body, height=10, corner_radius=6, progress_color="#c6763a",
                                  fg_color=COLOR_CARD2)
@@ -6638,7 +6950,8 @@ class ModernTTSApp(*_APP_BASE):
         return True, "ok"
 
     def _vox_var_name(self):
-        return "Vox Turbo" if self._vox_variant_effective() == "turbo" else "Vox Classic"
+        # хвост для подписи кнопки: у обычного Vox хвост не пишем (в UI он — «Vox»)
+        return " · Vox Turbo" if self._vox_variant_effective() == "turbo" else ""
 
     def _vox_variant_effective(self):
         """Реально работающий вариант: если быстрый движок не установлен — обычный."""
@@ -6814,7 +7127,7 @@ class ModernTTSApp(*_APP_BASE):
         except Exception:
             pass
         try:
-            self.btn_vox_cfg.configure(text=_tr("⚙ Настройки Vox · " + self._vox_var_name()))
+            self.btn_vox_cfg.configure(text=_tr("⚙ Настройки Vox" + self._vox_var_name()))
         except Exception:
             pass
         if self.current_engine == "Vox":
@@ -6850,7 +7163,7 @@ class ModernTTSApp(*_APP_BASE):
         dlg.transient(self)
         ctk.CTkLabel(dlg, text=_tr("Устанавливается быстрый движок"), font=FONT_SUBHEADER,
                      text_color=COLOR_HEAD).pack(pady=(16, 2))
-        ctk.CTkLabel(dlg, text=_tr("⚠ Для Turbo нужно 12 ГБ видеопамяти (Classic хватает 8 ГБ)"),
+        ctk.CTkLabel(dlg, text=_tr("⚠ Для Turbo нужно 12 ГБ видеопамяти (Vox хватает 8 ГБ)"),
                      font=FONT_TINY, text_color=COLOR_RED).pack(pady=(0, 2))
         stage = ctk.CTkLabel(dlg, text=_tr("Ставлю nano-vllm-voxcpm, triton и flash_attn (≈300 МБ)..."),
                              font=FONT_TINY, text_color=COLOR_TEXT_SEC, justify="left",
@@ -6903,12 +7216,12 @@ class ModernTTSApp(*_APP_BASE):
             pass
         ctk.CTkLabel(dlg, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
                      justify="left", wraplength=560,
-                     text=_tr("Два движка Vox — одни и те же веса и голоса. Turbo — быстрее на ~50%, Classic — обычный; качество одинаковое.")
+                     text=_tr("Два движка Vox — одни и те же веса и голоса. Turbo быстрее на ~50%, обычный — медленнее; качество одинаковое.")
                      ).pack(fill="x", padx=14, pady=(12, 4))
         cur = self._vox_variant_effective()
         for kind, title, desc in (
                 ("turbo", "🚀 Vox Turbo", _tr("быстрее на ~50% · нужно 12 ГБ видеопамяти")),
-                ("classic", "🎧 Vox Classic", _tr("обычный вариант — достаточно 8 ГБ видеопамяти"))):
+                ("classic", "🎧 Vox", _tr("обычный вариант — достаточно 8 ГБ видеопамяти"))):
             fr = ctk.CTkFrame(dlg, fg_color="transparent")
             fr.pack(fill="x", padx=14, pady=4)
             ctk.CTkLabel(fr, font=FONT_SMALL,
@@ -6933,7 +7246,7 @@ class ModernTTSApp(*_APP_BASE):
                          justify="left", wraplength=430, text=desc).pack(side="left", padx=(12, 0))
         ctk.CTkLabel(dlg, font=FONT_TINY, text_color=COLOR_RED, anchor="w", justify="left",
                      wraplength=560,
-                     text=_tr("⚠ Vox Classic — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ")
+                     text=_tr("⚠ Vox — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ")
                      ).pack(fill="x", padx=14, pady=(10, 0))
         ctk.CTkLabel(dlg, font=FONT_TINY, text_color=COLOR_TEXT_SEC, anchor="w", justify="left",
                      wraplength=560,
@@ -7164,7 +7477,7 @@ class ModernTTSApp(*_APP_BASE):
         if show:
             self.vox_row.pack(fill="x", padx=12, pady=(0, 6), before=self._tts_voice_row)
             try:
-                self.btn_vox_cfg.configure(text=_tr("⚙ Настройки Vox · " + self._vox_var_name()))
+                self.btn_vox_cfg.configure(text=_tr("⚙ Настройки Vox" + self._vox_var_name()))
             except Exception:
                 pass
         else:
@@ -8058,6 +8371,8 @@ class ModernTTSApp(*_APP_BASE):
                 "auto_play": bool(self.auto_play_var.get()),
                 "emo_auto": bool(self.emo_auto_var.get() if self.current_engine in ("Vox", "Qwen")
                                   else self._emo_pref),
+                "chunks_on": bool(self.chunk_var.get()),
+                "chunks_count": int(self.chunk_count_var.get() or "4"),
                 "custom_voices": self.custom_voices,
                 "engine_voices": self.engine_voices,
                 "ctx_choices": self.ctx_choices,
@@ -8081,6 +8396,7 @@ class ModernTTSApp(*_APP_BASE):
                 "voices_seeded": bool(getattr(self, "voices_seeded", False)),
                 "builtin_vox_seeded": bool(getattr(self, "builtin_vox_seeded", False)),
                 "seeded_builtin_voices": list(getattr(self, "seeded_builtin_voices", None) or []),
+                "seeded_builtin_emo": list(getattr(self, "seeded_builtin_emo", None) or []),
                 "vox_offer_done": bool(getattr(self, "vox_offer_done", False)),
             }
             tmp = self.SETTINGS_FILE + ".tmp"
@@ -8160,6 +8476,8 @@ class ModernTTSApp(*_APP_BASE):
         self.builtin_vox_seeded = bool(data.get("builtin_vox_seeded", False))
         self.seeded_builtin_voices = [str(x) for x in (data.get("seeded_builtin_voices") or [])
                                       if str(x).strip()]
+        self.seeded_builtin_emo = [str(x) for x in (data.get("seeded_builtin_emo") or [])
+                                   if str(x).strip()]
         self._seed_builtin_vox_voices()
 
         cc = data.get("ctx_choices")
@@ -8169,6 +8487,11 @@ class ModernTTSApp(*_APP_BASE):
         self.auto_play_var.set(bool(data.get("auto_play", False)))
         self._emo_pref = bool(data.get("emo_auto", False))
         self.emo_auto_var.set(self._emo_pref and self.current_engine == "Vox")
+        self.chunk_var.set(bool(data.get("chunks_on", False)))
+        try:
+            self.chunk_count_var.set(str(max(2, min(16, int(data.get("chunks_count", 4))))))
+        except Exception:
+            self.chunk_count_var.set("4")
         self.model_offer_muted = bool(data.get("model_offer_muted", False))
         self.voices_seeded = bool(data.get("voices_seeded", False))
         self.vox_offer_done = bool(data.get("vox_offer_done", False))
@@ -8210,6 +8533,7 @@ class ModernTTSApp(*_APP_BASE):
         self.qwen_fixed_var.set(bool(data.get("qwen_seed_on", False)))
         self.llm_gpu_var.set(bool(data.get("llm_gpu", False)))
         self._update_gpu_labels()
+        self._sync_chunk_menu()
 
         engine = data.get("engine", "Piper")   # по умолчанию — Piper: работает без дополнений
         if engine not in ("Piper", "Vox", "Qwen"):
@@ -8297,7 +8621,7 @@ class ModernTTSApp(*_APP_BASE):
         hint = getattr(self, "engine_hint", None)
         if hint is not None:
             if value == "Vox":
-                hint.configure(text=_tr("⚠ Vox Classic — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ"),
+                hint.configure(text=_tr("⚠ Vox — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ"),
                                text_color=COLOR_TEXT_MAIN)
             elif value == "Qwen":
                 hint.configure(text=_tr("⚠ Qwen требует видеокарту с 6 ГБ видеопамяти"),
@@ -8351,6 +8675,38 @@ class ModernTTSApp(*_APP_BASE):
         self._show_qwen_tools(value == "Qwen")
         self._show_vox_tools(value == "Vox")
         self._sync_emo_auto()
+
+    # ---- чанки (09.11.26): разбивка длинного текста на части при анализе ----
+    def _sync_chunk_menu(self, *_):
+        """Меню числа чанков живо только при включённом тумблере «Чанки»."""
+        try:
+            self.chunk_menu.set(self.chunk_count_var.get() or "4")
+            self.chunk_menu.configure(state="normal" if self.chunk_var.get() else "disabled")
+            self.lbl_chunks.configure(
+                text_color=COLOR_TEXT_MAIN if self.chunk_var.get() else COLOR_TEXT_SEC)
+        except Exception:
+            pass
+
+    def _on_chunks_toggle(self):
+        self.save_settings()
+        self._sync_chunk_menu()
+
+    def _on_chunks_count(self, value=None):
+        # Выбор числа из меню ОБЯЗАН попасть в chunk_count_var: без этого анализ
+        # всегда брал дефолт «4», сколько бы ни выбрали (баг нашёл Ярослав 09.11.26).
+        try:
+            if value is not None:
+                self.chunk_count_var.set(str(value))
+        except Exception:
+            pass
+        self.save_settings()
+
+    def _pick_setup_pack(self, label):
+        """Выбор LLM-модели в окне первичной установки (из трёх)."""
+        for p in self.MODEL_PACKS:
+            if p["label"] == label:
+                self._setup_pack = p
+                break
 
     def _sync_emo_auto(self):
         """«Добавить эмоции» имеет смысл только на Vox: на Piper переключатель гаснет."""
@@ -9009,17 +9365,36 @@ class ModernTTSApp(*_APP_BASE):
                 row["stat"].configure(text="— " + _tr("не задана"))
                 for b in (row["rec"], row["syn"], row["del"]):
                     b.configure(state="disabled")
+                self._emo_play_btn(row, False)
                 continue
             smp = samples.get(label)
             if smp and os.path.exists(smp.get("path") or ""):
                 row["stat"].configure(text="✅ " + _tr("записана"))
                 for b in (row["rec"], row["syn"], row["del"]):
                     b.configure(state="normal")
+                self._emo_play_btn(row, True)
             else:
                 row["stat"].configure(text="— " + _tr("не записана"))
                 row["rec"].configure(state="normal")
                 row["syn"].configure(state="normal")
                 row["del"].configure(state="disabled")
+                self._emo_play_btn(row, False)
+
+    @staticmethod
+    def _emo_play_btn(row, show):
+        """«▶» у статуса эмоции: у записанной — показать, иначе скрыть."""
+        btn = row.get("play")
+        if btn is None:
+            return
+        try:
+            if show:
+                btn.pack(side="left", padx=(6, 0))
+                btn.configure(state="normal", text="▶")
+            else:
+                btn.pack_forget()
+                btn.configure(state="disabled", text="▶")
+        except Exception:
+            pass
 
     def emotion_synth(self, slot_id, label):
         """Синтез эмоционального образца нейросетью из нейтрального образца этого голоса."""
@@ -9594,6 +9969,7 @@ class ModernTTSApp(*_APP_BASE):
             "chat_template_kwargs": {"enable_thinking": False}
         }
 
+        self._gen_truncated = False   # предохранитель: поймать обрыв по лимиту контекста
         full_text = ""
         tokens_generated = 0
         t_start = time.time()
@@ -9624,9 +10000,16 @@ class ModernTTSApp(*_APP_BASE):
                                 tokens_generated += 1
                                 # Прогресс по реальному объёму текста, а не по числу
                                 # кусков: иначе 95% набегает в начале генерации.
-                                pct = self._progress_pct(len(full_text), expected_chars,
-                                                         tokens_generated)
-                                self.after(0, lambda p=pct: self.set_progress(p, "Анализ (видеокарта)"))
+                                # При анализе по чанкам — прогресс внутри окна части.
+                                pct = self._scale_window(self._progress_pct(
+                                    len(full_text), expected_chars, tokens_generated))
+                                # 95% — потолок шкалы: на длинном хвосте показываем «Завершение»,
+                                # чтобы это не выглядело зависанием
+                                lb = "Завершение (видеокарта)" if pct >= 95 else "Анализ (видеокарта)"
+                                self.after(0, lambda p=pct, lb=lb: self.set_progress(p, lb))
+                            if chunk["choices"][0].get("finish_reason") == "length":
+                                # сервер оборвал генерацию: текст и ответ не влезли в контекст
+                                self._gen_truncated = True
                     except json.JSONDecodeError:
                         print(f"⚠️ Ошибка парсинга строки сервера: {line_str}")
                         continue
@@ -9737,6 +10120,46 @@ class ModernTTSApp(*_APP_BASE):
                 "Если задан диапазон объёма — соблюдай его строго: не больше верхней "
                 "границы и не меньше нижней.")
 
+    def _check_context_space(self, text, n_ctx, port):
+        """Предохранитель перед анализом (09.11.26): сверяет фактический контекст
+        GPU-сервера с выбранным и грубо оценивает, хватит ли места тексту и ответу
+        (в дословном режиме ответ модели почти равен входному тексту). Один запрос
+        к /props; при нехватке — предупреждение, сам анализ не прерывается.
+        """
+        fact = None
+        try:
+            pr = requests.get(f"http://127.0.0.1:{port}/props", timeout=3)
+            if pr.ok:
+                fact = int(pr.json().get("default_generation_settings", {})
+                           .get("n_ctx") or 0) or None
+        except Exception:
+            pass
+        eff = fact or n_ctx
+        if fact and fact < int(n_ctx * 0.99):
+            self.after(0, lambda a=fact, b=int(n_ctx): self.update_status(
+                f"⚠️ Сервер дал контекст {a:,} вместо {b:,}".replace(",", " ")))
+        try:
+            per_char = 3.0 if self._detect_text_lang(text) == "ru" else 3.5
+            tok_est = int(len(text) / per_char) + 1200
+            need = int(tok_est * 2.2) + 400     # текст + дословный ответ с маркерами
+        except Exception:
+            return
+        if need > eff:
+            n_parts = max(2, -(-need // max(1, eff)))
+            if UI_LANG == "en":
+                msg = (f"Looks like there is little room: the text with its answer needs about "
+                       f"{need:,} tokens, but the model has {eff:,}. Part of the text may be cut "
+                       f"off. Increase the model context or enable “Split into chunks” and set "
+                       f"at least {n_parts}.")
+            else:
+                need_s = f"{need:,}".replace(",", " ")
+                eff_s = f"{eff:,}".replace(",", " ")
+                msg = (f"Похоже, места мало: тексту с ответом нужно примерно {need_s} токенов, "
+                       f"а у модели {eff_s}. Часть текста может обрезаться. Увеличьте контекст "
+                       f"модели или включите «Разбить на чанки» и поставьте не меньше {n_parts}.")
+            print(f"⚠️ {msg}")
+            self.after(0, lambda m=msg: messagebox.showwarning("Мало контекста", m))
+
     @staticmethod
     def _progress_pct(produced, expected_chars=None, chunks=0):
         """Прогресс анализа: 15% — старт, 95% — предел до финального «Готово».
@@ -9764,6 +10187,7 @@ class ModernTTSApp(*_APP_BASE):
                                                     expected_chars=expected_chars)
             return self.clean_summary(server_text)
 
+        self._gen_truncated = False   # предохранитель: поймать обрыв по лимиту контекста
         full_text = ""
         tokens_generated = 0
         t_start = time.time()
@@ -9774,8 +10198,11 @@ class ModernTTSApp(*_APP_BASE):
                 full_text += piece
                 tokens_generated += 1
                 # Прогресс по объёму готового текста: 95% больше не набегает в начале.
-                pct = self._progress_pct(len(full_text), expected_chars, tokens_generated)
-                self.after(0, lambda p=pct: self.set_progress(p, "Анализ"))
+                # При анализе по чанкам — прогресс внутри окна части.
+                pct = self._scale_window(self._progress_pct(len(full_text), expected_chars,
+                                                            tokens_generated))
+                lb = "Завершение" if pct >= 95 else "Анализ"
+                self.after(0, lambda p=pct, lb=lb: self.set_progress(p, lb))
 
         stop_tokens = ["<|eot_id|>", "<|im_end|>", "</s>"]
 
@@ -9795,6 +10222,11 @@ class ModernTTSApp(*_APP_BASE):
                             or chunk["choices"][0].get("text", "")
                 except Exception:
                     piece = ""
+                try:
+                    if chunk["choices"][0].get("finish_reason") == "length":
+                        self._gen_truncated = True
+                except Exception:
+                    pass
                 feed(piece)
         except Exception as e:
             print(f"⚠️ Chat-шаблон недоступен ({e}) — запасной прямой промпт")
@@ -9909,6 +10341,69 @@ class ModernTTSApp(*_APP_BASE):
         if cur:
             chunks.append(cur)
         return [c for c in chunks if c.strip()]
+
+    # ---- чанки (09.11.26): разбивка текста на части для анализа ----
+
+    def _chunks_settings(self):
+        """Состояние тумблера «Чанки» и выбранное число частей."""
+        try:
+            on = bool(self.chunk_var.get())
+        except Exception:
+            on = False
+        try:
+            n = int(self.chunk_count_var.get() or "4")
+        except Exception:
+            n = 4
+        return on, max(2, min(64, n))
+
+    def _split_for_chunks(self, text, n, hard_limit=None):
+        """Режем текст на части для анализа. Границы — только по концам предложений.
+
+        Предложение с маркером эмоции — (эмоция) из справочника — не разрывается
+        и ЗАВЕРШАЕТ свой чанк: как только оно закончилось, чанк закрывается
+        (правило Ярослава от 09.11.26). Части выходят близкими к равным; если
+        какая-то всё же больше жёсткого лимита модели, дорезаем её принудительно.
+        """
+        text = (text or "").strip()
+        if not text:
+            return []
+        units = [s.strip() for s in re.split(r"(?<=[.!?…])\s+", text) if s.strip()]
+        if not units:
+            return [text]
+
+        target = max(60, -(-len(text) // max(1, n)))
+        parts, cur = [], ""
+        for s in units:
+            emo = has_emotion_marker(s)
+            if cur and not emo and len(cur) + 1 + len(s) > target and len(parts) < n - 1:
+                parts.append(cur)
+                cur = ""
+            cur = (cur + " " + s).strip() if cur else s
+            if emo:
+                parts.append(cur)
+                cur = ""
+        if cur:
+            parts.append(cur)
+
+        if hard_limit:
+            fixed = []
+            for p in parts:
+                if len(p) > hard_limit:
+                    fixed.extend(self.split_text_chunks(p, hard_limit))
+                else:
+                    fixed.append(p)
+            parts = fixed
+        return [p for p in parts if p.strip()]
+
+    def _scale_window(self, pct):
+        """Прогресс внутри окна (lo, hi): при анализе по чанкам каждая часть
+        заполняет свой отрезок шкалы, а не всю."""
+        win = getattr(self, "_progress_window", None)
+        if not win:
+            return pct
+        lo, hi = win
+        k = max(0.0, min(1.0, (pct - 15) / 80.0))
+        return max(15, min(95, int(lo + (hi - lo) * k)))
 
     def start_full_process(self):
         if self.is_processing:
@@ -10028,11 +10523,33 @@ class ModernTTSApp(*_APP_BASE):
 
             limit = self.model_limits.get(llm_name, FALLBACK_CHARS)
             n_chars = len(text)
+            chunks_on, chunks_want = self._chunks_settings()
+            need_n = max(2, -(-n_chars // max(1, limit)))   # минимум частей, чтобы текст влез
 
-            if n_chars > limit:
-                msg = (f"Количество знаков {n_chars:,} — это больше поддерживаемого "
-                       f"моделью {limit:,} знаков. Увеличьте контекст для модели ИИ.")
-                self.after(0, lambda: messagebox.showwarning("Слишком длинный текст", msg.replace(",", " ")))
+            if not chunks_on and n_chars > limit:
+                if UI_LANG == "en":
+                    msg = (f"The text has {n_chars:,} characters — more than the model can take "
+                           f"({limit:,}). Enable “Split into chunks” in the “AI MODEL” card — set "
+                           f"at least {need_n}. Or increase the context of the AI model.")
+                else:
+                    msg = (f"Количество знаков {n_chars:,} — это больше поддерживаемого "
+                           f"моделью {limit:,} знаков. Включите «Разбить на чанки» в карточке "
+                           f"«МОДЕЛЬ ИИ» — поставьте не меньше {need_n}. Или увеличьте контекст "
+                           f"для модели ИИ.")
+                    msg = msg.replace(",", " ")
+                self.after(0, lambda m=msg: messagebox.showwarning("Слишком длинный текст", m))
+                raise TooLong(msg)
+            if chunks_on and chunks_want < need_n:
+                if UI_LANG == "en":
+                    msg = (f"You selected {chunks_want} chunks: {n_chars:,} characters cannot fit "
+                           f"into that many parts — one part holds up to {limit:,} characters. "
+                           f"Set at least {need_n} — or increase the context of the AI model.")
+                else:
+                    msg = (f"Чанков выбрано {chunks_want}: текст {n_chars:,} знаков не уложить "
+                           f"в такое число частей — в одну влезает до {limit:,}. Поставьте "
+                           f"не меньше {need_n} — или увеличьте контекст для модели ИИ.")
+                    msg = msg.replace(",", " ")
+                self.after(0, lambda m=msg: messagebox.showwarning("Слишком длинный текст", m))
                 raise TooLong(msg)
             self.after(0, lambda: self.set_progress(10, "Проверка объёма"))
 
@@ -10055,6 +10572,11 @@ class ModernTTSApp(*_APP_BASE):
                 port = self._ensure_gpu_server(path, n_ctx)
                 gpu_url = f"http://127.0.0.1:{port}/v1/chat/completions"
                 self.after(0, lambda: self.set_progress(15, "Модель на GPU"))
+                # Предохранитель: сверяем фактический контекст сервера с выбранным и грубо
+                # проверяем, хватит ли места тексту и ответу (дословный ответ ≈ текст).
+                # При анализе по чанкам текст режется на части — предупреждение не нужно.
+                if not chunks_on:
+                    self._check_context_space(text, n_ctx, port)
             else:
                 if (self.llm_model is not None and self.llm_model_path == path
                         and self.llm_model_ctx == n_ctx):
@@ -10078,16 +10600,19 @@ class ModernTTSApp(*_APP_BASE):
             instruction = self.instruction_entry.get("1.0", "end-1c").strip()
 
             ratio = self._preset_ratio(self.preset_menu.get())
-            target = None
-            if ratio:
-                target = max(60, int(len(text) * ratio))
-                floor = max(40, int(target * 0.8))
-                instruction = (instruction + f"\n\nОГРАНИЧЕНИЕ ОБЪЁМА: от {floor} до {target} знаков "
-                               f"(около {int(ratio * 100)}% исходного текста). Это жёсткие границы: "
-                               f"не укладываешься в верхнюю — сокращай дальше, сохраняя главное; "
-                               f"не добираешь нижнюю — возвращай пропущенные значимые детали, "
-                               f"цифры и имена.")
-                print(f"📏 Целевой объём: {floor}–{target} знаков ({int(ratio * 100)}% от {len(text)})")
+
+            def _with_volume(instr, t):
+                """Инструкция с ограничением объёма — под конкретный текст (весь или часть)."""
+                if not ratio:
+                    return instr, None
+                tgt = max(60, int(len(t) * ratio))
+                flr = max(40, int(tgt * 0.8))
+                print(f"📏 Целевой объём: {flr}–{tgt} знаков ({int(ratio * 100)}% от {len(t)})")
+                return (instr + f"\n\nОГРАНИЧЕНИЕ ОБЪЁМА: от {flr} до {tgt} знаков "
+                        f"(около {int(ratio * 100)}% исходного текста). Это жёсткие границы: "
+                        f"не укладываешься в верхнюю — сокращай дальше, сохраняя главное; "
+                        f"не добираешь нижнюю — возвращай пропущенные значимые детали, "
+                        f"цифры и имена."), tgt
 
             # «Добавить эмоции»: модель сама ставит (эмоцию) перед фразами. Список берём
             # из записанных образцов голоса — иная скобка ни на что не повлияла бы.
@@ -10099,17 +10624,54 @@ class ModernTTSApp(*_APP_BASE):
             else:
                 self._emo_markers_on = False
 
-            summary = self.summarize_text(text, instruction, server_url=gpu_url,
-                                          expected_chars=target or len(text))
+            if chunks_on:
+                # Анализ по частям: текст режется на чанки. Предложение с маркером
+                # эмоции не разрывается и завершает свой чанк — см. _split_for_chunks().
+                parts_in = self._split_for_chunks(text, chunks_want, hard_limit=limit)
+                n_parts = len(parts_in)
+                print(f"🧩 Анализ по чанкам: {n_parts} части")
+                done, sum_tok, sum_el, any_tr = [], 0, 0.0, False
+                for i, piece in enumerate(parts_in):
+                    if self.cancel_event.is_set():
+                        raise Cancelled()
+                    instr_i, tgt_i = _with_volume(instruction, piece)
+                    lo = 15 + (80 * i) // n_parts
+                    hi = 15 + (80 * (i + 1)) // n_parts
+                    self._progress_window = (lo, hi)
+                    self.after(0, lambda i=i, n=n_parts: self.update_status(
+                        f"Анализ нейросетью… чанк {i + 1} из {n}"))
+                    out = self.summarize_text(piece, instr_i, server_url=gpu_url,
+                                              expected_chars=tgt_i or len(piece))
+                    st = dict(getattr(self, "_gen_stats", {}) or {})
+                    sum_tok += int(st.get("tokens") or 0)
+                    sum_el += float(st.get("elapsed") or 0)
+                    if getattr(self, "_gen_truncated", False):
+                        any_tr = True
+                    done.append((out or "").strip())
+                self._progress_window = None
+                self._gen_stats = {"tokens": sum_tok, "elapsed": sum_el,
+                                   "tps": sum_tok / sum_el if sum_el else 0}
+                self._gen_truncated = any_tr
+                summary = " ".join(p for p in done if p).strip()
+            else:
+                instr_all, tgt_all = _with_volume(instruction, text)
+                summary = self.summarize_text(text, instr_all, server_url=gpu_url,
+                                              expected_chars=tgt_all or len(text))
 
-            if target:
-                summary = self._fit_to_limit(summary, target, server_url=gpu_url)
+            # Добивка объёма отключена (09.11.26, просьба Ярослава): второй прогон модели
+            # в логе выглядел как повторная «обработка видеокартой», а текст пережимался.
+            # Объём задаёт инструкция «ОГРАНИЧЕНИЕ ОБЪЁМА» первого прохода.
+            # Метод _fit_to_limit оставлен в классе; вернуть — раскомментировать вызов.
+            # if target:
+            #     summary = self._fit_to_limit(summary, target, server_url=gpu_url)
 
             if self._emo_markers_on:
                 summary = self._strip_unknown_markers(summary, self.tts_combo.get())
                 self._emo_markers_on = False
 
             stats = getattr(self, '_gen_stats', {}) or {}
+            truncated = getattr(self, "_gen_truncated", False)   # модель упёрлась в лимит?
+            self._gen_truncated = False
 
             # Анализ закончен: модель анализа больше не нужна — освобождаем видеопамять,
             # чтобы Vox (GPU) мог загрузиться и не упирался в нехватку VRAM.
@@ -10131,10 +10693,13 @@ class ModernTTSApp(*_APP_BASE):
                     text=" · ".join(_tr(p) for p in (
                         f"{st['tokens']} токенов", f"{st['elapsed']:.1f} с",
                         f"{st['tps']:.1f} ток/с", s))))
-                self.after(0, lambda s=share, p=pct: self.update_status(
-                    f"✅ Анализ завершён · {s}"))
+                self.after(0, lambda s=share: self.update_status(
+                    (f"⚠️ Текст обрезан: модель упёрлась в лимит контекста · {s}"
+                     " · увеличьте контекст") if truncated else f"✅ Анализ завершён · {s}"))
             else:
-                self.after(0, lambda s=share: self.update_status(f"✅ Анализ завершён · {s}"))
+                self.after(0, lambda s=share: self.update_status(
+                    (f"⚠️ Текст обрезан: модель упёрлась в лимит контекста · {s}"
+                     " · увеличьте контекст") if truncated else f"✅ Анализ завершён · {s}"))
             if ratio and pct > int(ratio * 100) + 15:
                 print(f"⚠️ Модель не уложилась в {int(ratio * 100)}%: получилось {pct}%")
             self.box_is_source = False
@@ -10154,6 +10719,7 @@ class ModernTTSApp(*_APP_BASE):
             self.after(0, lambda m=error_msg: messagebox.showerror("Анализ", m))
             self.after(0, lambda m=error_msg: self.update_status(f"❌ Ошибка: {m[:60]}"))
         finally:
+            self._progress_window = None   # анализ по чанкам мог прерваться на середине
             if gpu_url:
                 self._stop_gpu_server()  # ошибка/отмена — VRAM всё равно освобождаем
                 gpu_url = None

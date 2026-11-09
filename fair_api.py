@@ -246,8 +246,10 @@ def _speak(app, p):
                                 f"цифры и имена.")
             _status(app, "🤖 MCP: анализ нейросетью…")
             out_text = app.summarize_text(text, instruction, server_url=gpu_url)
-            if target:
-                out_text = app._fit_to_limit(out_text, target, server_url=gpu_url)
+            # Добивка объёма отключена (09.11.26, как и в приложении): второй прогон
+            # модели не нужен — объём задаёт инструкция первого прохода.
+            # if target:
+            #     out_text = app._fit_to_limit(out_text, target, server_url=gpu_url)
             model_used = llm_name
             if gpu_url:
                 app._stop_gpu_server()      # освобождаем VRAM под Vox
