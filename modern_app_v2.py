@@ -2445,12 +2445,12 @@ _XLAT_EXTRA = {
     "⚠ Qwen требует видеокарту с 6 ГБ видеопамяти": "⚠ Qwen requires a GPU with 6 GB of VRAM",
     "✨ Дизайн голоса": "✨ Design voice",
     "Моделирую голос…": "Designing the voice…",
-    "Опиши голос по-английски: такие описания Vox\n"
-    "понимает только по-английски или по-китайски.\n"
+    "Опиши голос по-английски: описание тембра на\n"
+    "английском модель понимает надёжнее всего.\n"
     "Речь при этом будет по-русски — язык он берёт из текста.\n"
     "Тембр каждый раз чуть разный: сравни 2–3 варианта.":
-        "Describe the voice in English — Vox understands these descriptions\n"
-        "in English or Chinese only.\n"
+        "Describe the voice in English — the model follows English\n"
+        "voice descriptions most reliably.\n"
         "The speech itself will still be Russian: the language comes from the text.\n"
         "The timbre varies slightly each time: compare 2–3 takes.",
     "Быстрый выбор": "Quick pick",
@@ -8383,8 +8383,8 @@ class ModernTTSApp(*_APP_BASE):
             dlg.after(500, lambda: dlg.attributes("-topmost", False))
         except Exception:
             pass
-        ctk.CTkLabel(dlg, text=_tr("Опиши голос по-английски: такие описания Vox\n"
-                                   "понимает только по-английски или по-китайски.\n"
+        ctk.CTkLabel(dlg, text=_tr("Опиши голос по-английски: описание тембра на\n"
+                                   "английском модель понимает надёжнее всего.\n"
                                    "Речь при этом будет по-русски — язык он берёт из текста.\n"
                                    "Тембр каждый раз чуть разный: сравни 2–3 варианта."),
                      font=FONT_SMALL, text_color=COLOR_TEXT_SEC, justify="left",
