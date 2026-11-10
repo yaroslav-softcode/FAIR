@@ -7794,8 +7794,15 @@ class ModernTTSApp(*_APP_BASE):
         opened = time.time()
 
         def on_focus_out(_e):
-            # гонка фокуса при клике сразу после открытия не должна закрывать
-            # палитру мгновенно (CTk на <Button-1> переводит фокус на кликнутое)
+            # фокус ушёл ВНУТРЬ палитры (клик по чипу: CTk на <Button-1> переводит
+            # фокус на кликнутый виджет) — это не уход, палитру не закрываем
+            try:
+                w = self.focus_get()
+                if w is not None and w.winfo_toplevel() is pal:
+                    return
+            except Exception:
+                pass
+            # гонка фокуса при клике сразу после открытия тоже не должна закрывать
             if time.time() - opened > 0.45:
                 self._close_vox_palette()
         pal.bind("<FocusOut>", on_focus_out)
