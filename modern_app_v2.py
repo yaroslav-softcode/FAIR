@@ -2493,6 +2493,10 @@ _XLAT_EXTRA = {
         "The timbre varies slightly each time: compare 2–3 takes.",
     "Формулировка вставлена — можно поправить самому.":
         "Wording inserted — feel free to edit it.",
+    "выбери голос или запиши новый": "pick a voice or record a new one",
+    "пустой слот — нажми «+», чтобы записать или смоделировать голос":
+        "empty slot — tap «+» to record or design a voice",
+    "клон по образцу записи": "clone from a recorded sample",
     "VoxCPM2 недоступна — проверь видеокарту и видеопамять.":
         "VoxCPM2 is unavailable — check your graphics card and VRAM.",
     "⚙ Настройки Qwen": "⚙ Qwen settings",
@@ -5177,6 +5181,20 @@ class ModernTTSApp(*_APP_BASE):
         voice_row.grid_columnconfigure(0, weight=1)
         self._tts_voice_row = voice_row
 
+        # ----- Vox: сетка голосов вместо выпадающего списка (Ярослав, 10.11.26) -----
+        # Дизайн-голосов будет много, а у дропдауна прокрутки нет — список уезжает
+        # за экран. Вместо неё: чипы-номера по 15 в ряду, дальше строится следующий
+        # ряд. Под сеткой — строка «имя — описание» выбранного голоса, как у Qwen.
+        self.vox_grid_row = ctk.CTkFrame(tts, fg_color="transparent")
+        self.vox_grid = ctk.CTkFrame(self.vox_grid_row, fg_color="transparent")
+        self.vox_grid.pack(fill="x")
+        self.vox_voice_desc = ctk.CTkEntry(
+            self.vox_grid_row, font=FONT_TINY, height=24, corner_radius=3,
+            fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
+            text_color=COLOR_TEXT_SEC, state="readonly",
+            placeholder_text=_tr("выбери голос или запиши новый"))
+        self.vox_voice_desc.pack(fill="x", pady=(4, 0))
+
         # ----- Qwen3-TTS: инструменты движка (видны только когда выбран Qwen) -----
         self.qwen_row = ctk.CTkFrame(tts, fg_color="transparent")
         self.qwen_row.grid_columnconfigure(0, weight=1)
@@ -7692,9 +7710,97 @@ class ModernTTSApp(*_APP_BASE):
             self.qwen_row.pack_forget()
             self.qwen_instruct_row.pack_forget()
 
+    def _vox_grid_items(self):
+        """[(vid, info)] голосов Vox по номерам слотов; последним — пустой слот «+»."""
+        items = []
+        for vid, info in self._voice_items():
+            if not isinstance(info, dict) or not info.get("name"):
+                continue
+            if not (info.get("path") and os.path.exists(info.get("path") or "")):
+                continue                      # пустые слоты — одним чипом «+» в конце
+            if self._voice_engine(info) != "Vox":
+                continue
+            items.append((vid, info))
+
+        def num(item):
+            try:
+                return (0, int(item[0]))
+            except Exception:
+                return (1, str(item[0]))
+        items.sort(key=num)
+        for vid, info in self._voice_items():  # пустой слот всегда один (_ensure_empty_slot)
+            if isinstance(info, dict) and not (info.get("path")
+                                               and os.path.exists(info.get("path") or "")):
+                items.append((vid, info))
+                break
+        return items
+
+    def _rebuild_vox_grid(self, cur=None):
+        """Чипы-номера голосов Vox: 15 в ряду, дальше следующий ряд (без прокрутки)."""
+        g = getattr(self, "vox_grid", None)
+        if g is None:
+            return
+        for w in g.winfo_children():
+            w.destroy()
+        if cur is None:
+            cur = self.tts_combo.get()
+        cols = 15                              # 15 чипов в ряду — выбор Ярослава
+        for i in range(cols):
+            g.grid_columnconfigure(i, weight=1)
+        for i, (vid, info) in enumerate(self._vox_grid_items()):
+            name = info.get("name") or ""
+            empty = not (info.get("path") and os.path.exists(info.get("path") or ""))
+            sel = (name == cur)
+            b = ctk.CTkButton(
+                g, text="+" if empty else str(vid), width=18, height=20, corner_radius=3,
+                font=FONT_TINY,
+                fg_color=COLOR_BRAND if sel else (COLOR_CARD if empty else COLOR_CARD2),
+                hover_color=COLOR_BRAND_HOVER if sel else COLOR_SELECT,
+                text_color="#fffdf6" if sel else (COLOR_TEXT_SEC if empty else COLOR_TEXT_MAIN),
+                border_width=1 if empty else 0, border_color=COLOR_BORDER,
+                command=lambda name=name: self._pick_voice(name))
+            b.grid(row=i // cols, column=i % cols, padx=1, pady=1, sticky="ew")
+        self._sync_vox_voice_desc(cur)
+
+    def _pick_voice(self, name):
+        """Клик по чипу = выбор голоса: тот же путь, что у выпадающего списка."""
+        self.tts_combo.set(name)
+        self.on_tts_change(name)
+        if self.current_engine == "Vox":
+            self._rebuild_vox_grid(name)
+
+    def _sync_vox_voice_desc(self, name=None):
+        """Строка «имя — описание» под сеткой — паспорт голоса, как у Qwen."""
+        e = getattr(self, "vox_voice_desc", None)
+        if e is None:
+            return
+        txt = ""
+        try:
+            if getattr(self, "current_engine", "") == "Vox":
+                name = name or self.current_tts_name or self.tts_combo.get()
+                _vid, info = self._find_voice(name)
+                if isinstance(info, dict):
+                    if not (info.get("path") and os.path.exists(info.get("path") or "")):
+                        txt = _tr("пустой слот — нажми «+», чтобы записать или смоделировать голос")
+                    else:
+                        d = str(info.get("desc") or info.get("instruct") or "").strip()
+                        txt = f"{name} — {d}" if d else f"{name} — {_tr('клон по образцу записи')}"
+        except Exception:
+            txt = ""
+        try:
+            e.configure(state="normal")
+            e.delete(0, "end")
+            if txt:
+                e.insert(0, txt[:200])
+            e.configure(state="readonly")
+        except Exception:
+            pass
+
     def _show_vox_tools(self, show):
         """Строка настроек Vox — как «Настройки Qwen», но для переключения варианта движка.
-        ✨ Дизайн голоса (10.11.26) — рядом с настройками, по образцу Qwen-ряда."""
+        ✨ Дизайн голоса (10.11.26) — рядом с настройками, по образцу Qwen-ряда.
+        Голоса Vox (11.11.26) — сеткой чипов-номеров вместо дропдауна: без прокрутки,
+        15 в ряду, дальше следующий ряд; под сеткой описание, как у Qwen."""
         if show:
             self.vox_row.pack(fill="x", padx=12, pady=(0, 6), before=self._tts_voice_row)
             self.btn_vox_design.grid(row=0, column=0, sticky="ew", padx=(0, 4))
@@ -7703,8 +7809,15 @@ class ModernTTSApp(*_APP_BASE):
                 self.btn_vox_cfg.configure(text=_tr("⚙ Настройки Vox" + self._vox_var_name()))
             except Exception:
                 pass
+            # дропдаун прячем, вместо него — сетка номеров голосов Vox
+            self._tts_voice_row.pack_forget()
+            self.vox_grid_row.pack(fill="x", padx=12, pady=(0, 7), before=self.rate_row)
+            self._rebuild_vox_grid()
         else:
             self.vox_row.pack_forget()
+            self.vox_grid_row.pack_forget()
+            # вернуть дропдаун остальным движкам (pack дважды — безопасно)
+            self._tts_voice_row.pack(fill="x", padx=12, pady=(0, 7), before=self.rate_row)
 
     def _sync_qwen_instruct(self):
         """Поле инструкции в карточке — read-only зеркало паспорта текущего голоса."""
@@ -8439,12 +8552,14 @@ class ModernTTSApp(*_APP_BASE):
         # Подписи по-русски, в модель уходит английская формулировка (VoxCPM2
         # описание тембра по-русски не понимает).
         chips = {}
+        chosen = {"ru": None}                 # русская подпись последнего выбранного чипа
 
         def apply_preset(ru):
             """Ставит готовую английскую формулировку в поле — править можно самому."""
             en = dict(VOX_DESIGN_PRESETS).get(ru) or ""
             if not en:
                 return
+            chosen["ru"] = ru
             cur = ins.get("1.0", "end").strip()
             ready = {e for _, e in VOX_DESIGN_PRESETS}
             ins.delete("1.0", "end")
@@ -8570,8 +8685,13 @@ class ModernTTSApp(*_APP_BASE):
                 status.configure(text=f"Не удалось сохранить: {e}")
                 return
             label = (name_e.get() or "").strip() or "Дизайн"
+            # паспорт для строки под сеткой: русская подпись пресета, если поле
+            # после выбора не правили, иначе — сам текст описания
+            d = ins.get("1.0", "end").strip()
+            ru_lbl = chosen["ru"] or ""
+            desc = ru_lbl if (ru_lbl and dict(VOX_DESIGN_PRESETS).get(ru_lbl) == d) else d
             # engine="Vox": голос принадлежит Vox, даже если откроется при другом движке
-            self._apply_custom_voice(wav, state["sample"], vid, label, engine="Vox")
+            self._apply_custom_voice(wav, state["sample"], vid, label, engine="Vox", desc=desc)
             status.configure(text=_tr("✅ Голос сохранён в списке — работает как клон."))
 
         # главное действие окна — в фирменном медно-оранжевом, как главные кнопки программы
@@ -8981,6 +9101,8 @@ class ModernTTSApp(*_APP_BASE):
             self.current_tts_name = voice
             self.engine_voices.setdefault(engine, voice)
             self._sync_qwen_instruct()
+            if engine == "Vox":
+                self._rebuild_vox_grid(voice)   # сетка номеров Vox вместо дропдауна
 
         ex = data.get("external_llms")
         if isinstance(ex, dict):
@@ -9661,6 +9783,7 @@ class ModernTTSApp(*_APP_BASE):
                 self._sync_qwen_instruct()
         elif self.current_engine == "Vox":
             vid, info = self._find_voice(value)
+            self._sync_vox_voice_desc(value)   # строка «имя — описание» под сеткой
             if info is None:
                 return
             path = info.get("path") or ""
@@ -9688,7 +9811,7 @@ class ModernTTSApp(*_APP_BASE):
         self.voice_dialog = VoiceRecorderDialog(self, self._apply_custom_voice, vid,
                                                 info.get("name"), self.custom_voices)
 
-    def _apply_custom_voice(self, path, text, slot_id, name, engine=None):
+    def _apply_custom_voice(self, path, text, slot_id, name, engine=None, desc=None):
         slot_id = str(slot_id)
         name = (name or "").strip() or f"Свой {slot_id}"
         # имена не должны совпадать — иначе в списке не выбрать нужный голос
@@ -9707,6 +9830,10 @@ class ModernTTSApp(*_APP_BASE):
             info["samples"] = prev["samples"]   # эмоции живут в том же слоте — не теряем
         if isinstance(prev, dict) and prev.get("instruct"):
             info["instruct"] = prev["instruct"] # паспорт дизайн-голоса — не теряем
+        if isinstance(prev, dict) and prev.get("desc"):
+            info["desc"] = prev["desc"]         # подпись голоса для строки под сеткой
+        if desc and str(desc).strip():
+            info["desc"] = str(desc).strip()[:200]
         # голос принадлежит движку, под которым записан: списки голосов разделены (Ярослав 05.11)
         eng = engine if engine in ("Vox", "Qwen") else (
             self.current_engine if self.current_engine in ("Vox", "Qwen") else "Vox")
@@ -9725,6 +9852,8 @@ class ModernTTSApp(*_APP_BASE):
         else:
             self.update_status(f"✅ Голос «{name}» сохранён для движка {eng}")
         self.update_status(f"✅ Голос «{name}» сохранён")
+        if self.current_engine == "Vox":
+            self._rebuild_vox_grid()           # сетка номеров: новый чип/подсветка
         self.save_settings()
 
     def _delete_voice(self, vid=None, name=None):
@@ -9776,6 +9905,8 @@ class ModernTTSApp(*_APP_BASE):
                 self.engine_voices[eng] = nxt
                 if eng == "Qwen":
                     self._sync_qwen_instruct()
+            if self.current_engine == "Vox":
+                self._rebuild_vox_grid(nxt or None)   # сетка: чипа больше нет
             self.save_settings()
             self.update_status(f"🗑 {_tr('Голос удалён')}: {name}{gone}")
             return True
