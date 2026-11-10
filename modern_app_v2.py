@@ -5181,15 +5181,19 @@ class ModernTTSApp(*_APP_BASE):
         voice_row.grid_columnconfigure(0, weight=1)
         self._tts_voice_row = voice_row
 
-        # ----- Vox: сетка голосов вместо выпадающего списка (Ярослав, 10.11.26) -----
-        # Дизайн-голосов будет много, а у дропдауна прокрутки нет — список уезжает
-        # за экран. Вместо неё: чипы-номера по 15 в ряду, дальше строится следующий
-        # ряд. Под сеткой — строка «имя — описание» выбранного голоса, как у Qwen.
-        self.vox_grid_row = ctk.CTkFrame(tts, fg_color="transparent")
-        self.vox_grid = ctk.CTkFrame(self.vox_grid_row, fg_color="transparent")
-        self.vox_grid.pack(fill="x")
+        # ----- Vox: поле голоса + вылетающая палитра (Ярослав, 11.11.26) -----
+        # Дропдаун не прокручивается и с ростом списка уезжает за экран. Вместо
+        # него поле с текущим голосом открывает палитру: чипы-номера по 15 в ряду,
+        # когда ряд заполнен — строится следующий; без прокрутки. Под полем —
+        # строка «имя — описание» выбранного голоса, как у Qwen.
+        self.vox_field_row = ctk.CTkFrame(tts, fg_color="transparent")
+        self.vox_voice_btn = ctk.CTkButton(
+            self.vox_field_row, text="", height=30, corner_radius=3, font=FONT_SMALL,
+            anchor="w", fg_color=COLOR_CARD2, hover_color=COLOR_SELECT,
+            text_color=COLOR_TEXT_MAIN, command=self._open_vox_voice_palette)
+        self.vox_voice_btn.pack(fill="x")
         self.vox_voice_desc = ctk.CTkEntry(
-            self.vox_grid_row, font=FONT_TINY, height=24, corner_radius=3,
+            self.vox_field_row, font=FONT_TINY, height=24, corner_radius=3,
             fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
             text_color=COLOR_TEXT_SEC, state="readonly",
             placeholder_text=_tr("выбери голос или запиши новый"))
@@ -7735,42 +7739,95 @@ class ModernTTSApp(*_APP_BASE):
                 break
         return items
 
-    def _rebuild_vox_grid(self, cur=None):
-        """Чипы-номера голосов Vox: 15 в ряду, дальше следующий ряд (без прокрутки)."""
-        g = getattr(self, "vox_grid", None)
-        if g is None:
-            return
-        for w in g.winfo_children():
-            w.destroy()
-        if cur is None:
-            cur = self.tts_combo.get()
+    def _open_vox_voice_palette(self):
+        """Вылетающая палитра голосов Vox вместо дропдауна: чипы-номера по 15
+        в ряду, когда ряд заполнен — строится следующий; без прокрутки
+        (выбор Ярослава, 11.11.26)."""
+        old = getattr(self, "_vox_palette", None)
+        if old is not None and old.winfo_exists():
+            old.destroy()
+        pal = ctk.CTkToplevel(self)
+        self._vox_palette = pal
+        pal.title("")
+        pal.transient(self)                    # без отдельной кнопки в панели задач
+        pal.overrideredirect(True)             # без рамки — просто «вылетевший» список
+        pal.configure(fg_color=COLOR_CARD)
+        try:
+            pal.attributes("-topmost", True)
+        except Exception:
+            pass
+        fr = ctk.CTkFrame(pal, fg_color=COLOR_CARD, corner_radius=6,
+                          border_width=1, border_color=COLOR_BORDER)
+        fr.pack(fill="both", expand=True, padx=1, pady=1)
+        g = ctk.CTkFrame(fr, fg_color="transparent")
+        g.pack(fill="x", padx=5, pady=5)
         cols = 15                              # 15 чипов в ряду — выбор Ярослава
         for i in range(cols):
             g.grid_columnconfigure(i, weight=1)
+        cur = self.tts_combo.get()
         for i, (vid, info) in enumerate(self._vox_grid_items()):
             name = info.get("name") or ""
             empty = not (info.get("path") and os.path.exists(info.get("path") or ""))
             sel = (name == cur)
             b = ctk.CTkButton(
-                g, text="+" if empty else str(vid), width=18, height=20, corner_radius=3,
+                g, text="+" if empty else str(vid), width=20, height=20, corner_radius=3,
                 font=FONT_TINY,
                 fg_color=COLOR_BRAND if sel else (COLOR_CARD if empty else COLOR_CARD2),
                 hover_color=COLOR_BRAND_HOVER if sel else COLOR_SELECT,
                 text_color="#fffdf6" if sel else (COLOR_TEXT_SEC if empty else COLOR_TEXT_MAIN),
                 border_width=1 if empty else 0, border_color=COLOR_BORDER,
-                command=lambda name=name: self._pick_voice(name))
+                command=lambda name=name: self._vox_palette_pick(name))
             b.grid(row=i // cols, column=i % cols, padx=1, pady=1, sticky="ew")
-        self._sync_vox_voice_desc(cur)
+        pal.bind("<Escape>", lambda e: self._close_vox_palette())
+        pal.bind("<FocusOut>", lambda e: self._close_vox_palette())
+        # позиция — сразу под полем голоса; у низа экрана палитра откроется над ним
+        pal.update_idletasks()
+        try:
+            bx, by = self.vox_voice_btn.winfo_rootx(), self.vox_voice_btn.winfo_rooty()
+            bh = self.vox_voice_btn.winfo_height()
+            pw, ph = pal.winfo_reqwidth(), pal.winfo_reqheight()
+            y = by + bh + 2
+            if y + ph > pal.winfo_screenheight() - 8:
+                y = max(8, by - ph - 2)
+            pal.geometry(f"+{max(8, bx)}+{y}")
+        except Exception:
+            pass
+        try:
+            pal.focus_force()
+        except Exception:
+            pass
+
+    def _close_vox_palette(self):
+        pal = getattr(self, "_vox_palette", None)
+        if pal is not None:
+            try:
+                if pal.winfo_exists():
+                    pal.destroy()
+            except Exception:
+                pass
+            self._vox_palette = None
+
+    def _vox_palette_pick(self, name):
+        """Клик по чипу в палитре = выбор голоса; палитра закрывается."""
+        self._close_vox_palette()
+        self._pick_voice(name)
 
     def _pick_voice(self, name):
-        """Клик по чипу = выбор голоса: тот же путь, что у выпадающего списка."""
+        """Выбор голоса: тот же путь, что у выпадающего списка."""
         self.tts_combo.set(name)
         self.on_tts_change(name)
         if self.current_engine == "Vox":
-            self._rebuild_vox_grid(name)
+            self._sync_vox_voice_field(name)
 
-    def _sync_vox_voice_desc(self, name=None):
-        """Строка «имя — описание» под сеткой — паспорт голоса, как у Qwen."""
+    def _sync_vox_voice_field(self, name=None):
+        """Поле голоса в карточке: имя на кнопке + строка «имя — описание» (как у Qwen)."""
+        try:
+            if getattr(self, "current_engine", "") == "Vox":
+                btn = getattr(self, "vox_voice_btn", None)
+                if btn is not None:
+                    btn.configure(text=f"▾ {name or self.tts_combo.get() or ''}".rstrip())
+        except Exception:
+            pass
         e = getattr(self, "vox_voice_desc", None)
         if e is None:
             return
@@ -7809,13 +7866,14 @@ class ModernTTSApp(*_APP_BASE):
                 self.btn_vox_cfg.configure(text=_tr("⚙ Настройки Vox" + self._vox_var_name()))
             except Exception:
                 pass
-            # дропдаун прячем, вместо него — сетка номеров голосов Vox
+            # дропдаун прячем, вместо него — поле с вылетающей палитрой номеров
             self._tts_voice_row.pack_forget()
-            self.vox_grid_row.pack(fill="x", padx=12, pady=(0, 7), before=self.rate_row)
-            self._rebuild_vox_grid()
+            self.vox_field_row.pack(fill="x", padx=12, pady=(0, 7), before=self.rate_row)
+            self._sync_vox_voice_field()
         else:
             self.vox_row.pack_forget()
-            self.vox_grid_row.pack_forget()
+            self.vox_field_row.pack_forget()
+            self._close_vox_palette()
             # вернуть дропдаун остальным движкам (pack дважды — безопасно)
             self._tts_voice_row.pack(fill="x", padx=12, pady=(0, 7), before=self.rate_row)
 
@@ -9102,7 +9160,7 @@ class ModernTTSApp(*_APP_BASE):
             self.engine_voices.setdefault(engine, voice)
             self._sync_qwen_instruct()
             if engine == "Vox":
-                self._rebuild_vox_grid(voice)   # сетка номеров Vox вместо дропдауна
+                self._sync_vox_voice_field(voice)   # поле + палитра Vox вместо дропдауна
 
         ex = data.get("external_llms")
         if isinstance(ex, dict):
@@ -9783,7 +9841,7 @@ class ModernTTSApp(*_APP_BASE):
                 self._sync_qwen_instruct()
         elif self.current_engine == "Vox":
             vid, info = self._find_voice(value)
-            self._sync_vox_voice_desc(value)   # строка «имя — описание» под сеткой
+            self._sync_vox_voice_field(value)  # имя на кнопке + строка-описание
             if info is None:
                 return
             path = info.get("path") or ""
@@ -9853,7 +9911,7 @@ class ModernTTSApp(*_APP_BASE):
             self.update_status(f"✅ Голос «{name}» сохранён для движка {eng}")
         self.update_status(f"✅ Голос «{name}» сохранён")
         if self.current_engine == "Vox":
-            self._rebuild_vox_grid()           # сетка номеров: новый чип/подсветка
+            self._sync_vox_voice_field()       # поле: новый голос/подсветка
         self.save_settings()
 
     def _delete_voice(self, vid=None, name=None):
@@ -9906,7 +9964,7 @@ class ModernTTSApp(*_APP_BASE):
                 if eng == "Qwen":
                     self._sync_qwen_instruct()
             if self.current_engine == "Vox":
-                self._rebuild_vox_grid(nxt or None)   # сетка: чипа больше нет
+                self._sync_vox_voice_field(nxt or None)   # поле: чипа больше нет
             self.save_settings()
             self.update_status(f"🗑 {_tr('Голос удалён')}: {name}{gone}")
             return True
