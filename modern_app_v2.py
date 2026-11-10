@@ -4820,7 +4820,8 @@ class ModernTTSApp(*_APP_BASE):
         try:
             if show:
                 # под Qwen кнопка встаёт сразу за рядами «Дизайн/Настройки»,
-                # у Vox — на привычном месте над ползунком скорости (Ярослав, 04.11.26)
+                # у Vox — тоже сразу после них (порядок задаёт _show_vox_tools;
+                # якорь — ползунок скорости, он всегда на экране)
                 anchor = (self._tts_voice_row
                           if getattr(self, "current_engine", "") == "Qwen" else self.rate_row)
                 self.btn_add_voice.pack(fill="x", padx=12, pady=(0, 10), before=anchor)
@@ -7925,9 +7926,9 @@ class ModernTTSApp(*_APP_BASE):
                 pass
             # дропдаун прячем, вместо него — поле с вылетающей палитрой
             self._tts_voice_row.pack_forget()
-            self.vox_field_row.pack(fill="x", padx=12, pady=(0, 7), before=self.rate_row)
-            # «🎙 Образец голоса» переставляем под поле (у Vox его место — у скорости)
+            # «🎙 Образец голоса» — наверх, сразу после кнопок Дизайна (просьба Ярослава)
             self._show_custom_voice(True)
+            self.vox_field_row.pack(fill="x", padx=12, pady=(0, 7), before=self.rate_row)
             self._sync_vox_voice_field()
         else:
             self.vox_row.pack_forget()
