@@ -7740,9 +7740,13 @@ class ModernTTSApp(*_APP_BASE):
         return items
 
     def _open_vox_voice_palette(self):
-        """Вылетающая палитра голосов Vox вместо дропдауна: чипы-номера по 15
-        в ряду, когда ряд заполнен — строится следующий; без прокрутки
-        (выбор Ярослава, 11.11.26)."""
+        """Вылетающая палитра голосов Vox: чипы с ИМЕНАМИ голосов, ряд набивается
+        по ширине палитры, дальше строится следующий (без прокрутки).
+        Номера Ярослав забраковал: «вместо названий — цифры какие-то» (11.11.26)."""
+        # повторный клик по полю при открытой палитре закрывает её (FocusOut
+        # успевает сработать раньше команды — переоткрытие подавляем на 0.25 с)
+        if time.time() - getattr(self, "_vox_palette_closed_at", 0) < 0.25:
+            return
         old = getattr(self, "_vox_palette", None)
         if old is not None and old.winfo_exists():
             old.destroy()
@@ -7761,41 +7765,69 @@ class ModernTTSApp(*_APP_BASE):
         fr.pack(fill="both", expand=True, padx=1, pady=1)
         g = ctk.CTkFrame(fr, fg_color="transparent")
         g.pack(fill="x", padx=5, pady=5)
-        cols = 15                              # 15 чипов в ряду — выбор Ярослава
-        for i in range(cols):
-            g.grid_columnconfigure(i, weight=1)
         cur = self.tts_combo.get()
-        for i, (vid, info) in enumerate(self._vox_grid_items()):
+        target_w = 620                         # ширина палитры: имена не режем
+        cur_row = ctk.CTkFrame(g, fg_color="transparent")
+        cur_row.pack(fill="x")
+        used = 0
+        for vid, info in self._vox_grid_items():
             name = info.get("name") or ""
             empty = not (info.get("path") and os.path.exists(info.get("path") or ""))
+            label = "+" if empty else name
+            w_est = 30 + int(6.8 * len(label))  # прикидка ширины чипа под 10pt
+            if used and used + w_est > target_w:   # ряд заполнен — строим следующий
+                cur_row = ctk.CTkFrame(g, fg_color="transparent")
+                cur_row.pack(fill="x")
+                used = 0
             sel = (name == cur)
             b = ctk.CTkButton(
-                g, text="+" if empty else str(vid), width=20, height=20, corner_radius=3,
+                cur_row, text=label, width=w_est - 10, height=22, corner_radius=3,
                 font=FONT_TINY,
                 fg_color=COLOR_BRAND if sel else (COLOR_CARD if empty else COLOR_CARD2),
                 hover_color=COLOR_BRAND_HOVER if sel else COLOR_SELECT,
                 text_color="#fffdf6" if sel else (COLOR_TEXT_SEC if empty else COLOR_TEXT_MAIN),
                 border_width=1 if empty else 0, border_color=COLOR_BORDER,
                 command=lambda name=name: self._vox_palette_pick(name))
-            b.grid(row=i // cols, column=i % cols, padx=1, pady=1, sticky="ew")
+            b.pack(side="left", padx=2, pady=2)
+            used += w_est
         pal.bind("<Escape>", lambda e: self._close_vox_palette())
-        pal.bind("<FocusOut>", lambda e: self._close_vox_palette())
-        # позиция — сразу под полем голоса; у низа экрана палитра откроется над ним
+        opened = time.time()
+
+        def on_focus_out(_e):
+            # гонка фокуса при клике сразу после открытия не должна закрывать
+            # палитру мгновенно (CTk на <Button-1> переводит фокус на кликнутое)
+            if time.time() - opened > 0.45:
+                self._close_vox_palette()
+        pal.bind("<FocusOut>", on_focus_out)
+        # позиция — сразу под полем голоса; у краёв экрана палитра подвинется
         pal.update_idletasks()
         try:
             bx, by = self.vox_voice_btn.winfo_rootx(), self.vox_voice_btn.winfo_rooty()
             bh = self.vox_voice_btn.winfo_height()
             pw, ph = pal.winfo_reqwidth(), pal.winfo_reqheight()
+            sw, sh = pal.winfo_screenwidth(), pal.winfo_screenheight()
+            x = max(8, min(bx, sw - pw - 8))
             y = by + bh + 2
-            if y + ph > pal.winfo_screenheight() - 8:
+            if y + ph > sh - 8:
                 y = max(8, by - ph - 2)
-            pal.geometry(f"+{max(8, bx)}+{y}")
+            pal.geometry(f"+{x}+{y}")
+            pal.deiconify()
+            pal.lift()
         except Exception:
             pass
+
+        def reassert():
+            try:
+                if pal.winfo_exists():
+                    pal.lift()
+                    pal.focus_force()
+            except Exception:
+                pass
         try:
             pal.focus_force()
         except Exception:
             pass
+        pal.after(220, reassert)
 
     def _close_vox_palette(self):
         pal = getattr(self, "_vox_palette", None)
@@ -7806,6 +7838,7 @@ class ModernTTSApp(*_APP_BASE):
             except Exception:
                 pass
             self._vox_palette = None
+            self._vox_palette_closed_at = time.time()   # гасит переоткрытие от того же клика
 
     def _vox_palette_pick(self, name):
         """Клик по чипу в палитре = выбор голоса; палитра закрывается."""
