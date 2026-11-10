@@ -7881,6 +7881,10 @@ class ModernTTSApp(*_APP_BASE):
                         txt = _tr("пустой слот — нажми «+», чтобы записать или смоделировать голос")
                     else:
                         d = str(info.get("desc") or info.get("instruct") or "").strip()
+                        # у голосов, сохранённых до 11.11.26, в подписи осталась короткая
+                        # русская метка чипа — показываем полное английское описание, по
+                        # которому голос сгенерирован (просьба Ярослава)
+                        d = dict(VOX_DESIGN_PRESETS).get(d) or d
                         txt = f"{name} — {d}" if d else f"{name} — {_tr('клон по образцу записи')}"
         except Exception:
             txt = ""
@@ -8650,14 +8654,12 @@ class ModernTTSApp(*_APP_BASE):
         # Подписи по-русски, в модель уходит английская формулировка (VoxCPM2
         # описание тембра по-русски не понимает).
         chips = {}
-        chosen = {"ru": None}                 # русская подпись последнего выбранного чипа
 
         def apply_preset(ru):
             """Ставит готовую английскую формулировку в поле — править можно самому."""
             en = dict(VOX_DESIGN_PRESETS).get(ru) or ""
             if not en:
                 return
-            chosen["ru"] = ru
             cur = ins.get("1.0", "end").strip()
             ready = {e for _, e in VOX_DESIGN_PRESETS}
             ins.delete("1.0", "end")
@@ -8783,11 +8785,9 @@ class ModernTTSApp(*_APP_BASE):
                 status.configure(text=f"Не удалось сохранить: {e}")
                 return
             label = (name_e.get() or "").strip() or "Дизайн"
-            # паспорт для строки под сеткой: русская подпись пресета, если поле
-            # после выбора не правили, иначе — сам текст описания
-            d = ins.get("1.0", "end").strip()
-            ru_lbl = chosen["ru"] or ""
-            desc = ru_lbl if (ru_lbl and dict(VOX_DESIGN_PRESETS).get(ru_lbl) == d) else d
+            # подпись голоса — полное описание из верхнего поля: то самое английское,
+            # по которому голос и сгенерирован (просьба Ярослава 11.11.26)
+            desc = ins.get("1.0", "end").strip()
             # engine="Vox": голос принадлежит Vox, даже если откроется при другом движке
             self._apply_custom_voice(wav, state["sample"], vid, label, engine="Vox", desc=desc)
             status.configure(text=_tr("✅ Голос сохранён в списке — работает как клон."))
