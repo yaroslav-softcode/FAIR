@@ -1060,6 +1060,12 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                                                     height=524)
         self._emo_rows_box.grid(row=2, column=0, sticky="nsew", padx=(10, 4), pady=(0, 6))
         self._emo_rows_box.grid_columnconfigure(0, weight=1)
+        try:    # меняем ширину окна — линии громкости пересчитываются под кнопку
+            self._emo_rows_box.bind(
+                "<Configure>",
+                lambda e: self.app is not None and self.app._schedule_gain_layout())
+        except Exception:
+            pass
         self._emo_frame.grid_rowconfigure(2, weight=1)
         self._emo_rows = []
         for i in range(self._EMO_MIN_ROWS):
@@ -1119,6 +1125,9 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                              button_hover_color=COLOR_BRAND_HOVER, fg_color=COLOR_BORDER,
                              command=lambda v, i=i: self._emo_gain_set(i, v))
         gain.set(0)
+        # значок сбоку: сразу видно, что полоска — это громкость и в какую сторону
+        gico = ctk.CTkLabel(srow, text="🔊", font=FONT_TINY, width=20, anchor="w",
+                            text_color=COLOR_TEXT_SEC)
         brow = ctk.CTkFrame(rowf, fg_color="transparent")
         brow.pack(fill="x", padx=10, pady=(4, 10))
         brow.grid_columnconfigure(1, weight=1)
@@ -1145,7 +1154,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         ent.bind("<KeyRelease>", lambda e: (self._rows_visibility(),
                                             self._refresh_emotions()))
         self._emo_rows.append({"frame": rowf, "ent": ent, "stat": stat, "play": play,
-                               "gain": gain,
+                               "gain": gain, "gico": gico,
                                "rec": rec, "syn": syn, "del": dlt, "label": ""})
 
     def _ensure_rows(self, n):
@@ -1614,6 +1623,10 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         if not isinstance(smp, dict):
             return                       # эмоции ещё нет — ползунка и так нет
         smp["gain"] = steps
+        try:
+            self.app._emo_gain_mark(row, steps)
+        except Exception:
+            pass
         try:
             self.app.save_settings()
         except Exception:
@@ -10166,6 +10179,7 @@ class ModernTTSApp(*_APP_BASE):
 
     def refresh_emotion_rows(self, rows, slot_id):
         """Окно образца спрашивает, что уже есть в слоте по эмоциям."""
+        self._emo_rows_all = rows          # для отложенного пересчёта линий громкости
         info = self.custom_voices.get(str(slot_id)) or {}
         samples = info.get("samples") or {}
         for row in rows:
@@ -10197,11 +10211,12 @@ class ModernTTSApp(*_APP_BASE):
                 self._emo_play_btn(row, False)
                 self._emo_gain_slider(row, False)
 
-    @staticmethod
-    def _emo_gain_slider(row, show):
+    def _emo_gain_slider(self, row, show):
         """
         Ползунок громкости эмоции — справа от «▶», виден только у записанной
-        эмоции (просьба Ярослава, 11.11.26).
+        эмоции (просьба Ярослава, 11.11.26). Линия симметрична кнопке
+        «Синтезировать» (одинаковый вылет слева и справа), справа от неё —
+        значок громкости; размеры считает _emo_gain_line.
         """
         sl = row.get("gain")
         if sl is None:
@@ -10209,12 +10224,96 @@ class ModernTTSApp(*_APP_BASE):
         try:
             if show:
                 sl.configure(state="normal")
+                self._emo_gain_mark(row, int(round(float(sl.get()))))
                 if sl.winfo_manager() != "pack":
-                    sl.pack(side="left", fill="x", expand=True, padx=(10, 2))
+                    sl.pack(side="left", padx=(10, 0))
+                ico = row.get("gico")
+                if ico is not None and ico.winfo_manager() != "pack":
+                    ico.pack(side="left", padx=(8, 0))
+                self._schedule_gain_layout()
             else:
                 sl.configure(state="disabled")
                 if sl.winfo_manager() == "pack":
                     sl.pack_forget()
+                ico = row.get("gico")
+                if ico is not None and ico.winfo_manager() == "pack":
+                    ico.pack_forget()
+        except Exception:
+            pass
+
+    # выступ линии за границы кнопки «Синтезировать» (пикселей с каждой стороны)
+    GAIN_OVERHANG = 12
+
+    def _schedule_gain_layout(self):
+        """Пересчёт линий громкости одним отложенным проходом: рядов много,
+        а мерилом служит уже разложенная кнопка «Синтезировать»."""
+        try:
+            job = getattr(self, "_gain_job", None)
+            if job:
+                self.after_cancel(job)
+            self._gain_job = self.after(140, self._relayout_gain)
+        except Exception:
+            pass
+
+    def _relayout_gain(self):
+        self._gain_job = None
+        try:
+            self.update_idletasks()
+        except Exception:
+            pass
+        for row in getattr(self, "_emo_rows_all", []) or []:
+            self._emo_gain_line(row)
+
+    def _emo_gain_line(self, row):
+        """Линия «ползунок + значок» относительно кнопки «Синтезировать»:
+        ползунок выходит за неё на столько же слева и справа (просьба Ярослава,
+        11.11.26), значок громкости — в освобождённом месте справа."""
+        sl, ico = row.get("gain"), row.get("gico")
+        play, syn = row.get("play"), row.get("syn")
+        if not all((sl, ico, play, syn)):
+            return
+        try:
+            if sl.winfo_manager() != "pack" or not sl.winfo_ismapped():
+                return
+            if not syn.winfo_ismapped() or syn.winfo_width() < 40:
+                return
+            o = self.GAIN_OVERHANG
+            srow = play.master
+            syn_l, syn_r = syn.winfo_x(), syn.winfo_x() + syn.winfo_width()
+            right = srow.winfo_x() + srow.winfo_width() - 2
+            base = play.winfo_x() + play.winfo_width()   # где начался бы ползунок без отступа
+            left = max(base + 6, syn_l - o)
+            gap, ico_w = 6, max(ico.winfo_reqwidth(), 20)
+            end = min(syn_r + o, right - gap - ico_w)    # значку всегда хватает места
+            w = int(end - left)
+            if w < 60:                                   # окно очень узкое — не мучим
+                sl.configure(width=60)
+                sl.pack(side="left", padx=(max(4, left - base), 0))
+                ico.pack(side="left", padx=(gap, 0))
+                return
+            sl.configure(width=w)
+            sl.pack(side="left", padx=(max(0, left - base), 0))
+            ico.pack(side="left", padx=(gap, 0))
+        except Exception:
+            pass
+
+    @staticmethod
+    def _gain_icon_text(steps):
+        """Значок у ползунка: тише / как записано / громче."""
+        if steps < 0:
+            return "🔉", COLOR_TEXT_SEC
+        if steps > 0:
+            return "📢", COLOR_BRAND
+        return "🔊", COLOR_TEXT_SEC
+
+    def _emo_gain_mark(self, row, steps):
+        """Подкрасить значок под текущее положение ползунка."""
+        ico = row.get("gico")
+        if ico is None:
+            return
+        try:
+            txt, col = self._gain_icon_text(int(steps))
+            ico.configure(text=txt, text_color=col)
         except Exception:
             pass
 
