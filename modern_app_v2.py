@@ -485,6 +485,23 @@ FONT_SMALL = (FONT_FAMILY, 11)
 FONT_TINY = (FONT_FAMILY, 10)
 
 
+def _no_wheel_slider(widget):
+    """
+    Отвязать ползунок от колеса мыши. CTk сам навешивает <MouseWheel> на
+    CTkSlider (ctk_slider.py::_build -> _mouse_scroll_event), поэтому колесо
+    над ползунком меняло значение вместо прокрутки списка (просьба Ярослава,
+    11.11.26).
+    """
+    for seq in ("<MouseWheel>", "<MouseWheel-Up>", "<MouseWheel-Down>",
+                "<Button-4>", "<Button-5>"):
+        for target in (getattr(widget, "_canvas", None), widget):
+            try:
+                if target is not None:
+                    target.unbind(seq)
+            except Exception:
+                pass
+
+
 def _style_tk_menu(menu):
     """Системное контекстное меню — в стиле сайта: бумага, чернила, золото."""
     try:
@@ -1084,6 +1101,29 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         except Exception:
             pass
 
+    def _emo_wheel(self, event):
+        """
+        Колесо мыши над ползунком громкости крутит СПИСОК эмоций, а не
+        громкость (просьба Ярослава, 11.11.26). Сам CTkScrollableFrame
+        прокручивать отказывается, если под курсором CTkSlider
+        (ctk_scrollable_frame.py::_check_if_valid_scroll), поэтому прокручиваем
+        сами — ровно так же, как это делает CTk.
+        """
+        box = self._emo_rows_box
+        if box is None:
+            return "break"
+        try:
+            cv = box._parent_canvas
+            if getattr(event, "num", 0) in (4, 5):        # linux
+                cv.yview_scroll(-1 if event.num == 4 else 1, "units")
+            else:
+                d = int(getattr(event, "delta", 0) or 0) // 6
+                if d:
+                    cv.yview("scroll", -d, "units")
+        except Exception:
+            pass
+        return "break"
+
     def _make_emo_row(self, i):
         """Одна строка эмоций: название + статус + кнопки. Строки создаются по
         мере надобности — список эмоций не ограничен в длине."""
@@ -1126,8 +1166,14 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                              command=lambda v, i=i: self._emo_gain_set(i, v))
         gain.set(0)
         # значок сбоку: сразу видно, что полоска — это громкость и в какую сторону
-        gico = ctk.CTkLabel(srow, text="🔊", font=FONT_TINY, width=20, anchor="w",
-                            text_color=COLOR_TEXT_SEC)
+        # (кегль в 1.5 раза крупнее подписи строки — просьба Ярослава, 11.11.26)
+        gico = ctk.CTkLabel(srow, text="🔊", font=(FONT_FAMILY, 15), width=30,
+                            anchor="w", text_color=COLOR_TEXT_SEC)
+        # колесо мыши над ползунком НЕ меняет громкость и НЕ рвёт прокрутку
+        _no_wheel_slider(gain)
+        gain._canvas.bind("<MouseWheel>", self._emo_wheel)
+        gain._canvas.bind("<Button-4>", self._emo_wheel)
+        gain._canvas.bind("<Button-5>", self._emo_wheel)
         brow = ctk.CTkFrame(rowf, fg_color="transparent")
         brow.pack(fill="x", padx=10, pady=(4, 10))
         brow.grid_columnconfigure(1, weight=1)
@@ -1193,6 +1239,9 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         self._update_combo_values()
         try:    # подсвечиваем только что появившуюся пустую строку
             if self._emo_need > 4:
+                # без свежей площади прокрутка в конец не доходит
+                if self.app and hasattr(self.app, "_emo_scroll_refresh"):
+                    self.app._emo_scroll_refresh(self._emo_rows)
                 self._emo_rows_box._parent_canvas.yview_moveto(1.0)
         except Exception:
             pass
@@ -10177,6 +10226,28 @@ class ModernTTSApp(*_APP_BASE):
             return None
         return path, (info.get("text") or VoiceRecorderDialog.DEFAULT_TEXT)
 
+    def _emo_scroll_refresh(self, rows=None):
+        """Пересчитать площадь прокрутки списка эмоций.
+
+        CTk пересчитывает scrollregion только когда меняют размер всей площадки;
+        когда же внутри просто добавляются/исчезают строки, площадь остаётся
+        старой и колесо мыши «не едет» — до пятой записи не достаться (просьба
+        Ярослава, 11.11.26). Пересчитываем сами."""
+        box = None
+        for row in (rows if rows is not None else self._emo_rows_all) or []:
+            m = row["frame"].master
+            if m is not None and hasattr(m, "_parent_canvas"):
+                box = m
+                break
+        if box is None:
+            return
+        try:
+            cv = box._parent_canvas
+            cv.update_idletasks()
+            cv.configure(scrollregion=cv.bbox("all") or "-1 -1 0 0")
+        except Exception:
+            pass
+
     def refresh_emotion_rows(self, rows, slot_id):
         """Окно образца спрашивает, что уже есть в слоте по эмоциям."""
         self._emo_rows_all = rows          # для отложенного пересчёта линий громкости
@@ -10210,6 +10281,9 @@ class ModernTTSApp(*_APP_BASE):
                 row["del"].configure(state="disabled")
                 self._emo_play_btn(row, False)
                 self._emo_gain_slider(row, False)
+
+        # строки поменялись (появились/исчезли ползунки) — площадь прокрутки тоже
+        self._emo_scroll_refresh(rows)
 
     def _emo_gain_slider(self, row, show):
         """
@@ -10263,6 +10337,7 @@ class ModernTTSApp(*_APP_BASE):
             pass
         for row in getattr(self, "_emo_rows_all", []) or []:
             self._emo_gain_line(row)
+        self._emo_scroll_refresh()
 
     def _emo_gain_line(self, row):
         """Линия «ползунок + значок» относительно кнопки «Синтезировать»:
@@ -10283,7 +10358,7 @@ class ModernTTSApp(*_APP_BASE):
             right = srow.winfo_x() + srow.winfo_width() - 2
             base = play.winfo_x() + play.winfo_width()   # где начался бы ползунок без отступа
             left = max(base + 6, syn_l - o)
-            gap, ico_w = 6, max(ico.winfo_reqwidth(), 20)
+            gap, ico_w = 6, max(ico.winfo_reqwidth(), 30)
             end = min(syn_r + o, right - gap - ico_w)    # значку всегда хватает места
             w = int(end - left)
             if w < 60:                                   # окно очень узкое — не мучим
