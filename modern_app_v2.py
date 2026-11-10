@@ -7693,6 +7693,11 @@ class ModernTTSApp(*_APP_BASE):
 
     def _show_qwen_tools(self, show):
         if show:
+            # список голосов Qwen обязан быть на экране: он и якорь для ряда кнопок
+            # (в режиме Vox он спрятан — раньше падение на before=скрытого ряда
+            #  обрывало переключение движка, и на Qwen оставались голоса Vox, 11.11.26)
+            if not self._tts_voice_row.winfo_manager():
+                self._tts_voice_row.pack(fill="x", padx=12, pady=(0, 7), before=self.rate_row)
             self.qwen_row.pack(fill="x", padx=12, pady=(0, 6), before=self._tts_voice_row)
             try:   # у лёгкого 0.6B дизайна нет — кнопка затемнена, клик предложит сменить движок
                 if "design" in self._qwen_repos():
@@ -7743,6 +7748,8 @@ class ModernTTSApp(*_APP_BASE):
         """Вылетающая палитра голосов Vox: чипы с ИМЕНАМИ голосов, ряд набивается
         по ширине палитры, дальше строится следующий (без прокрутки).
         Номера Ярослав забраковал: «вместо названий — цифры какие-то» (11.11.26)."""
+        if getattr(self, "current_engine", "") != "Vox":
+            return                             # палитра — только для движка Vox
         # повторный клик по полю при открытой палитре закрывает её (FocusOut
         # успевает сработать раньше команды — переоткрытие подавляем на 0.25 с)
         if time.time() - getattr(self, "_vox_palette_closed_at", 0) < 0.25:
@@ -7854,6 +7861,8 @@ class ModernTTSApp(*_APP_BASE):
 
     def _pick_voice(self, name):
         """Выбор голоса: тот же путь, что у выпадающего списка."""
+        if self.current_engine != "Vox":
+            return                             # палитра живёт только на Vox
         self.tts_combo.set(name)
         self.on_tts_change(name)
         if self.current_engine == "Vox":
@@ -7885,7 +7894,8 @@ class ModernTTSApp(*_APP_BASE):
                         # русская метка чипа — показываем полное английское описание, по
                         # которому голос сгенерирован (просьба Ярослава)
                         d = dict(VOX_DESIGN_PRESETS).get(d) or d
-                        txt = f"{name} — {d}" if d else f"{name} — {_tr('клон по образцу записи')}"
+                        # имя тут не нужно — оно и так видно на поле голоса
+                        txt = d or _tr("клон по образцу записи")
         except Exception:
             txt = ""
         try:
@@ -7903,23 +7913,29 @@ class ModernTTSApp(*_APP_BASE):
         Голоса Vox (11.11.26) — сеткой чипов-номеров вместо дропдауна: без прокрутки,
         15 в ряду, дальше следующий ряд; под сеткой описание, как у Qwen."""
         if show:
-            self.vox_row.pack(fill="x", padx=12, pady=(0, 6), before=self._tts_voice_row)
+            # якорь — ползунок скорости: он всегда на экране, а список голосов в
+            # режиме Vox скрыт (падение на before=скрытого виджета обрывало
+            # переключение движков — Ярослав, 11.11.26)
+            self.vox_row.pack(fill="x", padx=12, pady=(0, 6), before=self.rate_row)
             self.btn_vox_design.grid(row=0, column=0, sticky="ew", padx=(0, 4))
             self.btn_vox_cfg.grid(row=0, column=1, sticky="ew", padx=(4, 0))
             try:
                 self.btn_vox_cfg.configure(text=_tr("⚙ Настройки Vox" + self._vox_var_name()))
             except Exception:
                 pass
-            # дропдаун прячем, вместо него — поле с вылетающей палитрой номеров
+            # дропдаун прячем, вместо него — поле с вылетающей палитрой
             self._tts_voice_row.pack_forget()
             self.vox_field_row.pack(fill="x", padx=12, pady=(0, 7), before=self.rate_row)
+            # «🎙 Образец голоса» переставляем под поле (у Vox его место — у скорости)
+            self._show_custom_voice(True)
             self._sync_vox_voice_field()
         else:
             self.vox_row.pack_forget()
             self.vox_field_row.pack_forget()
             self._close_vox_palette()
-            # вернуть дропдаун остальным движкам (pack дважды — безопасно)
-            self._tts_voice_row.pack(fill="x", padx=12, pady=(0, 7), before=self.rate_row)
+            # вернуть дропдаун остальным движкам, если он был скрыт
+            if not self._tts_voice_row.winfo_manager():
+                self._tts_voice_row.pack(fill="x", padx=12, pady=(0, 7), before=self.rate_row)
 
     def _sync_qwen_instruct(self):
         """Поле инструкции в карточке — read-only зеркало паспорта текущего голоса."""
