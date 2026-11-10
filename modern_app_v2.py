@@ -340,6 +340,76 @@ QWEN_SPEAKERS = {
 QWEN_DISPLAY = {disp for _sid, (disp, _g, _d) in QWEN_SPEAKERS.items()}
 QWEN_BY_DISPLAY = {disp: (sid, gen, desc) for sid, (disp, gen, desc) in QWEN_SPEAKERS.items()}
 
+# Плейбук перевода описания голоса для Qwen3-TTS (просьба Ярослава, 11.11.26).
+# Голос у Qwen проектируется текстовой инструкцией, и примеры `instruct` в
+# документации/карточке модели — английские: «support excels in Chinese and
+# English», остальные языки принимаются, но управляемость тембра хуже. Русский
+# для модели — язык РЕЧИ (его она берёт из текста), поэтому описание тембра
+# держим английским, а русские формулировки, уже записанные в паспорта голосов,
+# переводим по этому словарю. Неизвестные слова остаются как есть — их видно в
+# карточке, поэтому врать про перевод нечем.
+# Ключи — нижний регистр и «е» вместо «ё» (вход нормализуем так же).
+QWEN_DESIGN_RU2EN = [
+    ("с легкой хрипотцой", "with slight rasp"),
+    ("легкой хрипотцой", "with slight rasp"),
+    ("с хрипотцой", "slightly raspy"),
+    ("с придыханием", "breathy"),
+    ("с улыбкой", "smiling"),
+    ("с акцентом", "with an accent"),
+    ("быстрая речь", "fast speech"),
+    ("медленная речь", "slow speech"),
+    ("быстрый темп", "fast pace"),
+    ("медленный темп", "slow pace"),
+    ("нейтральный тон", "neutral tone"),
+    ("деловой тон", "professional tone"),
+    ("спокойный тон", "calm tone"),
+    ("говорит быстро", "speaks fast"),
+    ("говорит медленно", "speaks slowly"),
+    ("низкий бархатный", "low velvety"),
+    ("чуть резковатый", "slightly sharp"),
+]
+# Основа слова без окончания: охватывает падежи («энергичный/энергичная/энергичным»).
+QWEN_DESIGN_RU2EN_STEMS = [
+    ("дружелюбн", "friendly"), ("выразительн", "expressive"), ("интеллигентн", "refined"),
+    ("аристократич", "refined"), ("харизматичн", "magnetic"), ("экспрессивн", "expressive"),
+    ("эмоциональн", "emotional"), ("обаятельн", "charming"), ("добродушн", "good-natured"),
+    ("таинственн", "mysterious"), ("неуверенн", "hesitant"), ("монотонн", "monotone"),
+    ("уверенн", "confident"), ("энергичн", "energetic"), ("динамичн", "dynamic"),
+    ("спокойн", "calm"), ("бархатн", "velvety"), ("воздушн", "airy"), ("придых", "breathy"),
+    ("резковат", "slightly sharp"), ("дерзковат", "cheeky"), ("мистич", "mysterious"),
+    ("комментатор", "commentator"), ("рассказчик", "storyteller"), ("профессор", "professor"),
+    # сказочные и звериные роли: голос по описанию персонажа (паспорт «гном» у Ярослава)
+    ("чудовищ", "monster"), ("монстр", "monster"), ("дракон", "dragon"), ("тролл", "troll"),
+    ("гном", "dwarf"), ("эльф", "elf"), ("скрипуч", "creaky"),
+    ("существ", "creature"), ("медвед", "bear"), ("волч", "wolf"), ("лисиц", "fox"),
+    ("лягуш", "frog"), ("белк", "squirrel"), ("мышк", "mouse"), ("птиц", "bird"),
+    ("звер", "animal"), ("собак", "dog"), ("котя", "kitten"), ("кот", "cat"),
+    ("пискляв", "squeaky"), ("писк", "squeaky"), ("коренаст", "sturdy"), ("худощав", "thin"),
+    ("маленьк", "small"), ("крошечн", "tiny"), ("мелк", "small"), ("толст", "chubby"),
+    ("милок", "cute"), ("милая", "cute"), ("милый", "cute"),
+    ("диктор", "announcer"), ("ведущ", "presenter"), ("блогер", "blogger"),
+    ("новостн", "news"), ("персонаж", "character"), ("герой", "hero"),
+    ("мужчин", "male"), ("женщин", "female"), ("мужск", "male"), ("женск", "female"),
+    ("подростк", "teenager"), ("ребенк", "child"), ("детск", "child"), ("мальчик", "boy"),
+    ("девочк", "girl"), ("парен", "young man"), ("девушк", "young woman"),
+    ("старик", "old man"), ("старух", "old woman"), ("дедушк", "elderly man"),
+    ("бабушк", "elderly woman"), ("пожил", "elderly"), ("зрел", "mature"), ("молод", "young"),
+    ("глубок", "deep"), ("характерн", "distinctive"), ("узнаваем", "distinctive"),
+    ("тепл", "warm"), ("холодн", "cold"), ("мягк", "soft"), ("громк", "loud"),
+    ("тих", "quiet"), ("низк", "low"), ("высок", "high-pitched"), ("быстр", "fast"),
+    ("медлен", "slow"), ("весел", "cheerful"), ("игрив", "playful"), ("серьезн", "serious"),
+    ("строг", "stern"), ("сух", "dry"), ("сочн", "rich"), ("ярк", "bright"),
+    ("чист", "clear"), ("легк", "light"), ("сильн", "strong"), ("слаб", "weak"),
+    ("густ", "thick"), ("хрипл", "hoarse"), ("сипл", "husky"), ("приглуш", "muted"),
+    ("носов", "nasal"), ("устал", "tired"), ("сонн", "sleepy"), ("мрачн", "dark"),
+    ("коротк", "short"), ("длинн", "long"), ("улыб", "smiling"), ("хрипот", "rasp"),
+    ("акцент", "accent"), ("речь", "speech"), ("темп", "pace"), ("голос", ""),
+    ("тембр", ""), ("манер", "manner"), ("возраст", "age"),
+]
+# Служебные слова: союзы/предлоги выбрасываем, усилительные — в английский аналог.
+QWEN_DESIGN_STOP = {"с", "со", "в", "во", "у", "и", "на", "о", "об", "по", "для", "как",
+                    "это", "такой", "такая", "очень", "немного", "слегка", "чуть"}
+
 EMOTION_TAB = {
     # --- светлая часть ---
     "радостный": ("very cheerful, joyful, excited tone, almost laughing",
@@ -2674,10 +2744,6 @@ _XLAT_EXTRA = {
     "✅ Голос сохранён в списке — работает как клон.":
         "✅ Voice saved in the list — it works like a clone.",
     "Генерирую голос…": "Generating the voice…",
-    "Опиши голос словами — модель его создаст.\n"
-    "Например: «молодой энергичный мужчина, быстрая речь, с улыбкой»":
-        "Describe the voice in words — the model will create it.\n"
-        "Example: \"a young energetic man, fast speech, smiling\".",
     "Текст прослушки": "Preview text",
     "Имя голоса в списке": "Voice name in the list",
     "🔊 Сгенерировать и послушать": "🔊 Generate and listen",
@@ -8098,7 +8164,8 @@ class ModernTTSApp(*_APP_BASE):
                 else:
                     _vid, info = self._find_voice(name)
                     if isinstance(info, dict):
-                        txt = str(info.get("instruct") or "")
+                        # зеркало показывает то, что реально уйдёт в модель
+                        txt = self._qwen_instruct_xlat(info.get("instruct") or "")
         except Exception:
             txt = ""
         try:
@@ -8434,12 +8501,50 @@ class ModernTTSApp(*_APP_BASE):
                 if not dropped:
                     raise
 
+    def _qwen_instruct_xlat(self, text):
+        """Паспорт голоса -> английская инструкция для Qwen (плейбук, 11.11.26).
+
+        Qwen проектирует тембр по текстовой инструкции, и надёжнее всего она
+        работает по-английски: примеры `instruct` в документации английские,
+        «support excels in Chinese and English». Русский для модели — язык РЕЧИ,
+        его она берёт из текста, поэтому описание тембра держим английским, а
+        русские формулировки, записанные в паспортах голосов раньше, переводим
+        здесь. Порядок: целая подпись чипа -> целые фразы -> основы слов (ловят
+        падежи) -> служебные слова в мусор. Чего в словаре нет, остаётся как
+        есть: это видно в карточке голоса, додумывать перевод не будем.
+        """
+        t = str(text or "").strip()
+        if not t or not re.search(r"[а-яё]", t, re.I):
+            return t                                  # уже по-английски
+        whole = dict(VOX_DESIGN_PRESETS).get(t)       # русская подпись чипа целиком
+        if whole:
+            return whole
+        s = t.lower().replace("\u0451", "е")
+        s = re.sub(r"\b(\d{1,3})\s*(?:лет|года|год)\b", r"\1 years old", s)
+        for ph, en in QWEN_DESIGN_RU2EN:
+            s = re.sub(r"\b%s\b" % re.escape(ph), en, s)
+        for st, en in QWEN_DESIGN_RU2EN_STEMS:
+            s = re.sub(r"\b%s\w*" % re.escape(st), en, s)
+
+        def _stop(m):
+            return "" if m.group(0) in QWEN_DESIGN_STOP else m.group(0)
+        s = re.sub(r"\b[а-я]+\b", _stop, s)
+        s = re.sub(r"[,;]\s*[,;]+", ",", s)
+        s = re.sub(r"\s+", " ", s).strip(" ,;")
+        seen, out = set(), []
+        for part in s.split(","):      # «мужской голос, мужчина» — не дважды
+            q = part.strip()
+            if q and q not in seen:
+                seen.add(q)
+                out.append(q)
+        return ", ".join(out) or t
+
     def _qwen_instruct_for(self, emo_label, user_instr, vpack=None):
         parts = []
         if emo_label:
             parts.append(EMOTION_TAB.get(emo_label, ("", ""))[0])
         info = (vpack or (None, None))[1] or {}
-        own = (info.get("instruct") or "").strip()   # «паспорт» голоса из Дизайна
+        own = self._qwen_instruct_xlat(info.get("instruct") or "")   # «паспорт» голоса из Дизайна
         if own:
             parts.append(own)
         if user_instr:
@@ -8637,15 +8742,56 @@ class ModernTTSApp(*_APP_BASE):
             dlg.after(500, lambda: dlg.attributes("-topmost", False))
         except Exception:
             pass
-        ctk.CTkLabel(dlg, text=_tr("Опиши голос словами — модель его создаст.\n"
-                                   "Например: «молодой энергичный мужчина, быстрая речь, с улыбкой»"),
+        ctk.CTkLabel(dlg, text=_tr("Опиши голос по-английски: описание тембра на\n"
+                                   "английском модель понимает надёжнее всего.\n"
+                                   "Речь при этом будет по-русски — язык он берёт из текста.\n"
+                                   "Тембр каждый раз чуть разный: сравни 2–3 варианта."),
                      font=FONT_SMALL, text_color=COLOR_TEXT_SEC, justify="left",
                      anchor="w").pack(fill="x", padx=16, pady=(14, 6))
         ins = ctk.CTkEntry(dlg, font=FONT_SMALL, height=58, corner_radius=3,
                            fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
                            text_color=COLOR_TEXT_MAIN,
-                           placeholder_text="мужчина, 25 лет, энергичный, с улыбкой, быстрая речь…")
+                           placeholder_text="young male, 25 years old, energetic, smiling, speaking fast…")
         ins.pack(fill="x", padx=16)
+        # Плейбук — те же чипы, что в дизайне Vox (просьба Ярослава, 11.11.26):
+        # подпись по-русски, а в модель уходит английская формулировка, потому что
+        # описание тембра Qwen понимает по-английски надёжнее. Русские формулировки,
+        # уже записанные в паспортах голосов, переводит плейбук (_qwen_instruct_xlat).
+        chips = {}
+
+        def apply_preset(ru):
+            """Ставит готовую английскую формулировку в поле — править можно самому."""
+            en = dict(VOX_DESIGN_PRESETS).get(ru) or ""
+            if not en:
+                return
+            cur = ins.get().strip()
+            ready = {e for _, e in VOX_DESIGN_PRESETS}
+
+            def known(v):        # устроит и английская формулировка, и её русская версия
+                return v in ready or self._qwen_instruct_xlat(v) in ready
+
+            ins.delete(0, "end")
+            # свой текст не затираем — дополняем; если в поле была другая готовая
+            # формулировка, заменяем: выбор должен работать как выбор
+            ins.insert(0, en if (not cur or known(cur)) else cur.rstrip(", ") + ", " + en)
+            for lbl, b in chips.items():      # выбранный чип подсвечен медным
+                try:
+                    b.configure(fg_color=COLOR_BRAND if lbl == ru else COLOR_CARD2)
+                except Exception:
+                    pass
+            status.configure(text=_tr("Формулировка вставлена — можно поправить самому."))
+
+        pb = ctk.CTkFrame(dlg, fg_color="transparent")
+        pb.pack(fill="x", padx=16, pady=(4, 2))
+        for _c in range(5):                   # 30 чипов по 5 в ряду — 6 рядов
+            pb.grid_columnconfigure(_c, weight=1)
+        for idx, (ru, _en) in enumerate(VOX_DESIGN_PRESETS):
+            b = ctk.CTkButton(pb, text=ru, height=22, corner_radius=3, font=FONT_TINY,
+                              fg_color=COLOR_CARD2, hover_color=COLOR_SELECT,
+                              text_color=COLOR_TEXT_MAIN,
+                              command=lambda ru=ru: apply_preset(ru))
+            b.grid(row=idx // 5, column=idx % 5, padx=2, pady=1, sticky="ew")
+            chips[ru] = b
         ctk.CTkLabel(dlg, text=_tr("Текст прослушки"), font=FONT_SMALL,
                      text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=16, pady=(10, 2))
         txt = ctk.CTkEntry(dlg, font=FONT_SMALL, height=34, corner_radius=3,
