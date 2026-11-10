@@ -108,28 +108,66 @@ VOX_DESIGN_STEPS = 20
 # + подача (эмоция, темп, сценарий) — и не больше 3–4 признаков сразу
 # («adding too many complex voice instructions might spoil the broth»).
 VOX_DESIGN_PRESETS = [
-    ("Спокойный диктор, низкий мужской",
+    ("Диктор",
      "middle-aged male broadcaster, low-pitched, magnetic, confident, speaking calmly"),
-    ("Новостной мужчина, ровный тон",
+    ("Новостной",
      "adult male news anchor, clear steady voice, neutral tone, moderate pace"),
-    ("Мягкая женственная, тёплая",
+    ("Мягкая",
      "young woman, soft sweet voice, gentle, slightly smiling, relaxed pace"),
-    ("Энергичный молодой мужчина",
+    ("Энергичный",
      "energetic young man, bright voice, speaking fast, excited"),
-    ("Пожилая рассказчица, тихая",
+    ("Старушка",
      "quiet raspy elderly woman, low-pitched voice, grainy texture, slow soft tone"),
-    ("Пожилой мужчина, хриплый, значительный",
+    ("С хрипотцой",
      "elderly man, low raspy magnetic voice, slow gravitating storytelling tone"),
-    ("Девушка-блогер, бодро",
+    ("Блогер",
      "young woman blogger, bright cheerful voice, lively fast rhythm, smiling"),
-    ("Документальный закадр, негромко",
+    ("Закадр тихий",
      "middle-aged narrator, calm low voice, slow quiet tone, documentary storytelling"),
-    ("Строгий мужчина, холодный тон",
+    ("Строгий",
      "adult man, cold formal tone, flat steady delivery, low pitch, serious"),
-    ("Подросток, оживлённо",
+    ("Подросток",
      "teenage boy, bright energetic voice, fast uneven rhythm, playful"),
-    ("Детский нежный голос",
+    ("Детский",
      "little girl, soft tender child voice, slow gentle speech"),
+    ("Бархатный бас",
+     "deep velvet male voice, low pitch, smooth resonance, slow confident pace"),
+    ("Деловая",
+     "professional business woman, crisp clear voice, confident neutral tone, moderate pace"),
+    ("Мечтательница",
+     "dreamy young woman, airy soft voice, slightly breathy, slow gentle pace"),
+    ("Киногерой",
+     "gruff cinematic hero, rugged low male voice, intense serious delivery"),
+    ("Дед-сказочник",
+     "warm grandfather storyteller, gentle aged male voice, unhurried kind tone"),
+    ("Мотиватор",
+     "motivational coach, powerful projecting voice, energetic punchy rhythm"),
+    ("Медитация",
+     "soothing meditation guide, calm low voice, very slow relaxed pace, softly breathy"),
+    ("Радио-диджей",
+     "upbeat radio DJ, warm medium-pitch voice, lively rhythmic delivery, smiling"),
+    ("Шёпот",
+     "tense whispering voice, close breathy tone, slow suspenseful pace"),
+    ("Аристократка",
+     "poised aristocratic woman, refined clear voice, measured elegant delivery"),
+    ("Весельчак",
+     "cheerful easygoing man, medium voice, jovial relaxed tone, casual tempo"),
+    ("ИИ-ассистент",
+     "calm AI assistant voice, neutral pitch, even pacing, clean articulate delivery"),
+    ("Бабушка",
+     "kindly village grandmother, warm aged voice, folksy slow speech"),
+    ("Профессор",
+     "university professor, authoritative steady voice, clear articulate lecture pacing"),
+    ("Комментатор",
+     "sports commentator, loud energetic voice, fast excited rhythm"),
+    ("Колыбельная",
+     "lullaby mother, very soft tender female voice, slow gentle whispery tone"),
+    ("Нуар-детектив",
+     "noir detective, husky low male voice, dry sardonic delivery, unhurried"),
+    ("Эксцентричный",
+     "eccentric artist, bright theatrical voice, expressive varied intonation, playful"),
+    ("Готика",
+     "gothic mysterious narrator, dark low female voice, slow ominous pacing"),
 ]
 
 
@@ -2453,8 +2491,6 @@ _XLAT_EXTRA = {
         "voice descriptions most reliably.\n"
         "The speech itself will still be Russian: the language comes from the text.\n"
         "The timbre varies slightly each time: compare 2–3 takes.",
-    "Быстрый выбор": "Quick pick",
-    "формулировка голоса…": "voice wording…",
     "Формулировка вставлена — можно поправить самому.":
         "Wording inserted — feel free to edit it.",
     "VoxCPM2 недоступна — проверь видеокарту и видеопамять.":
@@ -8398,8 +8434,12 @@ class ModernTTSApp(*_APP_BASE):
             return b
 
         ins = box(58)
-        # Плейбук формулировок: подписи по-русски, в модель уходит английский вариант
-        # (VoxCPM2 описание тембра понимает по-английски/по-китайски, не по-русски).
+        # Плейбук — чипы рядами по ширине окна: 30 формулировок в дропдаун не
+        # влезают (список растёт вниз за экран, прокрутки нет), ряды — влезают.
+        # Подписи по-русски, в модель уходит английская формулировка (VoxCPM2
+        # описание тембра по-русски не понимает).
+        chips = {}
+
         def apply_preset(ru):
             """Ставит готовую английскую формулировку в поле — править можно самому."""
             en = dict(VOX_DESIGN_PRESETS).get(ru) or ""
@@ -8412,19 +8452,24 @@ class ModernTTSApp(*_APP_BASE):
             # формулировка, заменяем: выбор должен работать как выбор
             ins.insert("1.0", en if (not cur or cur in ready)
                        else cur.rstrip(", ") + ", " + en)
+            for lbl, b in chips.items():      # выбранный чип подсвечен медным
+                try:
+                    b.configure(fg_color=COLOR_BRAND if lbl == ru else COLOR_CARD2)
+                except Exception:
+                    pass
             status.configure(text=_tr("Формулировка вставлена — можно поправить самому."))
 
-        pb_row = ctk.CTkFrame(dlg, fg_color="transparent")
-        pb_row.pack(fill="x", padx=16, pady=(4, 2))
-        ctk.CTkLabel(pb_row, text=_tr("Быстрый выбор"), font=FONT_SMALL,
-                     text_color=COLOR_TEXT_SEC).pack(side="left")
-        pb_menu = ctk.CTkOptionMenu(pb_row, values=[ru for ru, _ in VOX_DESIGN_PRESETS],
-                                    width=216, height=26, font=FONT_SMALL,
-                                    fg_color=COLOR_CARD2, button_color=COLOR_BORDER,
-                                    button_hover_color=COLOR_BRAND_HOVER,
-                                    text_color=COLOR_TEXT_MAIN, command=apply_preset)
-        pb_menu.set(_tr("формулировка голоса…"))
-        pb_menu.pack(side="right")
+        pb = ctk.CTkFrame(dlg, fg_color="transparent")
+        pb.pack(fill="x", padx=16, pady=(4, 2))
+        for _c in range(5):                   # 30 чипов по 5 в ряду — 6 рядов
+            pb.grid_columnconfigure(_c, weight=1)
+        for idx, (ru, _en) in enumerate(VOX_DESIGN_PRESETS):
+            b = ctk.CTkButton(pb, text=ru, height=22, corner_radius=3, font=FONT_TINY,
+                              fg_color=COLOR_CARD2, hover_color=COLOR_SELECT,
+                              text_color=COLOR_TEXT_MAIN,
+                              command=lambda ru=ru: apply_preset(ru))
+            b.grid(row=idx // 5, column=idx % 5, padx=2, pady=1, sticky="ew")
+            chips[ru] = b
         ctk.CTkLabel(dlg, text=_tr("Текст прослушки"), font=FONT_SMALL,
                      text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=16, pady=(10, 2))
         # образцу нужно 5–15 секунд чистой речи — фраза длиннее, чем у Qwen
