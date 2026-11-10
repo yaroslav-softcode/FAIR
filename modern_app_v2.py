@@ -6089,12 +6089,30 @@ class ModernTTSApp(*_APP_BASE):
 
 
     def _chapter_marked(self, c):
-        """Глава с служебной меткой заголовка «[[Заголовок]]»: по ней чанки
+        """Глава со служебной меткой заголовка «[[Заголовок]]»: по ней чанки
         режутся по главам, когда включена галочка «по главам» (10.11.26).
+        Метка встаёт ВМЕСТО строки заголовка в тексте главы: парсеры FB2/EPUB
+        кладут название и в начало главы, поэтому метка рядом с ним давала бы
+        название дважды — и на экране, и в озвучке (просьба Ярослава 10.11.26).
         В анализ и озвучку метка не уходит — её снимает _unmark_chapters."""
         t = re.sub(r"[\[\]]", "", (c.get("title") or "")).strip()[:120]
         body = (c.get("text") or "").strip()
-        return (f"[[{t}]]\n\n" + body) if t else body
+        if not t:
+            return body
+
+        def norm(s):
+            return re.sub(r"[\s\.:;,!?—–\-]+", " ", s or "").strip().lower()
+
+        lines = body.split("\n")
+        i = 0
+        while i < len(lines) and not lines[i].strip():
+            i += 1
+        if i < len(lines) and norm(lines[i]) == norm(t):        # заголовок строкой
+            rest = "\n".join(lines[i + 1:]).strip()
+            return f"[[{t}]]\n\n{rest}" if rest else f"[[{t}]]"
+        if norm(body).startswith(norm(t)):                      # заголовок встроен в текст
+            return f"[[{t}]]\n\n{body[len(t):].strip()}"
+        return f"[[{t}]]\n\n{body}"
 
     def _book_dialog(self, chapters, book_title, path):
         """Диалог выбора глав для книг (FB2/EPUB): вся книга целиком или одна глава."""
@@ -10529,9 +10547,20 @@ class ModernTTSApp(*_APP_BASE):
         return cache
 
     def _unmark_chapters(self, text):
-        """Снять метки глав [[…]], оставив сам заголовок: модель и озвучка
-        должны видеть обычный текст, а не служебные скобки."""
-        return re.sub(r"\[\[(.{1,90}?)\]\]", r"\1", text or "")
+        """Снять служебные метки глав [[…]]. Название главы остаётся в тексте
+        только один раз: FB2 кладёт заголовок и в метку, и в начало главы, поэтому
+        если следом он уже есть — метку убираем целиком, иначе заголовок
+        звучал бы дважды (просьба Ярослава 10.11.26)."""
+        def norm(s):
+            return re.sub(r"[\s\.:;,!?—–\-]+", " ", s or "").strip().lower()
+
+        def rep(m):
+            title = m.group(1).strip()
+            if norm(m.string[m.end():]).startswith(norm(title)[:60]):
+                return ""           # название уже стоит следом в тексте главы
+            return title
+
+        return re.sub(r"\[\[(.{1,120}?)\]\]", rep, text or "")
 
     def _chapter_head_line(self, line, prev_blank, next_blank):
         """Похожа ли строка на заголовок главы (для текста, вставленного вручную,
