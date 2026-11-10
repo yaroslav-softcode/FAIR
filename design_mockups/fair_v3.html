@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#24282f;padding:16px;font:14px 'Segoe UI',sans-serif;color:#e9e6df}
+.win{width:1160px;background:#14171c;border:1px solid #2b313a;border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.tbar{height:32px;display:flex;align-items:center;padding:0 12px;background:#101317;border-bottom:1px solid #262c34;font-size:12px;color:#9aa1ab}
+.tbar .dot{width:14px;height:14px;border-radius:4px;background:linear-gradient(135deg,#c6763a,#e09a5a);margin-right:8px}
+.tabs{display:flex;gap:6px;padding:14px 20px 0}
+.tab{padding:11px 26px;border-radius:11px 11px 0 0;font-size:14px;color:#aab2bd;border:1px solid transparent;border-bottom:none}
+.tab.on{background:#191d23;border-color:#2a3038;color:#e8a976;font-weight:700}
+.pane{margin:0 20px 14px;background:#191d23;border:1px solid #2a3038;border-radius:0 12px 12px 12px;padding:18px 20px;min-height:520px}
+h2{font-size:17px;margin:0 0 4px}
+.small{color:#8d95a0;font-size:12px;margin-bottom:14px}
+textarea{width:100%;height:150px;background:#101317;border:1px solid #2a3038;border-radius:10px;color:#cfd3d9;font:13px 'Segoe UI';padding:12px;box-sizing:border-box;resize:none}
+.ghost{display:inline-block;padding:7px 13px;border:1px solid #2f3640;border-radius:9px;color:#b8bfc9;font-size:12px;margin-right:6px}
+.big{background:linear-gradient(180deg,#cf7f3f,#b96a2f);color:#fff;font-weight:700;border-radius:11px;padding:13px 26px;display:inline-block;font-size:15px;box-shadow:0 6px 18px rgba(198,118,58,.35)}
+.chips{display:flex;gap:7px;margin:12px 0}
+.chip{padding:8px 16px;border-radius:16px;border:1px solid #2f3640;color:#b8bfc9;font-size:13px}
+.chip.on{border-color:#c6763a;color:#e8a976;background:#2a1f16;font-weight:600}
+.prog{margin-top:18px;background:#101317;border:1px solid #2a3038;border-radius:10px;padding:12px 14px;font-size:13px;color:#c6ccd4}
+.pbar{height:7px;background:#242a33;border-radius:4px;margin-top:8px;position:relative}
+.pbar .f{position:absolute;left:0;top:0;bottom:0;width:62%;background:linear-gradient(90deg,#c6763a,#e09a5a);border-radius:4px}
+.stat{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.pill{font-size:12px;color:#86c98f;background:#16241a;border:1px solid #2c4630;border-radius:11px;padding:5px 12px}
+.pill.o{color:#e8a976;background:#241a12;border-color:#4a3525}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{background:#101317;border:1px solid #262c34;border-radius:11px;padding:13px 15px}
+.tile b{display:block;margin-bottom:6px;font-size:13px}
+.seg{display:inline-flex;border:1px solid #2f3640;border-radius:9px;overflow:hidden}
+.seg span{padding:7px 14px;font-size:12px;color:#b8bfc9;border-right:1px solid #2f3640}
+.seg .on{background:#2a1f16;color:#e8a976;font-weight:600}
+select{background:#101317;border:1px solid #2a3038;color:#cfd3d9;border-radius:8px;padding:7px 10px;font-size:12px}
+</style></head><body>
+<div class="win">
+ <div class="tbar"><span class="dot"></span>FAIR 1.6 — Free AI Reader<span style="margin-left:auto">⚙ настройки — во вкладке «Голос» · — □ ✕</span></div>
+ <div class="tabs"><div class="tab on">📖 Чтение</div><div class="tab">🔊 Голос</div><div class="tab">🕘 История</div></div>
+ <div class="pane">
+  <h2>Что разбираем?</h2><div class="small">Одна строка действий: вставил — разобрал — озвучил. Остальное помнит приложение.</div>
+  <textarea>Вставьте ссылку, текст или перетащите файл…</textarea>
+  <div style="margin-top:6px"><span class="ghost">📂 Файл</span><span class="ghost">📋 Вставить</span><span class="ghost">´ Ударение</span><span class="ghost">✕ Очистить</span></div>
+  <div class="chips"><span class="chip">Подробно</span><span class="chip on">Средне</span><span class="chip">Кратко</span><span class="chip">✎ Свой промт</span></div>
+  <div style="margin-top:8px"><span class="big">▶ Запустить анализ</span>
+   <span style="display:inline-block;margin-left:14px" class="ghost">🔊 Озвучить готовое</span></div>
+  <div class="prog">Разбираю статью…<div class="pbar"><div class="f"></div></div><div style="margin-top:6px;color:#8d95a0;font-size:12px">Gemma 4 · осталось ~40 с · <span style="color:#d98f86">⏹ Стоп</span></div></div>
+  <div class="stat"><span class="pill">Вокс загружен · 2.1 ГБ</span><span class="pill">Голос: Ирина</span><span class="pill">Скорость 1.0×</span><span class="pill o">Квен не установлен · скачать</span></div>
+ </div>
+</div></body></html>

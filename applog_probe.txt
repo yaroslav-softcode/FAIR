@@ -1,0 +1,5 @@
+16:55:30 === старт headless-пробы приложения ===
+16:55:31 app init ок
+16:55:31 variant=classic · effective=classic
+16:55:53 load_vox -> True за 21с · vox_model=да · name=C:\Users\Yar\.cache\huggingface\hub\models--openbmb--VoxCPM2\snapshots\32279effe8c19989596f05d353d1447f51d9e915
+16:55:53 === готово ===

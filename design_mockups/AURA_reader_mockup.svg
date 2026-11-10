@@ -1,0 +1,270 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" style="max-width:100%;height:auto;" role="img" aria-label="Макет интерфейса AURA Reader">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070B14"/>
+      <stop offset="1" stop-color="#101828"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8B5CF6"/>
+      <stop offset="0.5" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#151E31"/>
+      <stop offset="1" stop-color="#0E1626"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="720" fill="url(#bg)"/>
+
+  <!-- Top bar -->
+  <rect x="0" y="0" width="1200" height="76" fill="#0B1220" opacity="0.92"/>
+  <rect x="0" y="75" width="1200" height="1" fill="#1E293B"/>
+
+  <circle cx="36" cy="38" r="17" fill="url(#accent)"/>
+  <path d="M30 38 L36 30 L42 38 L36 46 Z" fill="#071018" opacity="0.8"/>
+
+  <text x="64" y="35" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="19" font-weight="700">AURA Reader</text>
+  <text x="64" y="53" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="12">локально · приватно · голосом</text>
+
+  <rect x="260" y="18" width="580" height="40" rx="20" fill="#111C2F" stroke="#24344F"/>
+  <circle cx="282" cy="38" r="7" fill="none" stroke="#64748B" stroke-width="2"/>
+  <line x1="287" y1="43" x2="292" y2="48" stroke="#64748B" stroke-width="2" stroke-linecap="round"/>
+  <text x="304" y="43" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">Вставь ссылку, текст, видео или перетащи файл…</text>
+
+  <rect x="856" y="18" width="104" height="40" rx="20" fill="url(#accent)"/>
+  <text x="878" y="43" fill="#071018" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Разобрать</text>
+
+  <rect x="976" y="18" width="94" height="40" rx="20" fill="#111C2F" stroke="#24344F"/>
+  <text x="1000" y="43" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="14">Озвучить</text>
+
+  <rect x="1086" y="20" width="36" height="36" rx="12" fill="#111C2F" stroke="#24344F"/>
+  <text x="1098" y="43" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">⚙</text>
+
+  <circle cx="1156" cy="38" r="18" fill="#111C2F" stroke="#24344F"/>
+  <text x="1150" y="43" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="14">Я</text>
+
+  <!-- Left sidebar -->
+  <rect x="0" y="76" width="230" height="644" fill="#0A1120" opacity="0.72"/>
+  <rect x="229" y="76" width="1" height="644" fill="#1E293B"/>
+
+  <text x="22" y="112" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">ИСТОЧНИКИ</text>
+
+  <rect x="14" y="126" width="202" height="68" rx="16" fill="url(#card)" stroke="#23324D"/>
+  <rect x="28" y="142" width="34" height="34" rx="10" fill="#16233B"/>
+  <text x="38" y="164" fill="#22D3EE" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">YT</text>
+  <text x="74" y="152" fill="#F1F5F9" font-family="Segoe UI, Arial, sans-serif" font-size="13">Резервуары: расчёт</text>
+  <text x="74" y="172" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">12 мин · субтитры · RU</text>
+  <circle cx="198" cy="160" r="5" fill="#34D399"/>
+
+  <rect x="14" y="206" width="202" height="56" rx="16" fill="url(#card)" stroke="#23324D"/>
+  <rect x="28" y="220" width="28" height="28" rx="9" fill="#16233B"/>
+  <text x="36" y="239" fill="#A78BFA" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">PDF</text>
+  <text x="66" y="230" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="12">ГОСТ и заметки.docx</text>
+  <text x="66" y="248" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11">8 глав · выбрано 3</text>
+
+  <text x="22" y="296" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">МОДЕЛИ</text>
+
+  <rect x="14" y="310" width="202" height="82" rx="16" fill="url(#card)" stroke="#23324D"/>
+  <text x="28" y="334" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">Gemma 4 E4B</text>
+  <text x="28" y="352" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">анализ · GGUF · 5 GB</text>
+  <rect x="28" y="364" width="174" height="6" rx="3" fill="#1E293B"/>
+  <rect x="28" y="364" width="116" height="6" rx="3" fill="url(#accent)"/>
+  <text x="28" y="384" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="10">VRAM 4.2/8 GB · контекст 8K</text>
+
+  <rect x="14" y="404" width="202" height="70" rx="16" fill="url(#card)" stroke="#23324D"/>
+  <text x="28" y="428" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">VOX + Qwen3-TTS</text>
+  <text x="28" y="446" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">голос · клон · эмоции</text>
+  <rect x="28" y="456" width="174" height="6" rx="3" fill="#1E293B"/>
+  <rect x="28" y="456" width="74" height="6" rx="3" fill="#22D3EE"/>
+
+  <text x="22" y="508" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">ПРИВАТНОСТЬ</text>
+
+  <rect x="14" y="522" width="202" height="112" rx="16" fill="url(#card)" stroke="#23324D"/>
+  <circle cx="36" cy="546" r="9" fill="none" stroke="#34D399" stroke-width="2"/>
+  <path d="M32 546 L35 549 L41 543" fill="none" stroke="#34D399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="54" y="550" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="12">Всё на твоём ПК</text>
+  <text x="28" y="574" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">Нет облака · нет подписки</text>
+  <text x="28" y="594" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">Данные: %LOCALAPPDATA%/AURA</text>
+
+  <rect x="28" y="608" width="80" height="22" rx="11" fill="#102033" stroke="#24344F"/>
+  <text x="42" y="623" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">Self-check</text>
+
+  <rect x="118" y="608" width="80" height="22" rx="11" fill="#102033" stroke="#24344F"/>
+  <text x="136" y="623" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">MCP/API</text>
+
+  <!-- Main area -->
+  <rect x="230" y="76" width="670" height="644" fill="#070C17" opacity="0.25"/>
+
+  <rect x="254" y="100" width="622" height="94" rx="20" fill="url(#card)" stroke="#23324D"/>
+  <text x="276" y="128" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Резервуары: главное за 3 минуты</text>
+  <text x="276" y="150" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="12">Источник определён автоматически · RU · 18 мин → 3 мин аудио</text>
+
+  <rect x="276" y="164" width="92" height="24" rx="12" fill="#12213A" stroke="#2B3E5F"/>
+  <text x="294" y="180" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">Оригинал</text>
+
+  <rect x="376" y="164" width="92" height="24" rx="12" fill="url(#accent)"/>
+  <text x="399" y="180" fill="#071018" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">Выжимка</text>
+
+  <rect x="476" y="164" width="82" height="24" rx="12" fill="#12213A" stroke="#2B3E5F"/>
+  <text x="497" y="180" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">Перевод</text>
+
+  <rect x="566" y="164" width="92" height="24" rx="12" fill="#12213A" stroke="#2B3E5F"/>
+  <text x="586" y="180" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">Таймлайн</text>
+
+  <rect x="666" y="164" width="100" height="24" rx="12" fill="#12213A" stroke="#2B3E5F"/>
+  <text x="686" y="180" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">Цитаты</text>
+
+  <circle cx="846" cy="140" r="18" fill="#12213A" stroke="#2B3E5F"/>
+  <text x="839" y="145" fill="#22D3EE" font-family="Segoe UI, Arial, sans-serif" font-size="14">↻</text>
+
+  <rect x="254" y="214" width="622" height="270" rx="20" fill="url(#card)" stroke="#23324D"/>
+
+  <text x="276" y="244" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Уровень сжатия</text>
+  <rect x="410" y="232" width="300" height="8" rx="4" fill="#1E293B"/>
+  <rect x="410" y="232" width="135" height="8" rx="4" fill="url(#accent)"/>
+  <circle cx="545" cy="236" r="9" fill="#F8FAFC" stroke="#22D3EE" stroke-width="3"/>
+  <text x="724" y="240" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">30%</text>
+
+  <text x="410" y="260" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="10">10%</text>
+  <text x="480" y="260" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="10">30%</text>
+  <text x="560" y="260" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="10">50%</text>
+  <text x="690" y="260" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="10">100%</text>
+
+  <rect x="730" y="224" width="120" height="30" rx="15" fill="#102033" stroke="#24344F"/>
+  <text x="748" y="243" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">Свой промт</text>
+
+  <rect x="276" y="282" width="578" height="54" rx="14" fill="#101B2E" stroke="#20304A"/>
+  <circle cx="302" cy="309" r="13" fill="#16233B"/>
+  <text x="296" y="313" fill="#22D3EE" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">1</text>
+  <text x="326" y="303" fill="#F1F5F9" font-family="Segoe UI, Arial, sans-serif" font-size="13">Нагрузки и материал стенки определяют ресурс резервуара.</text>
+  <text x="326" y="323" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11">подтверждено в оригинале · 00:12 · 2 цитаты</text>
+  <rect x="790" y="296" width="52" height="26" rx="13" fill="#16233B" stroke="#2B3E5F"/>
+  <text x="804" y="313" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="10">слушать</text>
+
+  <rect x="276" y="346" width="578" height="54" rx="14" fill="#101B2E" stroke="#20304A"/>
+  <circle cx="302" cy="373" r="13" fill="#16233B"/>
+  <text x="296" y="377" fill="#A78BFA" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">2</text>
+  <text x="326" y="367" fill="#F1F5F9" font-family="Segoe UI, Arial, sans-serif" font-size="13">Коррозия и циклические нагрузки — главный риск для ёмкостей.</text>
+  <text x="326" y="387" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11">ключевой раздел · 02:40 · можно упростить</text>
+  <rect x="790" y="360" width="52" height="26" rx="13" fill="#16233B" stroke="#2B3E5F"/>
+  <text x="804" y="377" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="10">слушать</text>
+
+  <rect x="276" y="410" width="578" height="54" rx="14" fill="#101B2E" stroke="#20304A"/>
+  <circle cx="302" cy="437" r="13" fill="#16233B"/>
+  <text x="296" y="441" fill="#34D399" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">3</text>
+  <text x="326" y="431" fill="#F1F5F9" font-family="Segoe UI, Arial, sans-serif" font-size="13">Достаточно трёх сценариев: давление, ветер, температура.</text>
+  <text x="326" y="451" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11">вывод · 05:10 · добавить в чек-лист</text>
+  <rect x="790" y="424" width="52" height="26" rx="13" fill="#16233B" stroke="#2B3E5F"/>
+  <text x="804" y="441" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="10">слушать</text>
+
+  <rect x="254" y="504" width="622" height="112" rx="20" fill="url(#card)" stroke="#23324D"/>
+  <text x="276" y="532" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Плеер и дорожка смысла</text>
+
+  <circle cx="292" cy="566" r="20" fill="url(#accent)"/>
+  <path d="M287 558 L301 566 L287 574 Z" fill="#071018"/>
+
+  <rect x="326" y="558" width="430" height="6" rx="3" fill="#1E293B"/>
+  <rect x="326" y="558" width="168" height="6" rx="3" fill="url(#wave)"/>
+  <circle cx="494" cy="561" r="7" fill="#F8FAFC"/>
+
+  <text x="326" y="584" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">01:14 / 03:00 · скорость 1.25x · пауза 0.4s</text>
+
+  <rect x="770" y="548" width="82" height="28" rx="14" fill="#102033" stroke="#24344F"/>
+  <text x="788" y="566" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">WAV/MP3</text>
+
+  <path d="M330 540 q10 -18 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" fill="none" stroke="#22D3EE" stroke-width="2" opacity="0.35"/>
+
+  <rect x="254" y="636" width="622" height="64" rx="20" fill="url(#card)" stroke="#23324D"/>
+  <text x="276" y="662" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">Быстрые действия</text>
+
+  <rect x="400" y="650" width="104" height="30" rx="15" fill="#102033" stroke="#24344F"/>
+  <text x="418" y="669" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">Короче 10%</text>
+
+  <rect x="514" y="650" width="104" height="30" rx="15" fill="#102033" stroke="#24344F"/>
+  <text x="534" y="669" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">На English</text>
+
+  <rect x="628" y="650" width="104" height="30" rx="15" fill="#102033" stroke="#24344F"/>
+  <text x="646" y="669" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">Чек-лист</text>
+
+  <rect x="742" y="650" width="114" height="30" rx="15" fill="#102033" stroke="#24344F"/>
+  <text x="760" y="669" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">Отправить в MCP</text>
+
+  <!-- Right panel -->
+  <rect x="900" y="76" width="300" height="644" fill="#0A1120" opacity="0.78"/>
+  <rect x="899" y="76" width="1" height="644" fill="#1E293B"/>
+
+  <text x="922" y="112" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">ГОЛОСОВАЯ СТУДИЯ</text>
+
+  <rect x="914" y="126" width="272" height="86" rx="18" fill="url(#card)" stroke="#2B3E5F"/>
+  <circle cx="944" cy="160" r="18" fill="#16233B" stroke="#22D3EE" stroke-width="2"/>
+  <text x="938" y="165" fill="#22D3EE" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">И</text>
+  <text x="972" y="152" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Ирина · natural</text>
+  <text x="972" y="172" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">RU · быстрый · CPU/GPU</text>
+  <rect x="972" y="184" width="70" height="20" rx="10" fill="#10293A" stroke="#22D3EE" opacity="0.7"/>
+  <text x="986" y="198" fill="#A5F3FC" font-family="Segoe UI, Arial, sans-serif" font-size="10">выбран</text>
+  <circle cx="1164" cy="160" r="14" fill="#102033" stroke="#24344F"/>
+  <text x="1158" y="165" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="12">▶</text>
+
+  <rect x="914" y="224" width="132" height="58" rx="16" fill="url(#card)" stroke="#23324D"/>
+  <text x="930" y="246" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">Алсу</text>
+  <text x="930" y="266" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="10">VOX · RU</text>
+
+  <rect x="1054" y="224" width="132" height="58" rx="16" fill="url(#card)" stroke="#23324D"/>
+  <text x="1070" y="246" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">Мой клон</text>
+  <text x="1070" y="266" fill="#34D399" font-family="Segoe UI, Arial, sans-serif" font-size="10">готов 92%</text>
+
+  <rect x="914" y="294" width="272" height="86" rx="18" fill="url(#card)" stroke="#23324D"/>
+  <text x="930" y="318" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">Запись клона</text>
+  <text x="930" y="338" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">Прочитай фразу 5–15 сек</text>
+  <rect x="930" y="352" width="190" height="8" rx="4" fill="#1E293B"/>
+  <rect x="930" y="352" width="136" height="8" rx="4" fill="#34D399"/>
+  <circle cx="1148" cy="336" r="18" fill="#16233B" stroke="#EF4444" stroke-width="2"/>
+  <circle cx="1148" cy="336" r="7" fill="#EF4444"/>
+
+  <text x="922" y="410" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">Эмоции</text>
+
+  <rect x="914" y="422" width="82" height="28" rx="14" fill="#1B293F" stroke="#334155"/>
+  <text x="930" y="440" fill="#FDE68A" font-family="Segoe UI, Arial, sans-serif" font-size="11">радостный</text>
+
+  <rect x="1004" y="422" width="82" height="28" rx="14" fill="#1B293F" stroke="#334155"/>
+  <text x="1026" y="440" fill="#A5F3FC" font-family="Segoe UI, Arial, sans-serif" font-size="11">спокойный</text>
+
+  <rect x="1094" y="422" width="92" height="28" rx="14" fill="#1B293F" stroke="#334155"/>
+  <text x="1114" y="440" fill="#DDD6FE" font-family="Segoe UI, Arial, sans-serif" font-size="11">деловой</text>
+
+  <rect x="914" y="458" width="96" height="28" rx="14" fill="#102033" stroke="#24344F"/>
+  <text x="932" y="476" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="11">шепот</text>
+
+  <rect x="1018" y="458" width="168" height="28" rx="14" fill="#102033" stroke="#22D3EE"/>
+  <text x="1042" y="476" fill="#A5F3FC" font-family="Segoe UI, Arial, sans-serif" font-size="11">AI расставит маркеры</text>
+
+  <text x="922" y="518" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">Ресурсы</text>
+
+  <rect x="914" y="530" width="272" height="92" rx="18" fill="url(#card)" stroke="#23324D"/>
+
+  <text x="930" y="554" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">GPU</text>
+  <rect x="966" y="548" width="150" height="8" rx="4" fill="#1E293B"/>
+  <rect x="966" y="548" width="116" height="8" rx="4" fill="#22D3EE"/>
+  <text x="1126" y="555" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="10">6.2/8 GB</text>
+
+  <text x="930" y="578" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">RAM</text>
+  <rect x="966" y="572" width="150" height="8" rx="4" fill="#1E293B"/>
+  <rect x="966" y="572" width="58" height="8" rx="4" fill="#8B5CF6"/>
+  <text x="1126" y="579" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="10">3.1/16 GB</text>
+
+  <text x="930" y="602" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">CPU</text>
+  <rect x="966" y="596" width="150" height="8" rx="4" fill="#1E293B"/>
+  <rect x="966" y="596" width="27" height="8" rx="4" fill="#34D399"/>
+  <text x="1126" y="603" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="10">18%</text>
+
+  <rect x="914" y="636" width="272" height="64" rx="18" fill="url(#card)" stroke="#23324D"/>
+  <text x="930" y="660" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">Умный fallback</text>
+  <text x="930" y="680" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="11">нет GPU → Piper · нет сети → кэш</text>
+  <circle cx="1164" cy="668" r="12" fill="#10293A" stroke="#22D3EE"/>
+  <text x="1159" y="672" fill="#A5F3FC" font-family="Segoe UI, Arial, sans-serif" font-size="11">i</text>
+</svg>

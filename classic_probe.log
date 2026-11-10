@@ -1,0 +1,11 @@
+16:57:06 torch 2.5.1+cu121 · C:\Users\Yar\Projects\Project5-TTS\vox\site\torch\__init__.py
+16:57:08 weights: C:\Users\Yar\.cache\huggingface\hub\models--openbmb--VoxCPM2\snapshots\32279effe8c19989596f05d353d1447f51d9e915 · optimize=OFF
+16:57:08 from_pretrained kwargs=['optimize', 'torch_dtype']
+16:57:08   TypeError: VoxCPM.__init__() got an unexpected keyword argument 'torch_dtype'
+16:57:08 from_pretrained kwargs=['dtype', 'optimize']
+16:57:08   TypeError: VoxCPM.__init__() got an unexpected keyword argument 'dtype'
+16:57:08 from_pretrained kwargs=['optimize']
+16:57:33 LOADED за 25с (kw=['optimize'])
+16:57:37 GEN ok: ndarray
+16:57:37 GEN samples=84480 shape=(84480,)
+16:57:37 RESULT: OK

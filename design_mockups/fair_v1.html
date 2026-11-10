@@ -1,0 +1,66 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#24282f;padding:16px;font:14px 'Segoe UI',sans-serif;color:#e9e6df}
+.win{width:1160px;background:#14171c;border:1px solid #2b313a;border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.tbar{height:32px;display:flex;align-items:center;padding:0 12px;background:#101317;border-bottom:1px solid #262c34;font-size:12px;color:#9aa1ab}
+.tbar .dot{width:14px;height:14px;border-radius:4px;background:linear-gradient(135deg,#c6763a,#e09a5a);margin-right:8px}
+.hd{display:flex;align-items:center;gap:12px;padding:14px 20px 10px}
+.hd h1{font-size:19px;margin:0;font-weight:700}
+.hd .sub{color:#8d95a0;font-size:12px;margin-top:2px}
+.lang{margin-left:auto;display:flex;gap:6px;font-size:12px}
+.lang span{padding:5px 12px;border-radius:8px;border:1px solid #2f3640;color:#aab2bd}
+.lang .on{background:#c6763a;border-color:#c6763a;color:#fff;font-weight:600}
+.wrap{display:flex;gap:14px;padding:6px 20px 18px}
+.main{flex:1;display:flex;flex-direction:column;gap:12px}
+.card{background:#191d23;border:1px solid #2a3038;border-radius:12px;padding:14px 16px;position:relative}
+.step{position:absolute;top:-10px;left:14px;background:#c6763a;color:#fff;font-size:11px;font-weight:700;padding:2px 10px;border-radius:10px}
+.card h3{margin:6px 0 10px;font-size:14px}
+textarea{width:100%;height:88px;background:#101317;border:1px solid #2a3038;border-radius:9px;color:#cfd3d9;font:13px 'Segoe UI';padding:10px;box-sizing:border-box;resize:none}
+.ghost{display:inline-block;padding:6px 12px;border:1px solid #2f3640;border-radius:8px;color:#b8bfc9;font-size:12px;margin-top:8px;margin-right:6px}
+.chips{display:flex;gap:6px;margin:6px 0 2px}
+.chip{padding:6px 12px;border-radius:14px;border:1px solid #2f3640;color:#b8bfc9;font-size:12px}
+.chip.on{border-color:#c6763a;color:#e8a976;background:#2a1f16}
+.seg{display:inline-flex;border:1px solid #2f3640;border-radius:10px;overflow:hidden;margin-right:10px}
+.seg span{padding:8px 16px;font-size:13px;color:#b8bfc9;border-right:1px solid #2f3640}
+.seg .on{background:#2a1f16;color:#e8a976;font-weight:600}
+.big{background:linear-gradient(180deg,#cf7f3f,#b96a2f);color:#fff;font-weight:700;border-radius:11px;padding:13px 26px;display:inline-block;font-size:15px;box-shadow:0 6px 18px rgba(198,118,58,.35)}
+.ghostbig{border:1px solid #c6763a;color:#e8a976;border-radius:11px;padding:12px 22px;display:inline-block;font-size:14px}
+.stop{border:1px solid #7a3a33;color:#d98f86;border-radius:11px;padding:12px 18px;display:inline-block;font-size:14px}
+.row{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+select{background:#101317;border:1px solid #2a3038;color:#cfd3d9;border-radius:8px;padding:8px 12px;font-size:13px}
+.slider{flex:1;height:6px;background:#242a33;border-radius:3px;position:relative;min-width:150px}
+.slider .f{position:absolute;left:0;top:0;bottom:0;width:45%;background:#c6763a;border-radius:3px}
+.slider .k{position:absolute;left:45%;top:-5px;width:16px;height:16px;border-radius:50%;background:#fff}
+.badge{font-size:11px;color:#86c98f;background:#16241a;border:1px solid #2c4630;border-radius:10px;padding:4px 10px}
+.side{width:250px;display:flex;flex-direction:column;gap:12px}
+.hist{background:#191d23;border:1px solid #2a3038;border-radius:12px;padding:12px 14px;flex:1}
+.hist h4{margin:0 0 10px;font-size:13px;color:#aab2bd}
+.hitem{padding:9px 10px;border:1px solid #262c34;border-radius:9px;margin-bottom:8px;font-size:12px;color:#c6ccd4}
+.hitem .m{color:#6f7782;font-size:11px;margin-top:3px}
+.hitem .pl{float:right;color:#e8a976;font-weight:700}
+</style></head><body>
+<div class="win">
+ <div class="tbar"><span class="dot"></span>FAIR 1.6 — Free AI Reader<span style="margin-left:auto">— □ ✕</span></div>
+ <div class="hd"><div><h1>Free AI Reader</h1><div class="sub">разбор текста ИИ и озвучка голосом</div></div>
+  <div class="lang"><span class="on">RU</span><span>EN</span><span style="border:none;font-size:15px">⚙</span></div></div>
+ <div class="wrap">
+  <div class="main">
+   <div class="card"><span class="step">ШАГ 1 · ТЕКСТ</span>
+    <textarea>Вставьте ссылку, текст или нажмите «Файл»… 12 480 знаков</textarea>
+    <div><span class="ghost">📂 Файл</span><span class="ghost">📋 Вставить</span><span class="ghost">´ Ударение</span><span class="ghost">✕ Очистить</span></div></div>
+   <div class="card"><span class="step">ШАГ 2 · РАЗБОР</span>
+    <div class="chips"><span class="chip">Подробно</span><span class="chip on">Средне</span><span class="chip">Кратко</span><span class="chip">✎ Свой промт</span></div>
+    <div class="row"><span class="big">▶ Запустить анализ</span><span class="badge">Gemma 4 · 5 ГБ · готова</span></div></div>
+   <div class="card"><span class="step">ШАГ 3 · ОЗВУЧКА</span>
+    <div class="row"><div class="seg"><span class="on">Вокс</span><span>Квен</span><span>Пайпер</span></div>
+     <select><option>Ирина — спокойный</option></select>
+     <span class="ghost">🎙 Мой голос…</span></div>
+    <div class="row">Скорость<div class="slider"><div class="f"></div><div class="k"></div></div><span style="color:#8d95a0;font-size:12px">1.0×</span></div>
+    <div class="row"><span class="ghostbig">🔊 Озвучить</span><span class="stop">⏹ Стоп</span><span class="badge">в памяти: Вокс 2.1 ГБ</span></div></div>
+  </div>
+  <div class="side"><div class="hist"><h4>🕘 История</h4>
+   <div class="hitem"><span class="pl">▶</span>Резервуары: расчёт…<div class="m">сегодня 08:40 · 3 мин · Вокс</div></div>
+   <div class="hitem"><span class="pl">▶</span>Статья: фьючерсы на золото<div class="m">вчера 19:12 · 5 мин · Квен</div></div>
+   <div class="hitem"><span class="pl">▶</span>ГОСТ 31579-2012 · фрагмент<div class="m">06.11 · 8 мин · Вокс</div></div></div>
+  </div>
+ </div>
+</div></body></html>

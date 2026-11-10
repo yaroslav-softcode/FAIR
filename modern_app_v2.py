@@ -1110,6 +1110,15 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                              hover_color=COLOR_SELECT, border_width=1,
                              border_color=COLOR_BORDER, text_color=COLOR_TEXT_SEC,
                              command=lambda i=i: self._emo_play(i))
+        # 🔊 ползунок громкости эмоции (просьба Ярослава, 11.11.26): 5 шагов влево —
+        # тише, середина — как записано, 5 шагов вправо — громче. Берёт остаток строки,
+        # то есть ширину кнопки «Синтезировать». Показом и значением заправляет
+        # app.refresh_emotion_rows; сама громкость — в прослушке и в озвучке фраз.
+        gain = ctk.CTkSlider(srow, from_=-5, to=5, number_of_steps=10, height=14,
+                             progress_color=COLOR_BRAND, button_color=COLOR_BRAND,
+                             button_hover_color=COLOR_BRAND_HOVER, fg_color=COLOR_BORDER,
+                             command=lambda v, i=i: self._emo_gain_set(i, v))
+        gain.set(0)
         brow = ctk.CTkFrame(rowf, fg_color="transparent")
         brow.pack(fill="x", padx=10, pady=(4, 10))
         brow.grid_columnconfigure(1, weight=1)
@@ -1136,6 +1145,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         ent.bind("<KeyRelease>", lambda e: (self._rows_visibility(),
                                             self._refresh_emotions()))
         self._emo_rows.append({"frame": rowf, "ent": ent, "stat": stat, "play": play,
+                               "gain": gain,
                                "rec": rec, "syn": syn, "del": dlt, "label": ""})
 
     def _ensure_rows(self, n):
@@ -1563,6 +1573,63 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                 return path
         return None
 
+    # ---------- громкость эмоции: ползунок -5..+5 (просьба Ярослава, 11.11.26) ----------
+
+    def _emo_gain_steps(self, label):
+        """Шаги громкости эмоции из паспорта голоса: -5 (тише) .. 0 (как записано) .. +5."""
+        for src in (getattr(self.app, "custom_voices", None), self.existing):
+            try:
+                info = (src or {}).get(str(self.slot_id)) or {}
+            except Exception:
+                info = {}
+            try:
+                g = int(((info.get("samples") or {}).get(label) or {}).get("gain") or 0)
+            except (TypeError, ValueError):
+                g = 0
+            if g:
+                return max(-5, min(5, g))
+        return 0
+
+    @staticmethod
+    def _apply_gain(data, steps):
+        """Громкость как множитель: 1 шаг ползунка = 10%. Без шагов — как есть."""
+        if not steps:
+            return data
+        try:
+            f = np.asarray(data, dtype=np.float32) * (1.0 + 0.1 * max(-5, min(5, int(steps))))
+            return np.clip(f, -32768.0, 32767.0).astype(np.int16)
+        except Exception:
+            return data
+
+    def _emo_gain_set(self, idx, val):
+        """Куда поставили ползунок: шаг -5..+5 хранится в паспорте эмоции и
+        применяется при прослушке и при озвучке фраз с этой эмоцией."""
+        row = self._emo_rows[idx]
+        label = (row["ent"].get() or "").strip()
+        if not label or self.app is None:
+            return
+        steps = max(-5, min(5, int(round(float(val)))))
+        info = getattr(self.app, "custom_voices", {}) or {}
+        smp = ((info.get(str(self.slot_id)) or {}).get("samples") or {}).get(label)
+        if not isinstance(smp, dict):
+            return                       # эмоции ещё нет — ползунка и так нет
+        smp["gain"] = steps
+        try:
+            self.app.save_settings()
+        except Exception:
+            pass
+        # озвучка того же текста до перестановки больше не переигрывается из кэша:
+        # в файле записана старая громкость
+        try:
+            self.app._last_audio = None
+        except Exception:
+            pass
+        try:
+            self.app.update_status(_tr("🔊 Громкость эмоции")
+                                   + f" «{label}»: {'+' if steps > 0 else ''}{steps * 10}%")
+        except Exception:
+            pass
+
     def _emo_play_btns(self, playing=""):
         """«⏹» — на кнопке играющей эмоции, «▶» — на остальных."""
         for r in self._emo_rows:
@@ -1607,6 +1674,8 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
             return
         if len(data) == 0:
             return
+        # 🔊 куда поставлен ползунок громкости — так эмоция и звучит
+        data = self._apply_gain(data, self._emo_gain_steps(label))
         self._emo_playing = label
         self._emo_play_btns(label)
         threading.Thread(target=self._emo_play_worker, args=(data, fs, label),
@@ -2479,6 +2548,7 @@ _PAIRS += [
 # фич): если строить раньше, пары из поздних блоков остаются «немыми».
 TR_RU_EN = dict(_PAIRS)
 _XLAT_EXTRA = {
+    "🔊 Громкость эмоции": "🔊 Emotion volume",
     "Qwen (GPU)": "Qwen (GPU)",
     "⚠ Qwen требует видеокарту с 6 ГБ видеопамяти": "⚠ Qwen requires a GPU with 6 GB of VRAM",
     "✨ Дизайн голоса": "✨ Design voice",
@@ -6549,6 +6619,18 @@ class ModernTTSApp(*_APP_BASE):
                 out.extend((None, s) for s in sentences[1:])
         return out or [(None, text)]
 
+    def _gain_of_emo(self, speaker, label, arr):
+        """🔊 Ползунок громкости эмоции (окно эмоций): фраза, синтезированная с
+        образцом этой эмоции, звучит тише/громнее. 1 шаг = 10% (11.11.26)."""
+        try:
+            _vid, info = self._find_voice(speaker)
+            g = int((((info or {}).get("samples") or {}).get(label) or {}).get("gain") or 0)
+        except Exception:
+            g = 0
+        if not g:
+            return arr
+        return VoiceRecorderDialog._apply_gain(arr, g)
+
     def get_ref(self, speaker, emotion=None):
         vid, info = self._find_voice(speaker)
         if info is None:
@@ -10047,7 +10129,10 @@ class ModernTTSApp(*_APP_BASE):
         _sample = VoiceRecorderDialog.DEFAULT_TEXT
         if text.strip() in (_tr(_sample), _sample):
             text = _sample
+        _g = (samples.get(label) or {}).get("gain")
         samples[label] = {"path": path, "text": text}
+        if _g:
+            samples[label]["gain"] = _g     # ползунок громкости пережидает перезапись
         self.update_status(f"✅ Эмоция «{label}» добавлена к голосу «{info.get('name')}»")
         self.save_settings()
 
@@ -10091,6 +10176,7 @@ class ModernTTSApp(*_APP_BASE):
                 for b in (row["rec"], row["syn"], row["del"]):
                     b.configure(state="disabled")
                 self._emo_play_btn(row, False)
+                self._emo_gain_slider(row, False)
                 continue
             smp = samples.get(label)
             if smp and os.path.exists(smp.get("path") or ""):
@@ -10098,12 +10184,39 @@ class ModernTTSApp(*_APP_BASE):
                 for b in (row["rec"], row["syn"], row["del"]):
                     b.configure(state="normal")
                 self._emo_play_btn(row, True)
+                try:    # куда ползунок поставили раньше — вернуть как было
+                    row["gain"].set(max(-5, min(5, int(smp.get("gain") or 0))))
+                except Exception:
+                    pass
+                self._emo_gain_slider(row, True)
             else:
                 row["stat"].configure(text="— " + _tr("не записана"))
                 row["rec"].configure(state="normal")
                 row["syn"].configure(state="normal")
                 row["del"].configure(state="disabled")
                 self._emo_play_btn(row, False)
+                self._emo_gain_slider(row, False)
+
+    @staticmethod
+    def _emo_gain_slider(row, show):
+        """
+        Ползунок громкости эмоции — справа от «▶», виден только у записанной
+        эмоции (просьба Ярослава, 11.11.26).
+        """
+        sl = row.get("gain")
+        if sl is None:
+            return
+        try:
+            if show:
+                sl.configure(state="normal")
+                if sl.winfo_manager() != "pack":
+                    sl.pack(side="left", fill="x", expand=True, padx=(10, 2))
+            else:
+                sl.configure(state="disabled")
+                if sl.winfo_manager() == "pack":
+                    sl.pack_forget()
+        except Exception:
+            pass
 
     @staticmethod
     def _emo_play_btn(row, show):
@@ -10205,7 +10318,10 @@ class ModernTTSApp(*_APP_BASE):
             for old in [k for k in samples
                         if self._emo_stem(k) == stem and k != label]:
                 samples.pop(old, None)
+            _g = (samples.get(label) or {}).get("gain")
             samples[label] = {"path": fp, "text": phrase, "synth": True}
+            if _g:
+                samples[label]["gain"] = _g     # ползунок громкости тот же
             self.save_settings()
         self._refresh_voice_dialog()
         self.update_status(f"✨ «{label}» — {_tr('синтезирована')} ({secs:.1f} с)")
@@ -11978,6 +12094,8 @@ class ModernTTSApp(*_APP_BASE):
                     chunk_ref_wav, chunk_ref_text = ref_by_emo[emo]
                     arr, sr = self._vox_synth_chunk(ch_clean, chunk_ref_wav, chunk_ref_text,
                                                     fast=fast, actual_rate=actual_rate)
+                    if emo:      # 🔊 громкость эмоции (ползунок в окне эмоций)
+                        arr = self._gain_of_emo(speaker, emo, arr)
                     # всё равно пусто — фиксируем пропуск в логе, а не молча
                     if len(arr) < int(sr * 0.1):
                         skipped += 1
