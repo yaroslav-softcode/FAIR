@@ -2406,6 +2406,9 @@ _XLAT_EXTRA = {
     "Qwen (GPU)": "Qwen (GPU)",
     "⚠ Qwen требует видеокарту с 6 ГБ видеопамяти": "⚠ Qwen requires a GPU with 6 GB of VRAM",
     "✨ Дизайн голоса": "✨ Design voice",
+    "Моделирую голос…": "Designing the voice…",
+    "VoxCPM2 недоступна — проверь видеокарту и видеопамять.":
+        "VoxCPM2 is unavailable — check your graphics card and VRAM.",
     "⚙ Настройки Qwen": "⚙ Qwen settings",
     "Дизайн голоса": "Voice design",
     "Настройки Qwen3-TTS": "Qwen3-TTS settings",
@@ -5106,13 +5109,20 @@ class ModernTTSApp(*_APP_BASE):
         self.btn_qwen_cfg.bind("<Button-3>", self._qwen_size_menu)
         self.btn_qwen_cfg.bind("<Button-3>", self._qwen_size_menu)
         # ----- Vox: вкладка движка (видна только когда выбран Vox) — выбор варианта -----
+        # «✨ Дизайн голоса» у Vox — на том же месте, что и у Qwen: слева в ряду
+        # инструментов движка (просьба Ярослава, 10.11.26)
         self.vox_row = ctk.CTkFrame(tts, fg_color="transparent")
         self.vox_row.grid_columnconfigure(0, weight=1)
+        self.vox_row.grid_columnconfigure(1, weight=1)
+        self.btn_vox_design = ctk.CTkButton(
+            self.vox_row, text=_tr("✨ Дизайн голоса"), height=28, corner_radius=3,
+            font=FONT_SMALL, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+            text_color=COLOR_TEXT_MAIN, command=self._vox_design_dialog)
         self.btn_vox_cfg = ctk.CTkButton(
             self.vox_row, text=_tr("⚙ Настройки Vox"), height=28, corner_radius=3,
             font=FONT_SMALL, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
             text_color=COLOR_TEXT_MAIN, command=self._vox_settings_dialog)
-        self.btn_vox_cfg.grid(row=0, column=0, sticky="ew")
+        # в ряд кнопки ставит _show_vox_tools (grid + grid_remove, как у Qwen-ряда)
         self.qwen_instruct_row = ctk.CTkFrame(tts, fg_color="transparent")
         self.qwen_instruct_row.grid_columnconfigure(1, weight=1)
         self.qwen_instruct = ctk.CTkEntry(
@@ -7581,9 +7591,12 @@ class ModernTTSApp(*_APP_BASE):
             self.qwen_instruct_row.pack_forget()
 
     def _show_vox_tools(self, show):
-        """Строка настроек Vox — как «Настройки Qwen», но для переключения варианта движка."""
+        """Строка настроек Vox — как «Настройки Qwen», но для переключения варианта движка.
+        ✨ Дизайн голоса (10.11.26) — рядом с настройками, по образцу Qwen-ряда."""
         if show:
             self.vox_row.pack(fill="x", padx=12, pady=(0, 6), before=self._tts_voice_row)
+            self.btn_vox_design.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+            self.btn_vox_cfg.grid(row=0, column=1, sticky="ew", padx=(4, 0))
             try:
                 self.btn_vox_cfg.configure(text=_tr("⚙ Настройки Vox" + self._vox_var_name()))
             except Exception:
@@ -8270,6 +8283,167 @@ class ModernTTSApp(*_APP_BASE):
                       text_color=COLOR_TEXT_MAIN, command=dlg.destroy).pack(fill="x", padx=16,
                                                                             pady=(0, 12))
         # окно по высоте содержимого — без пустого «подвала» (Ярослав, 04.11.26)
+        dlg.update_idletasks()
+        try:
+            dlg.geometry(f"440x{max(200, dlg.winfo_reqheight())}")
+            _center_on_parent(dlg)
+        except Exception:
+            pass
+
+    # ─────────────── ✨ Дизайн голоса для VoxCPM2 (10.11.26) ───────────────
+    # Официальное моделирование голоса у Vox — текстовая инструкция в скобках
+    # перед речью: ровно так же делает официальный CLI
+    # (`voxcpm design --text "…" --control "тёплый женский голос"`).
+    # Окно повторяет дизайн Qwen, но результат сохраняется как WAV-эталон:
+    # дальше озвучка клонирует тембр по смоделированной фразе, как по записи
+    # с микрофона (просьба Ярослава: «в Vox есть функция моделирования голоса,
+    # так же, как у Квен ттс»).
+    def _vox_design_dialog(self):
+        """✨ Дизайн голоса Vox: модель «ыграет» тембр по описанию, а фраза
+        прослушки станет образцом голоса в списке."""
+        if not self._vox_installed():
+            self._offer_vox()          # движка нет — предлагаем поставить, как обычно
+            return
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Дизайн голоса"))
+        dlg.geometry("440x520")
+        _center_on_parent(dlg)
+        dlg.transient(self)
+        dlg.configure(fg_color=COLOR_BG)   # фон окна в палитре приложения
+        _apply_dialog_icon(dlg)                       # фирменный значок FAIR вместо квадрата Tk
+        dlg.after(150, lambda: _apply_dialog_icon(dlg))
+        try:
+            dlg.attributes("-topmost", True)
+            dlg.after(500, lambda: dlg.attributes("-topmost", False))
+        except Exception:
+            pass
+        ctk.CTkLabel(dlg, text=_tr("Опиши голос словами — модель его создаст.\n"
+                                   "Например: «молодой энергичный мужчина, быстрая речь, с улыбкой»"),
+                     font=FONT_SMALL, text_color=COLOR_TEXT_SEC, justify="left",
+                     anchor="w").pack(fill="x", padx=16, pady=(14, 6))
+
+        def box(height):
+            b = ctk.CTkTextbox(dlg, height=height, corner_radius=3, font=FONT_SMALL,
+                               fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
+                               text_color=COLOR_TEXT_MAIN, wrap="word")
+            b.pack(fill="x", padx=16)
+            return b
+
+        ins = box(58)
+        ctk.CTkLabel(dlg, text=_tr("Текст прослушки"), font=FONT_SMALL,
+                     text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=16, pady=(10, 2))
+        # образцу нужно 5–15 секунд чистой речи — фраза длиннее, чем у Qwen
+        txt = box(66)
+        txt.insert("1.0", "Здравствуйте! Это образец голоса, который нейросеть смоделировала по "
+                          "моему описанию. За окном ясное утро, впереди длинный день и много "
+                          "интересных разговоров.")
+        ctk.CTkLabel(dlg, text=_tr("Имя голоса в списке"), font=FONT_SMALL,
+                     text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=16, pady=(10, 2))
+        name_e = ctk.CTkEntry(dlg, font=FONT_SMALL, height=30, corner_radius=3,
+                              fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
+                              text_color=COLOR_TEXT_MAIN, placeholder_text="Дизайн 1")
+        name_e.pack(fill="x", padx=16)
+        # вставка в поля: Ctrl+V в любой раскладке, Shift+Insert и меню по правому клику
+        def _paste_into(w):
+            t = self._clip_text()
+            if not t:
+                return
+            try:
+                w.delete("sel.first", "sel.last")
+            except Exception:
+                pass
+            w.insert("insert", t)
+        for _w in (ins._textbox, txt._textbox, name_e._entry):
+            self._bind_ctrl_v(_w, lambda ev, w=_w: _paste_into(w))
+            self._bind_clipboard_keys(_w)
+            self._attach_text_menu(_w)
+        status = ctk.CTkLabel(dlg, text="", font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
+                              anchor="w", justify="left", wraplength=400)
+        status.pack(fill="x", padx=16, pady=(10, 6))
+        state = {"wav": None, "sample": ""}
+
+        def gen():
+            d = ins.get("1.0", "end").strip()
+            t = txt.get("1.0", "end").strip()
+            if not d or not t:
+                status.configure(text=_tr("Заполни описание голоса и текст."))
+                return
+
+            def work():
+                try:
+                    # дизайн поднимает Vox в видеопамять: модель анализа уступает место
+                    self._safe_ui(lambda: status.configure(text=_tr("⏳ Загрузка голоса…")))
+                    self._stop_gpu_server()
+                    if not self.load_vox(show_errors=True):
+                        self._safe_ui(lambda: status.configure(
+                            text=_tr("VoxCPM2 недоступна — проверь видеокарту и видеопамять.")))
+                        return
+                    self._safe_ui(lambda: status.configure(text=_tr("Моделирую голос…")))
+                    turbo = (self.vox_model is None
+                             and getattr(self, "vox_turbo", None) is not None)
+                    # эталона нет — голос рождается из описания: (описание)речь, схема design
+                    out = self._vox_generate(f"({d}){t}", None, None)
+                    arr, sr = self._vox_to_int16(out)
+                    if len(arr) < int(sr * 0.5):
+                        self._safe_ui(lambda: status.configure(
+                            text=_tr("Модель дала тишину — переформулируй описание.")))
+                        return
+                    f32 = arr.astype(np.float32) / 32768.0
+                    peak = float(np.max(np.abs(f32)))
+                    if peak > 0.95:
+                        f32 *= 0.95 / peak
+                        arr = (np.clip(f32, -1.0, 1.0) * 32767).astype(np.int16)
+                    if not turbo:
+                        # классический Vox говорит вдвое медленнее — поднимаем ×2,
+                        # как во всей озвучке FAIR, иначе эталон «тормозной»
+                        arr = self._stretch_int16(arr, VOX_BASE_SPEED)
+                    path = os.path.join(self.BASE_DIR, "temp_vox_design.wav")
+                    with wave.open(path, "wb") as wf:
+                        wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(int(sr))
+                        wf.writeframes(arr.tobytes())
+                    state.update(wav=path, sample=t)
+
+                    def ok():
+                        status.configure(text=_tr("Готово — слушаю. Нравится — жми «Сохранить»."))
+                        self._play_wav(path)
+                    self._safe_ui(ok)
+                except Exception as e:
+                    print(f"❌ Дизайн голоса Vox: {e}")
+                    self._safe_ui(lambda e=e: status.configure(text=f"Ошибка: {e}"))
+            status.configure(text=_tr("Генерирую голос…"))
+            threading.Thread(target=work, daemon=True).start()
+
+        def keep():
+            if not state["wav"]:
+                status.configure(text=_tr("Сначала прослушай вариант."))
+                return
+            vid, _info = self._first_empty_voice()
+            if vid is None:
+                vid = self._next_voice_id()
+            wav = os.path.join(self.BASE_DIR, "voices", f"design_vox_{vid}.wav")
+            try:
+                os.makedirs(os.path.dirname(wav), exist_ok=True)
+                shutil.copyfile(state["wav"], wav)
+            except Exception as e:
+                status.configure(text=f"Не удалось сохранить: {e}")
+                return
+            label = (name_e.get() or "").strip() or "Дизайн"
+            # engine="Vox": голос принадлежит Vox, даже если откроется при другом движке
+            self._apply_custom_voice(wav, state["sample"], vid, label, engine="Vox")
+            status.configure(text=_tr("✅ Голос сохранён в списке — работает как клон."))
+
+        # главное действие окна — в фирменном медно-оранжевом, как главные кнопки программы
+        ctk.CTkButton(dlg, text="🔊 " + _tr("Сгенерировать и послушать"), height=30,
+                      corner_radius=3, fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                      text_color="#fffdf6", command=gen).pack(fill="x", padx=16, pady=(2, 4))
+        ctk.CTkButton(dlg, text="💾 " + _tr("Сохранить"), height=30, corner_radius=3,
+                      fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_MAIN, command=keep).pack(fill="x", padx=16, pady=(0, 4))
+        ctk.CTkButton(dlg, text=_tr("Закрыть"), height=26, corner_radius=3,
+                      fg_color="transparent", border_width=1, border_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_MAIN, command=dlg.destroy).pack(fill="x", padx=16,
+                                                                            pady=(0, 12))
+        # окно по высоте содержимого — без пустого «подвала»
         dlg.update_idletasks()
         try:
             dlg.geometry(f"440x{max(200, dlg.winfo_reqheight())}")
