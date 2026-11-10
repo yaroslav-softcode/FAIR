@@ -93,6 +93,44 @@ R_CARD = 3
 FALLBACK_CHARS = 6000
 MIN_CTX = 2048
 VOX_BASE_SPEED = 2.0  # базовое ускорение VoxCPM2 через ресемпл
+# Дизайн голоса (10.11.26): насколько строго Vox следует описанию тембра.
+# Дефолт движка cfg_value=2.0, inference_timesteps=10 (см. voxcpm/core.py).
+# По просьбе Ярослава для дизайна поднимаем: тембр послушнее, генерация чуть дольше.
+VOX_DESIGN_CFG = 2.7
+VOX_DESIGN_STEPS = 20
+
+# Плейбук формулировок для дизайна голоса (10.11.26). VoxCPM2 понимает описание
+# тембра по-английски или по-китайски — Usage Guide: «Chinese and English are both
+# supported in the instruction». Поэтому в интерфейсе выбор подписан по-русски,
+# а в модель уходит английская формулировка. Язык речи при этом русский: модель
+# определяет его по самому тексту, тег языка не нужен.
+# Формула из Cookbook ModelBest: основа (пол/возраст/роль) + тембр (тон, текстура)
+# + подача (эмоция, темп, сценарий) — и не больше 3–4 признаков сразу
+# («adding too many complex voice instructions might spoil the broth»).
+VOX_DESIGN_PRESETS = [
+    ("Спокойный диктор, низкий мужской",
+     "middle-aged male broadcaster, low-pitched, magnetic, confident, speaking calmly"),
+    ("Новостной мужчина, ровный тон",
+     "adult male news anchor, clear steady voice, neutral tone, moderate pace"),
+    ("Мягкая женственная, тёплая",
+     "young woman, soft sweet voice, gentle, slightly smiling, relaxed pace"),
+    ("Энергичный молодой мужчина",
+     "energetic young man, bright voice, speaking fast, excited"),
+    ("Пожилая рассказчица, тихая",
+     "quiet raspy elderly woman, low-pitched voice, grainy texture, slow soft tone"),
+    ("Пожилой мужчина, хриплый, значительный",
+     "elderly man, low raspy magnetic voice, slow gravitating storytelling tone"),
+    ("Девушка-блогер, бодро",
+     "young woman blogger, bright cheerful voice, lively fast rhythm, smiling"),
+    ("Документальный закадр, негромко",
+     "middle-aged narrator, calm low voice, slow quiet tone, documentary storytelling"),
+    ("Строгий мужчина, холодный тон",
+     "adult man, cold formal tone, flat steady delivery, low pitch, serious"),
+    ("Подросток, оживлённо",
+     "teenage boy, bright energetic voice, fast uneven rhythm, playful"),
+    ("Детский нежный голос",
+     "little girl, soft tender child voice, slow gentle speech"),
+]
 
 
 def _gguf_raw_meta(path):
@@ -2407,6 +2445,18 @@ _XLAT_EXTRA = {
     "⚠ Qwen требует видеокарту с 6 ГБ видеопамяти": "⚠ Qwen requires a GPU with 6 GB of VRAM",
     "✨ Дизайн голоса": "✨ Design voice",
     "Моделирую голос…": "Designing the voice…",
+    "Опиши голос по-английски: такие описания Vox\n"
+    "понимает только по-английски или по-китайски.\n"
+    "Речь при этом будет по-русски — язык он берёт из текста.\n"
+    "Тембр каждый раз чуть разный: сравни 2–3 варианта.":
+        "Describe the voice in English — Vox understands these descriptions\n"
+        "in English or Chinese only.\n"
+        "The speech itself will still be Russian: the language comes from the text.\n"
+        "The timbre varies slightly each time: compare 2–3 takes.",
+    "Быстрый выбор": "Quick pick",
+    "формулировка голоса…": "voice wording…",
+    "Формулировка вставлена — можно поправить самому.":
+        "Wording inserted — feel free to edit it.",
     "VoxCPM2 недоступна — проверь видеокарту и видеопамять.":
         "VoxCPM2 is unavailable — check your graphics card and VRAM.",
     "⚙ Настройки Qwen": "⚙ Qwen settings",
@@ -7381,7 +7431,11 @@ class ModernTTSApp(*_APP_BASE):
                 return v
         return 24000
 
-    def _vox_generate(self, text, ref_path, ref_text, fast=False, actual_rate=1.0):
+    def _vox_generate(self, text, ref_path, ref_text, fast=False, actual_rate=1.0,
+                      cfg=None, steps=None):
+        """cfg — насколько строго Vox следует тексту/описанию (cfg_value движка),
+        steps — число шагов диффузии. Нужны для дизайна голоса: с ними тембр
+        послушнее описанию. Turbo получает свои параметры при загрузке — там не трогаем."""
         if self.vox_model is None:
             if getattr(self, "vox_turbo", None) is None:
                 raise RuntimeError(_tr("Движок Vox не загружен"))
@@ -7433,14 +7487,26 @@ class ModernTTSApp(*_APP_BASE):
             extras_list += [{self._vox_step_key: 20}, {self._vox_step_key: 30}]
         extras_list.append({})  # обычный режим — всегда в конце
 
+        # дизайн голоса: насколько строго модель держится описания (cfg_value) и
+        # сколько шагов диффузии. Если движок такие параметры не принимает — откат.
+        tuning = {}
+        if cfg is not None:
+            tuning["cfg_value"] = float(cfg)
+        if steps is not None:
+            tuning["inference_timesteps"] = int(steps)
+
         last = None
         for i, bv in enumerate(base_variants):
             for extra in extras_list:
                 try:
-                    out = m.generate(text=text, **bv, **extra)
+                    try:
+                        out = m.generate(text=text, **bv, **extra, **tuning)
+                    except TypeError:
+                        out = m.generate(text=text, **bv, **extra)
                     tag = f" ⚡ {self._vox_step_key}={list(extra.values())[0]}" if extra else ""
+                    tune_tag = f" cfg={tuning.get('cfg_value', '—')} шагов={tuning.get('inference_timesteps', '—')}" if tuning else ""
                     print(f"⏱ VoxCPM2: фраза {len(text)} симв. за {time.time() - t0:.1f} сек · "
-                          f"ускорение ×{actual_rate:.2f}{tag} (вариант {i + 1})")
+                          f"ускорение ×{actual_rate:.2f}{tag}{tune_tag} (вариант {i + 1})")
                     return out
                 except TypeError as e:
                     last = e
@@ -8317,8 +8383,10 @@ class ModernTTSApp(*_APP_BASE):
             dlg.after(500, lambda: dlg.attributes("-topmost", False))
         except Exception:
             pass
-        ctk.CTkLabel(dlg, text=_tr("Опиши голос словами — модель его создаст.\n"
-                                   "Например: «молодой энергичный мужчина, быстрая речь, с улыбкой»"),
+        ctk.CTkLabel(dlg, text=_tr("Опиши голос по-английски: такие описания Vox\n"
+                                   "понимает только по-английски или по-китайски.\n"
+                                   "Речь при этом будет по-русски — язык он берёт из текста.\n"
+                                   "Тембр каждый раз чуть разный: сравни 2–3 варианта."),
                      font=FONT_SMALL, text_color=COLOR_TEXT_SEC, justify="left",
                      anchor="w").pack(fill="x", padx=16, pady=(14, 6))
 
@@ -8330,6 +8398,33 @@ class ModernTTSApp(*_APP_BASE):
             return b
 
         ins = box(58)
+        # Плейбук формулировок: подписи по-русски, в модель уходит английский вариант
+        # (VoxCPM2 описание тембра понимает по-английски/по-китайски, не по-русски).
+        def apply_preset(ru):
+            """Ставит готовую английскую формулировку в поле — править можно самому."""
+            en = dict(VOX_DESIGN_PRESETS).get(ru) or ""
+            if not en:
+                return
+            cur = ins.get("1.0", "end").strip()
+            ready = {e for _, e in VOX_DESIGN_PRESETS}
+            ins.delete("1.0", "end")
+            # свой текст не затираем — дополняем; если в поле была другая готовая
+            # формулировка, заменяем: выбор должен работать как выбор
+            ins.insert("1.0", en if (not cur or cur in ready)
+                       else cur.rstrip(", ") + ", " + en)
+            status.configure(text=_tr("Формулировка вставлена — можно поправить самому."))
+
+        pb_row = ctk.CTkFrame(dlg, fg_color="transparent")
+        pb_row.pack(fill="x", padx=16, pady=(4, 2))
+        ctk.CTkLabel(pb_row, text=_tr("Быстрый выбор"), font=FONT_SMALL,
+                     text_color=COLOR_TEXT_SEC).pack(side="left")
+        pb_menu = ctk.CTkOptionMenu(pb_row, values=[ru for ru, _ in VOX_DESIGN_PRESETS],
+                                    width=216, height=26, font=FONT_SMALL,
+                                    fg_color=COLOR_CARD2, button_color=COLOR_BORDER,
+                                    button_hover_color=COLOR_BRAND_HOVER,
+                                    text_color=COLOR_TEXT_MAIN, command=apply_preset)
+        pb_menu.set(_tr("формулировка голоса…"))
+        pb_menu.pack(side="right")
         ctk.CTkLabel(dlg, text=_tr("Текст прослушки"), font=FONT_SMALL,
                      text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=16, pady=(10, 2))
         # образцу нужно 5–15 секунд чистой речи — фраза длиннее, чем у Qwen
@@ -8381,8 +8476,10 @@ class ModernTTSApp(*_APP_BASE):
                     self._safe_ui(lambda: status.configure(text=_tr("Моделирую голос…")))
                     turbo = (self.vox_model is None
                              and getattr(self, "vox_turbo", None) is not None)
-                    # эталона нет — голос рождается из описания: (описание)речь, схема design
-                    out = self._vox_generate(f"({d}){t}", None, None)
+                    # эталона нет — голос рождается из описания: (описание)речь, схема design;
+                    # cfg/steps подняты, чтобы тембр был послушнее описанию
+                    out = self._vox_generate(f"({d}){t}", None, None,
+                                             cfg=VOX_DESIGN_CFG, steps=VOX_DESIGN_STEPS)
                     arr, sr = self._vox_to_int16(out)
                     if len(arr) < int(sr * 0.5):
                         self._safe_ui(lambda: status.configure(
