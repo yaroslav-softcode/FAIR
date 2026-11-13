@@ -12976,7 +12976,94 @@ class ModernTTSApp(*_APP_BASE):
             return None
 
 
+# ---- одна копия приложения (14.11.26, просьба Ярослава) ----
+_SINGLETON_MUTEX = None
+
+
+def _activate_existing_window():
+    """Поднять на передний план уже открытое окно FAIR (заголовок ровно «FAIR»)."""
+    try:
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        found = []
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def _cb(h, _l):
+            if not user32.IsWindowVisible(h):
+                return True
+            title = ctypes.create_unicode_buffer(128)
+            user32.GetWindowTextW(h, title, 128)
+            if title.value == "FAIR":
+                found.append(h)
+            return True
+
+        user32.EnumWindows(_cb, 0)
+        if not found:
+            return False
+        # Windows не даёт фоновому процессу просто взять фокус: поднимаем окно
+        # через AttachThreadInput к потоку текущего foreground-окна (иначе
+        # SetForegroundWindow молча игнорируется), затем SwitchToThisWindow.
+        kernel32 = ctypes.windll.kernel32
+        fg = user32.GetForegroundWindow()
+        tid_fg = user32.GetWindowThreadProcessId(fg, None)
+        tid_me = kernel32.GetCurrentThreadId()
+        for h in found:
+            user32.ShowWindow(h, 9)          # SW_RESTORE — развернуть, если свёрнуто
+            attached = False
+            if tid_fg and tid_fg != tid_me:
+                attached = bool(user32.AttachThreadInput(tid_me, tid_fg, True))
+            try:
+                user32.BringWindowToTop(h)
+                user32.SetForegroundWindow(h)
+                user32.SwitchToThisWindow(h, True)
+            finally:
+                if attached:
+                    user32.AttachThreadInput(tid_me, tid_fg, False)
+        return True
+    except Exception as e:
+        print(f"⚠️ активация окна: {e}")
+        return False
+
+
+def ensure_single_instance(quiet=False):
+    """Не даём запустить две копии FAIR: второй экземпляр поднимает окно первого,
+    показывает сообщение и выходит. True — можно продолжать запуск.
+
+    Имя мьютекса ОБЩЕЕ для dev- и установленной версии: они делят порт API 8756
+    и видеопамять (модель ИИ/Vox), так что две копии ломают друг другу работу.
+    quiet=True или FAIR_SILENT_SINGLETON=1 — без диалога (нужно автотестам:
+    MessageBox заблокировал бы процесс до нажатия кнопки)."""
+    global _SINGLETON_MUTEX
+    if os.name != "nt":
+        return True
+    try:
+        from ctypes import wintypes
+        kernel32 = ctypes.windll.kernel32
+        kernel32.CreateMutexW.restype = wintypes.HANDLE
+        kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
+        handle = kernel32.CreateMutexW(None, True, "Local\\FAIR_FreeAIReader_single")
+        if not handle:
+            return True
+        if kernel32.GetLastError() != 183:        # ERROR_ALREADY_EXISTS
+            _SINGLETON_MUTEX = handle             # держим до конца процесса
+            return True
+        kernel32.CloseHandle(handle)
+        _activate_existing_window()
+        if not (quiet or os.environ.get("FAIR_SILENT_SINGLETON") == "1"):
+            ctypes.windll.user32.MessageBoxW(
+                0,
+                "FAIR уже запущен — окно программы открыто.\n"
+                "FAIR is already running — its window has been brought to the front.",
+                "FAIR", 0x40)                     # MB_ICONINFORMATION
+        return False
+    except Exception as e:
+        print(f"⚠️ single instance: {e}")
+        return True
+
+
 if __name__ == "__main__":
+    if not ensure_single_instance():
+        sys.exit(0)          # вторая копия: окно первого уже поднято
     try:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FAIR.FreeAIReader")
     except Exception:

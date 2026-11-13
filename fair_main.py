@@ -193,6 +193,10 @@ if __name__ == "__main__":
         _selfcheck()
         sys.exit(0)
     sys.excepthook = _excepthook
+    # одна копия приложения (14.11.26): второй экземпляр поднимает окно первого,
+    # показывает сообщение и выходит — иначе две копии делят порт 8756 и видеопамять
+    if not app_module.ensure_single_instance():
+        sys.exit(0)
     try:
         import threading
         threading.excepthook = lambda a: _excepthook(a.exc_type, a.exc_value, a.exc_traceback)
