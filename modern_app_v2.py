@@ -653,6 +653,24 @@ EN_RU_GLOSSARY = [
 
 VOX_CANDIDATES = ["openbmb/VoxCPM2"]
 
+# Дополнительный вариант Vox (вкладка «⚙ Настройки Vox»): тот же классический
+# движок, другой чекпоинт. Tiny — маленькая русская VoxCPM-0.5B (ALEKAS) со своим
+# обученным голосом (16 кГц). Вариант Shtorm (ArtShtorm/Shtorm-VoxCPM2-RU) убран
+# из программы по просьбе Ярослава 13.11.26 — не возвращать.
+VOX_EXTRA_VARIANTS = {
+    "tiny": {
+        "repo": "ALEKAS/VoxCPM-0.5B-Russian-5600",
+        "cache": "models--ALEKAS--VoxCPM-0.5B-Russian-5600",
+        "local": "models_vox_tiny",
+        "title": "🐣 Vox Tiny (0.5B)",
+        "short": " · Vox Tiny",
+        "hint": "маленькая русская модель (0.5B, 16 кГц) · говорит своим голосом",
+        "dl": "Скачиваю Vox Tiny, ≈3 ГБ…",
+        "done": "Vox Tiny установлен ✅",
+    },
+}
+VOX_TINY_SPEED = 16000.0 / 24000.0   # родной поток ALEKAS 16 кГц → эталонные 24 кГц FAIR
+
 # voxcpm ставим ТОЛЬКО с GitHub — на коммит рабочей сборки (2.0.3.post23+gee8161e9e).
 # PyPI-релиз 2.0.3 устарел и в приложении НЕ используется (правило Ярослава, 08.11.26).
 # Архив без .git — версию для setuptools_scm подсказываем через SETUPTOOLS_SCM_PRETEND_VERSION.
@@ -2612,8 +2630,14 @@ _PAIRS += [
     ("Настройки Vox", "Vox settings"),
     ("Vox Turbo установлен ✅", "Vox Turbo installed ✅"),
     ("Не вышло: ", "It failed: "),
-    ("Два движка Vox — одни и те же веса и голоса. Turbo быстрее на ~50%, обычный — медленнее; качество одинаковое.",
-     "Both Vox engines use the same weights and voices. Turbo is ~50% faster, the regular one is slower; quality is the same."),
+    ("Варианты движка Vox — общая среда, веса и голоса. Turbo быстрее на ~50%; Vox Tiny — русская сборка; обычный — универсальный.",
+     "Vox engine variants share the runtime, weights and voices. Turbo is ~50% faster; Vox Tiny is a Russian build; the regular one is universal."),
+    ("маленькая русская модель (0.5B, 16 кГц) · говорит своим голосом",
+     "small Russian model (0.5B, 16 kHz) · speaks with its own voice"),
+    ("Скачиваю Vox Tiny, ≈3 ГБ…", "Downloading Vox Tiny, ~3 GB…"),
+    ("Vox Tiny установлен ✅", "Vox Tiny installed ✅"),
+    ("Установка ", "Installing "),
+    ("⚙ Настройки Vox · Vox Tiny", "⚙ Vox settings · Vox Tiny"),
     ("быстрее на ~50% · нужно 12 ГБ видеопамяти",
      "~50% faster · needs 12 GB of video memory"),
     ("Убрать ударение", "Remove stress"),
@@ -2627,8 +2651,8 @@ _PAIRS += [
      "the regular variant — 8 GB of video memory is enough"),
     ("(работает)", "(running)"),
     ("Переключить на него", "Switch to it"),
-    ("⚠ Vox — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ",
-     "⚠ Vox needs 8+ GB of VRAM · Vox Turbo needs 12+ GB"),
+    ("⚠ Vox — от 8 ГБ · Vox Tiny — лёгкий · Vox Turbo — от 12 ГБ",
+     "⚠ Vox needs 8+ GB · Vox Tiny is light · Vox Turbo needs 12+ GB"),
     ("Первая фраза Turbo ~15–25 с (прогрев графического ядра), дальше — быстро",
      "The first Turbo phrase takes ~15-25 seconds (GPU warm-up); after that it is fast"),
     ("⏳ Загрузка Vox Turbo (веса ~5 ГБ)...", "⏳ Loading Vox Turbo (~5 GB of weights)..."),
@@ -3158,7 +3182,7 @@ class ModernTTSApp(*_APP_BASE):
         self._turbo_ref_cache = {}       # файл эталона -> его латенты в движке
         self._turbo_loop_lock = threading.Lock()   # event loop движка — один поток в моменте
         self._vox_load_lock = threading.Lock()     # одна загрузка Vox за раз («Озвучить» ждёт фоновую, а не грузит вторую)
-        self.vox_variant = "turbo"       # "turbo" (быстрый) | "classic" (обычный) — вкладка «⚙ Vox»
+        self.vox_variant = "turbo"       # "turbo" | "classic" | "tiny" — вкладка «⚙ Vox»
         self.current_engine = "Piper"
         self.current_tts_name = None
         # --- Qwen3-TTS (третий движок) ---
@@ -5673,7 +5697,44 @@ class ModernTTSApp(*_APP_BASE):
         if self._placeholder_active:
             self._hide_placeholder()
 
+    # Длинная ОДНА строка — главный тормоз поля результата: Tk раскладывает всю
+    # логическую строку заново при каждом скролле/вводе. Замер 13.11.26 на книге
+    # 220 тыс. зн.: одной строкой — 13 с на одно «колёсико» и 1,5 с на символ;
+    # после нарезки на строки ≤1200 зн. — 0,01 с и 0,000 с. Нарезка только по
+    # границам предложений (потом по запятой, потом по пробелу), поэтому смысл,
+    # маркеры эмоций и озвучка не страдают (TTS режет текст по \s+ сам).
+    LONG_LINE_LIMIT = 1200
+
+    def _break_long_lines(self, text, limit=None):
+        """Разбить слишком длинные строки на абзацы, короткие не трогать."""
+        if not text:
+            return text
+        limit = limit or self.LONG_LINE_LIMIT
+        lines = str(text).split("\n")
+        if max(len(l) for l in lines) <= limit:
+            return text
+        out = []
+        for line in lines:
+            rest = line
+            while len(rest) > limit:
+                window = rest[:limit]
+                cut = -1
+                for pat in (r"(?<=[.!?…])\s", r"(?<=[,;:])\s", r"\s"):
+                    best = -1
+                    for m in re.finditer(pat, window):
+                        best = m.start() + 1          # режем ПОСЛЕ знака/пробела
+                    if best > limit * 0.5:
+                        cut = best
+                        break
+                if cut <= 0:
+                    cut = limit
+                out.append(rest[:cut].rstrip())
+                rest = rest[cut:].lstrip()
+            out.append(rest)
+        return "\n".join(out)
+
     def _set_box_text(self, text, generated=False):
+        text = self._break_long_lines(text)
         self._suppress_box_events = True
         self._placeholder_active = False
         try:
@@ -5693,6 +5754,7 @@ class ModernTTSApp(*_APP_BASE):
         except Exception:
             pass
         self._update_char_count()
+        self._refresh_chapters_count()   # «по главам»: показать число глав (13.11.26)
         try:
             if self._last_source and generated:
                 self.btn_restore.grid()
@@ -5773,7 +5835,8 @@ class ModernTTSApp(*_APP_BASE):
     def _insert_result(self, text):
         if self._placeholder_active:
             self._hide_placeholder()
-        self._insert_replacing_selection(self.result_box, text)
+        self._insert_replacing_selection(self.result_box, self._break_long_lines(text))
+        self._refresh_chapters_count()   # «по главам»: показать число глав (13.11.26)
         self._result_is_generated = False
         self.box_is_source = bool(self.result_box.get("1.0", "end-1c").strip())
         self._update_char_count()
@@ -7118,7 +7181,27 @@ class ModernTTSApp(*_APP_BASE):
                     return path
         return None
 
+    def _vox_extra_weights(self, kind):
+        """Веса дополнительного варианта Vox (tiny): локальная папка или кэш HF.
+        Готовым считаем снапшот, где уже есть и config.json, и файл весов."""
+        info = self.VOX_EXTRA_VARIANTS.get(kind)
+        if not info:
+            return None
+        local = os.path.join(self.BASE_DIR, info["local"])
+        if os.path.isdir(local) and os.listdir(local):
+            return local
+        hub = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub")
+        snaps = os.path.join(hub, info["cache"], "snapshots")
+        if os.path.isdir(snaps):
+            for snap in sorted(os.listdir(snaps), reverse=True):
+                path = os.path.join(snaps, snap)
+                if (os.path.isfile(os.path.join(path, "config.json"))
+                        and os.path.isfile(os.path.join(path, "model.safetensors"))):
+                    return path
+        return None
+
     VOX_MIN_FREE_GB = 6.0   # 4,7 ГБ весов VoxCPM2 + резерв на диффузию и активации
+    VOX_EXTRA_VARIANTS = VOX_EXTRA_VARIANTS   # русские сборки Vox (справочник выше)
 
     def _ask_low_vram(self, free_gb, total_gb, need_gb=None):
         """Спросить из любого потока: грузить Vox при почти занятой видеопамяти?
@@ -7194,7 +7277,11 @@ class ModernTTSApp(*_APP_BASE):
         self._unload_tts_models(keep="Vox")   # Qwen/Piper — из памяти: две модели не держим
         self._vox_syspath()
         self._vox_ssl_patch()
-        local_weights = self._vox_local_weights()
+        _veff = self._vox_variant_effective()
+        if _veff in self.VOX_EXTRA_VARIANTS:
+            local_weights = self._vox_extra_weights(_veff)
+        else:
+            local_weights = self._vox_local_weights()
         if local_weights:
             os.environ["HF_HUB_OFFLINE"] = "1"      # веса на месте — сеть не нужна
         try:
@@ -7242,7 +7329,10 @@ class ModernTTSApp(*_APP_BASE):
                             "⏳ " + _tr("Загрузка VoxCPM2 (веса ~5 ГБ)...")))
 
             names = [local_weights] if local_weights else []
-            names += VOX_CANDIDATES
+            if _veff in self.VOX_EXTRA_VARIANTS:
+                names += [self.VOX_EXTRA_VARIANTS[_veff]["repo"]]
+            else:
+                names += VOX_CANDIDATES
 
             # optimize=False обязателен: voxcpm делает torch.compile при живом triton
             # (появился с nano), а компиляция падает в средах без консоли (dynamo isatty).
@@ -7388,7 +7478,11 @@ class ModernTTSApp(*_APP_BASE):
 
     def _vox_var_name(self):
         # хвост для подписи кнопки: у обычного Vox хвост не пишем (в UI он — «Vox»)
-        return " · Vox Turbo" if self._vox_variant_effective() == "turbo" else ""
+        v = self._vox_variant_effective()
+        if v == "turbo":
+            return " · Vox Turbo"
+        info = self.VOX_EXTRA_VARIANTS.get(v)
+        return info["short"] if info else ""
 
     def _vox_variant_effective(self):
         """Реально работающий вариант: если быстрый движок не установлен — обычный."""
@@ -7398,7 +7492,11 @@ class ModernTTSApp(*_APP_BASE):
         return v
 
     def _vox_var_installed(self, kind):
-        return self._nano_installed() if kind == "turbo" else self._vox_installed()
+        if kind == "turbo":
+            return self._nano_installed()
+        if kind in self.VOX_EXTRA_VARIANTS:
+            return self._vox_extra_weights(kind) is not None
+        return self._vox_installed()
 
     def _turbo_shutdown(self):
         """Гасим nano-движок: он держит до 95% VRAM — при выгрузке отдаём память."""
@@ -7585,6 +7683,9 @@ class ModernTTSApp(*_APP_BASE):
             if not self._vox_installed():
                 self._install_vox()
             return
+        if kind in self.VOX_EXTRA_VARIANTS:
+            self._vox_install_extra(kind, parent)
+            return
         if self._nano_installed():
             return
         if not self._vox_installed():
@@ -7623,6 +7724,45 @@ class ModernTTSApp(*_APP_BASE):
                 self.after(0, lambda d=detail: stage.configure(text=_tr("Не вышло: ") + str(d)[-200:]))
         threading.Thread(target=work, daemon=True).start()
 
+    def _vox_install_extra(self, kind, parent=None):
+        """Установка русской сборки Vox (Vox Tiny): качаем только веса в кэш HF —
+        среда и голоса общие с обычным Vox."""
+        info = self.VOX_EXTRA_VARIANTS.get(kind)
+        if not info:
+            return
+        if self._vox_extra_weights(kind):
+            self._vox_pick_variant(kind, parent)
+            return
+        if not self._vox_installed():
+            messagebox.showwarning(
+                info["title"], _tr("GPU-среда не установлена — сначала нужен движок Vox."),
+                parent=parent or self)
+            return
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Установка ") + info["title"])
+        dlg.geometry("560x170")
+        _center_on_parent(dlg)
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        ctk.CTkLabel(dlg, text=info["title"], font=FONT_SUBHEADER,
+                     text_color=COLOR_HEAD).pack(pady=(16, 2))
+        stage = ctk.CTkLabel(dlg, text=_tr(info["dl"]), font=FONT_TINY,
+                             text_color=COLOR_TEXT_SEC, justify="left",
+                             wraplength=500, anchor="w")
+        stage.pack(fill="x", padx=16, pady=(4, 6))
+
+        def work():
+            try:
+                from huggingface_hub import snapshot_download
+                snapshot_download(info["repo"])
+                self.after(0, lambda: stage.configure(text=_tr(info["done"])))
+                self.after(0, lambda: self._vox_pick_variant(kind, None))
+                self.after(2500, lambda: dlg.winfo_exists() and dlg.destroy())
+            except Exception as e:
+                self.after(0, lambda e=e: stage.configure(
+                    text=_tr("Не вышло: ") + str(e)[-200:]))
+        threading.Thread(target=work, daemon=True).start()
+
     def _vox_settings_dialog(self):
         """Вкладка настроек Vox — как «Настройки Qwen», но про выбор варианта движка:
         быстрый Turbo или обычный Classic. Веса и голоса у них общие."""
@@ -7637,7 +7777,7 @@ class ModernTTSApp(*_APP_BASE):
         dlg = ctk.CTkToplevel(self)
         self._vox_cfg_dlg = dlg
         dlg.title(_tr("Настройки Vox"))
-        dlg.geometry("600x340")
+        dlg.geometry("600x430")
         _center_on_parent(dlg)
         dlg.resizable(False, False)
         dlg.transient(self)
@@ -7653,12 +7793,14 @@ class ModernTTSApp(*_APP_BASE):
             pass
         ctk.CTkLabel(dlg, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
                      justify="left", wraplength=560,
-                     text=_tr("Два движка Vox — одни и те же веса и голоса. Turbo быстрее на ~50%, обычный — медленнее; качество одинаковое.")
+                     text=_tr("Варианты движка Vox — общая среда, веса и голоса. Turbo быстрее на ~50%; Vox Tiny — русская сборка; обычный — универсальный.")
                      ).pack(fill="x", padx=14, pady=(12, 4))
         cur = self._vox_variant_effective()
         for kind, title, desc in (
                 ("turbo", "🚀 Vox Turbo", _tr("быстрее на ~50% · нужно 12 ГБ видеопамяти")),
-                ("classic", "🎧 Vox", _tr("обычный вариант — достаточно 8 ГБ видеопамяти"))):
+                ("classic", "🎧 Vox", _tr("обычный вариант — достаточно 8 ГБ видеопамяти")),
+                ("tiny", self.VOX_EXTRA_VARIANTS["tiny"]["title"],
+                 _tr(self.VOX_EXTRA_VARIANTS["tiny"]["hint"]))):
             fr = ctk.CTkFrame(dlg, fg_color="transparent")
             fr.pack(fill="x", padx=14, pady=4)
             ctk.CTkLabel(fr, font=FONT_SMALL,
@@ -7683,7 +7825,7 @@ class ModernTTSApp(*_APP_BASE):
                          justify="left", wraplength=430, text=desc).pack(side="left", padx=(12, 0))
         ctk.CTkLabel(dlg, font=FONT_TINY, text_color=COLOR_RED, anchor="w", justify="left",
                      wraplength=560,
-                     text=_tr("⚠ Vox — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ")
+                     text=_tr("⚠ Vox — от 8 ГБ · Vox Tiny — лёгкий · Vox Turbo — от 12 ГБ")
                      ).pack(fill="x", padx=14, pady=(10, 0))
         ctk.CTkLabel(dlg, font=FONT_TINY, text_color=COLOR_TEXT_SEC, anchor="w", justify="left",
                      wraplength=560,
@@ -7699,6 +7841,16 @@ class ModernTTSApp(*_APP_BASE):
             if isinstance(v, int) and v > 0:
                 return v
         return 24000
+
+    def _vox_speed_factor(self):
+        """Множитель скорости чтения: Turbo сам говорит в естественном темпе;
+        Tiny (16 кГц) приводится к эталонным 24 кГц FAIR; классика — исторический «×2»."""
+        v = self._vox_variant_effective()
+        if v == "turbo":
+            return 1.0
+        if v == "tiny":
+            return VOX_TINY_SPEED
+        return VOX_BASE_SPEED
 
     def _vox_generate(self, text, ref_path, ref_text, fast=False, actual_rate=1.0,
                       cfg=None, steps=None):
@@ -7749,6 +7901,9 @@ class ModernTTSApp(*_APP_BASE):
             dict(prompt_wav_path=ref_path),
             dict(),
         ]
+        if self._vox_variant_effective() == "tiny":
+            # ALEKAS 0.5B: рекомендован родной обученный голос — без референса
+            base_variants = [dict(prompt_wav_path=None)] + base_variants
 
         # для быстрого режима: сначала пробуем мало шагов, потом обычные
         extras_list = []
@@ -9060,7 +9215,8 @@ class ModernTTSApp(*_APP_BASE):
                     if not turbo:
                         # классический Vox говорит вдвое медленнее — поднимаем ×2,
                         # как во всей озвучке FAIR, иначе эталон «тормозной»
-                        arr = self._stretch_int16(arr, VOX_BASE_SPEED)
+                        # (у Vox Tiny коэффициент свой — см. _vox_speed_factor)
+                        arr = self._stretch_int16(arr, self._vox_speed_factor())
                     path = os.path.join(self.BASE_DIR, "temp_vox_design.wav")
                     with wave.open(path, "wb") as wf:
                         wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(int(sr))
@@ -9447,6 +9603,7 @@ class ModernTTSApp(*_APP_BASE):
         self._chunk_count_ok = str(_cc)
         self.chapters_var.set(bool(data.get("chunks_by", False)))
         self._sync_chunk_menu()
+        self._refresh_chapters_count()
         self.model_offer_muted = bool(data.get("model_offer_muted", False))
         self.voices_seeded = bool(data.get("voices_seeded", False))
         self.vox_offer_done = bool(data.get("vox_offer_done", False))
@@ -9466,7 +9623,7 @@ class ModernTTSApp(*_APP_BASE):
         self.rate_label.configure(text=f"×{rate:.1f}")
         self.vox_fast_var.set(bool(data.get("vox_fast", False)))
         vv = str(data.get("vox_variant") or "turbo").lower()
-        self.vox_variant = vv if vv in ("turbo", "classic") else "turbo"
+        self.vox_variant = vv if vv in ("turbo", "classic", "tiny") else "turbo"
         qc = data.get("qwen_cfg")
         if isinstance(qc, dict):   # подкрученные параметры движка Qwen
             for key in ("device", "precision", "language"):
@@ -9666,6 +9823,13 @@ class ModernTTSApp(*_APP_BASE):
             pass
         self.save_settings()
         self._sync_chunk_menu()
+        if self._chapters_setting():
+            self._refresh_chapters_count()   # число глав = число чанков (13.11.26)
+        else:
+            try:
+                self.chunk_count_var.set(self._chunk_count_ok)   # вернуть ручной выбор
+            except Exception:
+                pass
 
     def _on_chunk_key(self, *_):
         """В поле числа чанков проходят только цифры (буквы/минус срезаются)."""
@@ -10613,8 +10777,8 @@ class ModernTTSApp(*_APP_BASE):
                 # Turbo уже в естественном темпе — не ускоряем
                 if len(arr) and not _turbo_used:
                     print(f"🎚 Эмоция «{label}»: {(len(arr) / sr):.2f} с → ускоряем "
-                          f"×{VOX_BASE_SPEED:g}, как обычный синтез текста")
-                    arr = self._stretch_int16(arr, VOX_BASE_SPEED)
+                          f"×{self._vox_speed_factor():g}, как обычный синтез текста")
+                    arr = self._stretch_int16(arr, self._vox_speed_factor())
                 fp = os.path.join(BASE_DIR,
                                   VoiceRecorderDialog._emotion_filename(slot_id, label))
                 with wave.open(fp, "wb") as w:
@@ -11526,6 +11690,45 @@ class ModernTTSApp(*_APP_BASE):
         except Exception:
             return False
 
+    def _chapters_count_now(self):
+        """Сколько глав в тексте, который сейчас лежит в поле: столько будет чанков
+        при включённой галочке «по главам». None — глав не нашли (или текст пуст)."""
+        try:
+            raw = self.result_box.get("1.0", "end-1c")
+        except Exception:
+            return None
+        if not (raw or "").strip():
+            return None
+        try:
+            parts = self._split_by_chapters(raw)
+        except Exception:
+            return None
+        if not parts:
+            return None
+        try:
+            parts = [p for p in parts
+                     if re.sub(r"\s+", " ", self._unmark_chapters(p)).strip()]
+        except Exception:
+            pass
+        return len(parts) or None
+
+    def _refresh_chapters_count(self):
+        """Просьба Ярослава 13.11.26: при «по главам» поле числа чанков само
+        показывает количество глав — сразу видно, на сколько частей пойдёт разбор.
+        Поле остаётся нередактируемым: число берётся из текста."""
+        try:
+            if not (self.chunk_var.get() and self.chapters_var.get()):
+                return
+            if not self.result_box.get("1.0", "end-1c").strip():
+                return            # поле пустое — оставляем сохранённое число
+        except Exception:
+            return
+        n = self._chapters_count_now()
+        try:
+            self.chunk_count_var.set(str(n) if n else "—")
+        except Exception:
+            pass
+
     # ---- главы текста (10.11.26, просьба Ярослава): чанки по главам ----
     def _chap_res(self):
         """Regex-набор для глав (компилируем один раз)."""
@@ -12369,7 +12572,7 @@ class ModernTTSApp(*_APP_BASE):
 
                 # Turbo (nano) сам говорит в естественном темпе — ×2 ресемпл не нужен
                 _vx_turbo = (self._vox_variant_effective() == "turbo")
-                actual_rate = rate * (1.0 if _vx_turbo else VOX_BASE_SPEED)
+                actual_rate = rate * self._vox_speed_factor()
                 fast = False
                 self.after(0, lambda: self.update_status(f"⏳ Синтез VoxCPM2 (GPU, ×{actual_rate:.2f})..."))
 
