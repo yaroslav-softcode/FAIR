@@ -32,33 +32,85 @@ warnings.filterwarnings("ignore", message=".*tokenizer.*")
 ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
 
-# ---------- «Книга и кожа»: пары (бумага, кожа) — палитра сайта FAIRSite (Енот, 27.10.26) ----------
-# Токены сайта: --paper #f3ecdd, --paper-2 #ece2cd, --paper-edge #d8cdb6, --ink #2b231c,
-# --ink-2 #5c4f40, --leather #1c1510, --leather-hi #2b2018, --brand #c6763a, --gold #b08a3c, --gold-hi #e0ac42
-COLOR_BG = ("#f3ecdd", "#1c1510")            # фон окна — бумага сайта (тёмная тема — кожа)
-COLOR_PANEL = ("#f9f2e4", "#2b2018")         # панели — чуть светлее фона, как на сайте
-COLOR_CARD = ("#fbf6ea", "#241b13")          # карточки — тон сайта .panel (#fbf6ea)
-COLOR_CARD2 = ("#fffdf6", "#17120d")         # поля ввода и списки — самый светлый ТЗ-тон #fffdf6
-COLOR_BORDER = ("#d8cdb6", "#4a3a28")        # разделители и обводки (paper-edge)
-COLOR_ACCENT = ("#2b2018", "#c6763a")        # главные кнопки — тёмная кожа (состояние «играет»)
-COLOR_ACCENT_HOVER = ("#1a130c", "#a95f2c")
-COLOR_ACCENT_SOFT = ("#f1e9d7", "#35281d")   # мягкое нейтральное выделение
-COLOR_SELECT = ("#f0dfae", "#3a2b1a")        # выделенная строка / наведение — мягкое золото
-COLOR_SEG_ON = ("#c6763a", "#c6763a")        # активный пункт переключателя — медь
-COLOR_SEG_ON_HOVER = ("#a95f2c", "#8f4e22")
-COLOR_SEG_ON_TEXT = ("#fffdf6", "#fffdf6")
-COLOR_SELECT_TEXT = ("#e0ac42", "#e0ac42")   # фон выделения текста — золото (как ::selection на сайте)
-COLOR_HEAD = ("#7d4a1e", "#e0ac42")          # заголовки — жжёный янтарь
-COLOR_TEXT_MAIN = ("#2b231c", "#f3e7cf")     # чернила / крем
-COLOR_TEXT_SEC = ("#5c4f40", "#a08a5f")      # ink-2 / приглушённое золото
-COLOR_ON_ACCENT = ("#f3e7cf", "#1c1510")     # кремовый текст на тёмной коже
-COLOR_GREEN = ("#2e7d32", "#7bc67e")
-COLOR_RED = ("#a04b2a", "#c96a45")           # ржавчина вместо алого — в тон книги
-COLOR_FILL_SOFT = ("#f4ecd9", "#35281d")     # вторичные кнопки
-COLOR_SWITCH_OFF = ("#cbbd9e", "#4a3a28")
-COLOR_BRAND = ("#c6763a", "#c6763a")         # фирменная медь сайта — главные CTA
-COLOR_BRAND_HOVER = ("#a95f2c", "#8f4e22")
-COLOR_GOLD = ("#b08a3c", "#b08a3c")          # золото сайта — линейки-разделители
+# ---------- Тёплая пара тем из макета fair-redesign/index.html (Ярослав, 13.11.26) ----------
+# Светлая: --bg #FBF8F2 · --panel #FFFDF8 · --surface #F8F3EA · --surface-2 #F0E9DD
+#          --line rgba(33,29,24,.10) · --ink #211D18 · --ink2 #6E665A · --ink3 #9C9386
+#          --accent #B4552B · --accent-2 #D98E5F · --ok #4E7A54
+# Тёмная:  --bg #131210 · --panel #141311 · --surface #191714 · --surface-2 #211E1A
+#          --line rgba(255,255,255,.085) · --ink #F2ECE2 · --ink2 #A69C8D · --ink3 #6D655A
+#          --accent #E58B57 · --accent-2 #F0B48B · --ok #7FBF8B
+# Тёмная тема СКРЫТА (Ярослав, 13.11.26: «тёмная мне не нравится, её убираю пока»).
+# Пары ниже остались — чтобы вернуть, достаточно THEMES_ENABLED = True: переключатель
+# в шапке появится снова, тёмные цвета уже прописаны.
+THEMES_ENABLED = False
+# Все цвета — пары (светлая, тёмная); CTk перекрашивает виджеты сам при смене темы.
+COLOR_BG = ("#FBF8F2", "#131210")            # фон окна — бумага / тёмная бумага
+COLOR_PANEL = ("#FFFDF8", "#141311")         # панели — --panel
+COLOR_CARD = ("#F8F3EA", "#191714")          # карточки — --surface
+COLOR_CARD2 = ("#FFFDF8", "#211E1A")         # поля ввода и списки — --panel / --surface-2
+COLOR_BORDER = ("#DDD6C9", "#2E2B26")        # разделители и обводки — --line / --line-2
+COLOR_ACCENT = ("#B4552B", "#E58B57")        # главные кнопки — --accent
+COLOR_ACCENT_HOVER = ("#9C4723", "#F0A577")
+COLOR_ACCENT_SOFT = ("#F1E2D6", "#2A211B")   # --accent-soft: мягкое выделение
+COLOR_SELECT = ("#F3E4D7", "#2A211B")        # выделенная строка / наведение
+COLOR_SEG_ON = ("#B4552B", "#E58B57")        # активный пункт переключателя
+COLOR_SEG_ON_HOVER = ("#9C4723", "#F0A577")
+COLOR_SEG_ON_TEXT = ("#FFFFFF", "#150F0A")
+COLOR_SELECT_TEXT = ("#EBD3C1", "#3B2A1E")   # фон выделения текста — accent-soft
+COLOR_HEAD = ("#B4552B", "#E58B57")          # заголовки — --accent
+COLOR_TEXT_MAIN = ("#211D18", "#F2ECE2")     # --ink
+COLOR_TEXT_SEC = ("#6E665A", "#A69C8D")      # --ink2
+COLOR_ON_ACCENT = ("#FFFFFF", "#150F0A")     # текст на акцентной кнопке
+COLOR_GREEN = ("#4E7A54", "#7FBF8B")         # --ok
+COLOR_RED = ("#C4432B", "#E98B6A")           # ошибка — тёплый кирпич
+COLOR_FILL_SOFT = ("#F0E9DD", "#211E1A")     # вторичные кнопки — --surface-2
+COLOR_SWITCH_OFF = ("#D5CEC0", "#2E2B26")
+COLOR_BRAND = ("#B4552B", "#E58B57")         # фирменный акцент — главные CTA
+COLOR_BRAND_HOVER = ("#9C4723", "#F0A577")
+COLOR_GOLD = ("#9A6A3F", "#B98B5E")          # линейки-разделители
+# «Книга по голосам» — спокойная зелень --ok (кнопка режима)
+COLOR_BOOK = ("#4E7A54", "#7FBF8B")
+COLOR_BOOK_HOVER = ("#3F6547", "#9BD0A5")
+COLOR_BOOK_TEXT = ("#FFFFFF", "#150F0A")
+
+# ---------- «Книга по голосам»: разбор реплик по персонажам ----------
+# Основы глаголов речи: по ним ищем слова автора («— сказал Иван», «Марья ответила»).
+BOOK_VERB_STEMS = ("сказа", "говор", "ответ", "спрос", "произн", "воскли", "проговор",
+                   "прошеп", "шепн", "крикн", "закрич", "заора", "добав", "замет", "возраз",
+                   "пробормо", "буркн", "усмехн", "улыбн", "вздохн", "подум", "повтор",
+                   "уточн", "соглас", "переб", "заключ", "сообщ", "объясн", "объяв",
+                   "поинтересова", "удиви", "испуга", "засме", "хмыкн", "рявкн", "отозва",
+                   "откликн", "процед", "протян", "заяв", "призна", "пожалова", "приказ",
+                   "попрос", "предлож", "пробубн", "подхват", "продолж", "законч", "спохват",
+                   "переспрос", "промолв", "вставил", "произнес",
+                   # добавлено 13.11.26: без этих основ «— Рассмеялась Озма»,
+                   # «— Заинтересовался соломенный человек» читались как РЕПЛИКА
+                   # (вторая часть диалога), а не как слова автора
+                   "рассме", "засмея", "расхохота", "хихикн", "ухмыльн", "улыбн",
+                   "заинтересова", "заинтригова", "удиви", "изуми", "порази",
+                   "успоко", "утеш", "увери", "обнадёж", "взбодри",
+                   "кивн", "пожал", "фыркн", "хмыкну", "взвизгн", "вскрич",
+                   "гаркну", "рявкну", "процеди", "отреза", "взволнова",
+                   "подтверди", "возмути", "обрадова", "огорчи", "испуга",
+                   "предупреди", "позвал", "окликну", "призна", "подума",
+                   "заключи", "пропел", "пропела", "протяну", "пробубни")
+BOOK_VERB = r"(?:%s)[а-яё]{0,5}" % "|".join(BOOK_VERB_STEMS)
+BOOK_VERB_RE = re.compile(BOOK_VERB, re.I)
+# «сказал Иван» / «сказала она» — имя или местоимение ПОСЛЕ глагола
+BOOK_AFTER_RE = re.compile(r"\b(%s)\s+([А-ЯЁ][а-яё\-]{1,20}|[Оо]н|[Оо]на|[Оо]ни)\b" % BOOK_VERB)
+# «Иван сказал» — имя ПЕРЕД глаголом
+BOOK_BEFORE_RE = re.compile(r"\b([А-ЯЁ][а-яё\-]{1,20})\s+(%s)\b" % BOOK_VERB)
+# «заинтересовался соломенный человек» — в сказках Баума персонаж назван не именем,
+# а материалом: по эпитету возвращаем имя, иначе реплика уходит «Неизвестному»
+BOOK_EPITHET_RE = re.compile(
+    r"\b%s\s+(?:[а-яё]+\s+)?(соломенн\w*|железн\w*|труслив\w*|страшил\w*|дровосек\w*)\b"
+    % BOOK_VERB, re.I)
+BOOK_EPITHETS = {"соломенн": "Страшила", "страшил": "Страшила",
+                 "железн": "Дровосек", "дровосек": "Дровосек", "труслив": "Лев"}
+# не имена, хоть и с большой буквы
+BOOK_STOP = {"Он", "Она", "Они", "Бог", "Боже", "Господи", "Все", "Всё", "Это", "Так",
+             "Тогда", "Потом", "Вдруг", "Но", "И", "А", "Нет", "Да", "Однако", "Впрочем",
+             "Конечно", "Может", "Разве", "Неужели", "Хорошо", "Ладно"}
 
 # ---------- шапка окна в цвет приложения (Windows 11, DWM) ----------
 # Полоса со свернуть/развернуть/закрыть рисуется Windows, не customtkinter —
@@ -67,13 +119,23 @@ def _dwm_titlebar(widget):
     def ref(h):
         h = h.lstrip("#")
         return int(h[4:6] + h[2:4] + h[0:2], 16)        # COLORREF = 0x00BBGGRR
+
+    def at(pair):
+        """Цвет пары (светлая, тёмная) под текущую тему."""
+        if not isinstance(pair, (tuple, list)):
+            return pair
+        try:
+            return pair[1] if ctk.get_appearance_mode() == "Dark" else pair[0]
+        except Exception:
+            return pair[0]
+
     try:
         widget.update_idletasks()
         hwnd = ctypes.windll.user32.GetParent(widget.winfo_id()) or widget.winfo_id()
         dwm = ctypes.windll.dwmapi
-        for attr, val in ((34, "#d8cdb6"),   # DWMWA_BORDER_COLOR  — край окна
-                          (35, "#f3ecdd"),   # DWMWA_CAPTION_COLOR — сама полоса
-                          (36, "#2e2620")):  # DWMWA_TEXT_COLOR    — надпись
+        for attr, val in ((34, at(COLOR_BORDER)),   # DWMWA_BORDER_COLOR  — край окна
+                          (35, at(COLOR_BG)),       # DWMWA_CAPTION_COLOR — сама полоса
+                          (36, at(COLOR_TEXT_MAIN))):  # DWMWA_TEXT_COLOR — надпись
             v = ctypes.c_int32(ref(val))
             dwm.DwmSetWindowAttribute(ctypes.c_void_p(hwnd), attr,
                                       ctypes.byref(v), ctypes.sizeof(v))
@@ -168,6 +230,27 @@ VOX_DESIGN_PRESETS = [
      "eccentric artist, bright theatrical voice, expressive varied intonation, playful"),
     ("Готика",
      "gothic mysterious narrator, dark low female voice, slow ominous pacing"),
+    # ---- звери, говорящие по-человечески (просьба Ярослава, 13.11.26) ----
+    ("Кот",
+     "feline voice speaking human words, purring low velvety timbre, lazy self-important delivery"),
+    ("Пёс",
+     "friendly dog voice speaking human words, bright barking edge, eager happy delivery, medium pitch"),
+    ("Лев",
+     "lion voice speaking human words, deep rumbling roar-tinged timbre, slow regal delivery"),
+    ("Медведь",
+     "big bear voice speaking human words, deep rumbling low pitch, slow heavy delivery"),
+    ("Лиса",
+     "sly fox voice speaking human words, light nasal tone, playful teasing delivery, quick rhythm"),
+    ("Ворона",
+     "crow voice speaking human words, raspy croaking texture, sharp mocking delivery"),
+    ("Попугай",
+     "parrot voice speaking human words, bright squawky timbre, fast repetitive rhythm"),
+    ("Лягушка",
+     "frog voice speaking human words, croaky deep gulping tone, comic slow delivery"),
+    ("Мышонок",
+     "tiny mouse voice speaking human words, very high thin squeaky pitch, fast nervous rhythm"),
+    ("Сова",
+     "wise owl voice speaking human words, soft hooting low tone, slow measured delivery"),
 ]
 
 
@@ -577,6 +660,17 @@ def _style_tk_menu(menu):
     try:
         menu.configure(bg="#fdf6e8", fg="#2b231c", bordercolor="#d8cdb6",
                        activebackground="#e0ac42", activeforeground="#2b231c")
+    except Exception:
+        pass
+
+
+def _style_book_menu(menu):
+    """Контекстное меню в цветах выпадающих списков (как выбор голоса/автора)."""
+    try:
+        menu.configure(bg=_mode_color(COLOR_CARD2), fg=_mode_color(COLOR_TEXT_MAIN),
+                       activebackground=_mode_color(COLOR_SELECT),
+                       activeforeground=_mode_color(COLOR_TEXT_MAIN),
+                       bd=0, relief="flat", activeborderwidth=0)
     except Exception:
         pass
 
@@ -1029,7 +1123,8 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
 
         self.btn_rec = ctk.CTkButton(row, text="●  Начать запись", command=self.toggle_recording,
                                      height=34, corner_radius=3, font=(FONT_FAMILY, 12, "bold"),
-                                     fg_color=COLOR_RED, hover_color=COLOR_RED, text_color="#fffdf6")
+                                     fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                                     text_color=COLOR_ON_ACCENT)
         self.btn_rec.grid(row=0, column=0, sticky="ew")
 
         self.btn_play_sample = ctk.CTkButton(row, text="▶", width=40, height=34, corner_radius=3,
@@ -1145,7 +1240,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         self.btn_emos = ctk.CTkButton(
             parent, text=self._emo_btn_text(False), width=260, height=32, corner_radius=4,
             font=(FONT_FAMILY, 11, "bold"), fg_color=COLOR_BRAND,
-            hover_color=COLOR_BRAND_HOVER, text_color="#ffffff",
+            hover_color=COLOR_BRAND_HOVER, text_color=COLOR_ON_ACCENT,
             command=self._toggle_emotions)
         self.btn_emos.pack(anchor="center", pady=(14, 20))
         self._emo_frame = ctk.CTkFrame(self, width=self._EMO_COL_W, fg_color=COLOR_PANEL,
@@ -1155,15 +1250,27 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         ctk.CTkLabel(self._emo_frame, text="😊  " + _tr("Эмоции голоса"),
                      font=(FONT_FAMILY, 15, "bold"), text_color=COLOR_TEXT_MAIN).grid(
             row=0, column=0, sticky="w", padx=16, pady=(14, 2))
+        # ✨ «Записать все эмоции» — вверху справа (просьба Ярослава, 14.11.26):
+        # ставит в очередь ВСЕ эмоции из таблицы и синтезирует их подряд
+        self.btn_emo_all = ctk.CTkButton(
+            self._emo_frame, text="✨ " + _tr("Синтезировать все"), width=158, height=28,
+            corner_radius=3, font=FONT_TINY, fg_color=COLOR_BRAND,
+            hover_color=COLOR_BRAND_HOVER, text_color=COLOR_ON_ACCENT,
+            border_width=0, command=self._emo_synth_all)
+        # ниже подписи «Эмоции голоса»: верх кнопки на 20 px от края, у подписи — 14
+        self.btn_emo_all.grid(row=0, column=1, sticky="ne", padx=(8, 12), pady=(34, 0))
         ctk.CTkLabel(self._emo_frame,
                      text=_tr("Маркер в тексте: (радостный) фраза.\n"
                               "Без маркера — нейтральный голос. Запиши или синтезируй."),
                      font=FONT_TINY, text_color=COLOR_TEXT_SEC, justify="left").grid(
-            row=1, column=0, sticky="w", padx=16, pady=(0, 10))
+            row=1, column=0, columnspan=2, sticky="w", padx=16, pady=(0, 10))
         # строк может быть до 10 — площадь с прокруткой, чтобы окно оставалось прежней высоты
         self._emo_rows_box = ctk.CTkScrollableFrame(self._emo_frame, fg_color="transparent",
                                                     height=524)
-        self._emo_rows_box.grid(row=2, column=0, sticky="nsew", padx=(10, 4), pady=(0, 6))
+        # columnspan=2: кнопка «Записать все» живёт в col 1, но строки эмоций
+        # должны занимать всю ширину панели, иначе они становятся узкими (14.11.26)
+        self._emo_rows_box.grid(row=2, column=0, columnspan=2, sticky="nsew",
+                                padx=(10, 10), pady=(0, 6))
         self._emo_rows_box.grid_columnconfigure(0, weight=1)
         try:    # меняем ширину окна — линии громкости пересчитываются под кнопку
             self._emo_rows_box.bind(
@@ -1180,7 +1287,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                           + _tr("Нейросинтез эмоции из нейтрального образца этого голоса.") + "\n"
                           + _tr("Сколько угодно эмоций — новая строка появляется сама."),
                      font=FONT_TINY, text_color=COLOR_TEXT_SEC, justify="left").grid(
-            row=3, column=0, sticky="w", padx=16, pady=(0, 6))
+            row=3, column=0, columnspan=2, sticky="w", padx=16, pady=(0, 6))
         self._fill_existing_labels()
         self._rows_visibility()
         try:    # стрелка раскрывающегося списка подсвечивается при наведении, как в окне
@@ -1221,8 +1328,8 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         ent = _EmoCombo(
             rowf, values=list(self.EMO_CHOICES), font=FONT_SMALL, height=32,
             corner_radius=3, border_width=1, border_color=COLOR_BORDER,
-            fg_color="#ffffff", button_color=COLOR_BRAND,
-            button_hover_color=COLOR_BRAND_HOVER, dropdown_fg_color="#ffffff",
+            fg_color=COLOR_CARD2, button_color=COLOR_BRAND,
+            button_hover_color=COLOR_BRAND_HOVER, dropdown_fg_color=COLOR_CARD2,
             dropdown_hover_color=COLOR_SELECT, dropdown_text_color=COLOR_TEXT_MAIN,
             text_color=COLOR_TEXT_MAIN,
             command=lambda val, i=i: self._combo_pick(i))
@@ -1274,7 +1381,7 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
         syn = ctk.CTkButton(brow, text="✨  " + _tr("Синтезировать"), height=30,
                             corner_radius=3, font=FONT_SMALL,
                             fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
-                            text_color="#ffffff",
+                            text_color=COLOR_ON_ACCENT,
                             command=lambda i=i: self._emo_synth(i))
         syn.grid(row=0, column=1, sticky="ew")
         dlt = ctk.CTkButton(brow, text="🗑", width=36, height=30, corner_radius=3,
@@ -1515,6 +1622,27 @@ class VoiceRecorderDialog(ctk.CTkToplevel):
                 parent=self)
             return
         self.app.emotion_synth(self.slot_id, label)
+
+    def _emo_synth_all(self):
+        """Кнопка «Записать все»: синтезировать все эмоции подряд на движке голоса."""
+        if self.app is None:
+            return
+        if not self._emo_has_neutral():
+            messagebox.showinfo(_tr("Внимание"),
+                                _tr("Сначала запишите нейтральный образец голоса."), parent=self)
+            return
+        if getattr(self.app, "current_engine", "") != "Vox":
+            messagebox.showinfo(_tr("Внимание"),
+                                _tr("Эмоции синтезирует движок Vox — переключитесь на него."),
+                                parent=self)
+            return
+        labels = list(EMOTION_TAB.keys())
+        if not messagebox.askyesno(
+                _tr("Записать все эмоции"),
+                _tr("Синтезировать все эмоции этого голоса?") + f"\n\n{len(labels)} "
+                + _tr("эмоций подряд — это займёт время."), parent=self):
+            return
+        self.app.emo_synth_batch(self.slot_id, labels)
 
     def _emo_delete(self, idx):
         row = self._emo_rows[idx]
@@ -2654,6 +2782,29 @@ _PAIRS += [
      "~50% faster · needs 12 GB of video memory"),
     ("Убрать ударение", "Remove stress"),
     ("✅ Ударение убрано", "✅ Stress mark removed"),
+    ("Выделите слово в тексте и нажмите «Ударение»", "Select a word and press “Stress”"),
+    ("🎭  Добавить эмоции", "🎭  Add emotions"),
+    ("Удалить фрагмент", "Delete fragment"),
+    ("Удалить?", "Delete?"),
+    ("Фрагмент удалён", "Fragment deleted"),
+    ("Эмоции ставятся на Vox и Qwen. Переключите движок в карточке «ОЗВУЧКА».",
+     "Emotions work on Vox and Qwen. Switch the engine in the “VOICE” card."),
+    ("Синтезировать все", "Synthesise all"),
+    ("Светлая", "Light"),
+    ("Тёмная", "Dark"),
+    ("Записать все", "Record all"),
+    ("Записать все эмоции", "Record all emotions"),
+    ("Синтезировать все эмоции этого голоса?", "Synthesise every emotion of this voice?"),
+    ("эмоций подряд — это займёт время.", "emotions in a row — this will take a while."),
+    ("Записано эмоций", "Emotions recorded"),
+    ("с ошибкой", "failed"),
+    ("образца нет — запишите голос в карточке «ОЗВУЧКА»",
+     "no sample — record the voice in the “VOICE” card"),
+    ("Изменить громкость…", "Change volume…"),
+    ("Изменить громкость", "Change volume"),
+    ("Без эмоции", "No emotion"),
+    ("Громкость реплики (как ползунок эмоции)", "Fragment volume (same as the emotion slider)"),
+    ("тише", "quieter"), ("громче", "louder"), ("Сброс", "Reset"),
     ("Видеопамять", "VRAM"),
     ("Память (ОЗУ)", "RAM"),
     ("ГБ", "GB"),
@@ -2709,6 +2860,32 @@ _PAIRS += [
     ("Ждём конец озвучки…", "Waiting for the speech to finish…"),
     ("⏳ Загрузка голоса…", "⏳ Loading the voice…"),
     ("По главам: частей 3", "By chapters: 3 parts"),
+    # ---- «Книга по голосам» (14.11.26) ----
+    ("📖  Книга по голосам", "📖  Book by voices"),
+    ("Голоса персонажей", "Character voices"),
+    ("По умолчанию", "Default"),
+    ("Нейросетью", "With AI"),
+    ("↻ Разметить заново", "↻ Re-split"),
+    ("Имя можно править прямо в тексте: «Имя: фраза». "
+     "Озвучка идёт по репликам выбранными голосами.",
+     "Fix any name right in the text: “Name: phrase”. "
+     "Voice-over goes line by line with the chosen voices."),
+    ("Сначала вставьте книгу или текст.", "Insert a book or text first."),
+    ("Не удалось разобрать текст на реплики.", "Could not split the text into lines."),
+    ("📖 Список персонажей обновлён", "📖 The character list has been updated"),
+    ("📖 Режим книги выключен", "📖 Book mode is off"),
+    ("📖 Режим «Книга по голосам»: вставьте книгу — размечу по персонажам",
+     "📖 Book mode: insert a book — I will split it by characters"),
+    ("📖 Текст уже размечен — выбирайте голоса слева",
+     "📖 The text is already marked up — pick voices on the left"),
+    ("Разметка книги пустая — проверьте текст «Имя: фраза».",
+     "The book markup is empty — check the “Name: phrase” lines."),
+    ("⏹ Разметка отменена", "⏹ Markup cancelled"),
+    ("❌ Разметка нейросетью не удалась", "❌ AI markup failed"),
+    ("Нейросеть вернула пустой результат.", "The model returned an empty result."),
+    ("⏳ Разметка по персонажам…", "⏳ Splitting by characters…"),
+    ("⏳ Разметка нейросетью…", "⏳ AI markup…"),
+    ("Книга по голосам", "Book by voices"),
 ]
 
 
@@ -3179,8 +3356,10 @@ class ModernTTSApp(*_APP_BASE):
         self.theme = self._load_theme()
 
         self.title("FAIR")
-        self.geometry("1140x850")
-        self.minsize(1000, 700)
+        # 1240 — шапка текста с кнопками («Книга по голосам», «Добавить эмоции»,
+        # «Ударение», «Файл», «Очистить») влезает целиком; меньше 1180 — кнопки сжимаются
+        self.geometry("1240x850")
+        self.minsize(1240, 700)   # уже 1240 шапка сжимает кнопки — не даём обрезать их
         self.configure(fg_color=COLOR_BG)
         self._init_fonts()
 
@@ -3222,6 +3401,18 @@ class ModernTTSApp(*_APP_BASE):
 
         self.custom_voices = {}
         self.engine_voices = {}      # последний выбранный голос каждого движка
+        # «Книга по голосам» (Ярослав, 14.11.26): режим, фрагменты и голоса персонажей
+        self.book_mode = False
+        self.book_cast = {}          # {имя персонажа: голос} — голоса ТЕКУЩЕЙ книги
+        self.book_casts = {}         # {книга: {персонаж: голос}} — помним по каждой книге
+        self.book_key = ""           # текущая книга (заголовок или имя файла)
+        self.book_default = ""       # голос по умолчанию для новых персонажей
+        self.book_items = []         # [{"speaker": имя, "text": фраза}]
+        self.book_extra = []         # персонажи, добавленные вручную в этом участке
+        self.book_gain = {}          # {персонаж: шаги −5…+5} — ручная громкость голоса
+        self.book_source = ""        # исходный (нерзмеченный) текст книги
+        self._book_sel = None
+        self._book_start = 0
         self.custom_presets = {}   # {название: {"ratio": 0.4, "prompt": "..."}} — свои уровни сжатия
         self._last_preset = "Кратко (50%)"
         self.box_is_source = False
@@ -3465,7 +3656,7 @@ class ModernTTSApp(*_APP_BASE):
         btn_go = ctk.CTkButton(row, text=_tr("Скачать"), width=150, height=34,
                                corner_radius=R_PANEL, font=FONT_SUBHEADER,
                                fg_color="#c6763a", hover_color="#a95f2c",
-                               text_color="#ffffff",
+                               text_color=COLOR_ON_ACCENT,
                                command=lambda: self._start_model_download(dlg, bar, info, btn_go))
         btn_go.pack(side="left")
 
@@ -4161,7 +4352,7 @@ class ModernTTSApp(*_APP_BASE):
                                else _tr("Установить выбранное"), width=200, height=34,
                                corner_radius=R_PANEL, font=FONT_SUBHEADER,
                                fg_color="#c6763a", hover_color="#a95f2c",
-                               text_color="#ffffff")
+                               text_color=COLOR_ON_ACCENT)
         btn_go.pack(side="left")
         ctk.CTkButton(rowb, text=_tr("Закрыть"), width=110, height=34, corner_radius=R_PANEL,
                       font=FONT_NORMAL, fg_color="transparent", border_width=1,
@@ -4528,7 +4719,7 @@ class ModernTTSApp(*_APP_BASE):
                                 width=110, height=26, corner_radius=R_PANEL, font=FONT_TINY,
                                 fg_color=COLOR_FILL_SOFT if installed else "#c6763a",
                                 hover_color=COLOR_SELECT if installed else "#a95f2c",
-                                text_color=COLOR_TEXT_MAIN if installed else "#ffffff",
+                                text_color=COLOR_TEXT_MAIN if installed else COLOR_ON_ACCENT,
                                 state="disabled" if installed else "normal")
             btn.configure(command=lambda n=name, s=suffix, b=btn: self._install_piper_voice(
                 n, s, dlg, b, bar, info))
@@ -4542,7 +4733,7 @@ class ModernTTSApp(*_APP_BASE):
                       hover_color=COLOR_CARD, command=dlg.destroy).pack(side="right")
         ctk.CTkButton(foot, text=_tr("Свой Piper (.onnx)…"), width=200, height=30,
                       corner_radius=R_PANEL, font=FONT_SMALL, fg_color="#c6763a",
-                      hover_color="#a95f2c", text_color="#ffffff",
+                      hover_color="#a95f2c", text_color=COLOR_ON_ACCENT,
                       command=lambda: self._import_piper_voice(dlg, info)).pack(side="left")
 
     def _import_piper_voice(self, dlg, info):
@@ -4653,12 +4844,28 @@ class ModernTTSApp(*_APP_BASE):
         FONT_TINY = (fam, 10)
 
     def _load_theme(self):
-        """Тёмная тема убрана — приложение всегда в светлом оформлении."""
+        """Тема из настроек: «light» или «dark». Тёмная скрыта — THEMES_ENABLED."""
+        if not THEMES_ENABLED:
+            try:
+                ctk.set_appearance_mode("light")
+            except Exception:
+                pass
+            return "light"
+        mode = "light"
         try:
-            ctk.set_appearance_mode("light")
+            fp = os.path.join(self.BASE_DIR, "settings.json")
+            if os.path.exists(fp):
+                with open(fp, encoding="utf-8") as f:
+                    mode = (json.load(f).get("theme") or "light").strip().lower()
+        except Exception:
+            mode = "light"
+        if mode not in ("light", "dark"):
+            mode = "light"
+        try:
+            ctk.set_appearance_mode(mode)
         except Exception:
             pass
-        return "light"
+        return mode
 
     def _on_close(self):
         try:
@@ -5010,13 +5217,35 @@ class ModernTTSApp(*_APP_BASE):
                 for i, c in enumerate(base) if c in self._RU_VOWELS]
 
     def _open_stress_dialog(self):
-        """Диалог: в слове под курсором выбрать, куда поставить ударение."""
+        """Кнопка «Ударение»: в книжном режиме — окно правки фрагмента с этой кнопкой."""
+        if getattr(self, "book_mode", False) and getattr(self, "book_items", None):
+            idx = self._book_current_index()
+            if idx is not None:
+                self._book_edit_fragment(idx, stress_hint=True)
+            return
         box = getattr(self, "result_box", None)
         tb = getattr(box, "_textbox", None)
         if tb is None:
             return
+        self._stress_choose(tb, tb.index("insert"))
+
+    def _book_current_index(self):
+        """Фрагмент, с которым работаем: выбранный кликом, иначе под курсором списка."""
+        idx = getattr(self, "_book_sel", None)
+        if isinstance(idx, int) and 0 <= idx < len(self.book_items):
+            return idx
         try:
-            word, w_start, w_end = self._stress_word_at(tb, tb.index("insert"))
+            i = int(str(self.book_view._textbox.index("insert")).split(".")[0]) - 1
+            if 0 <= i < len(self.book_items):
+                return i
+        except Exception:
+            pass
+        return 0 if self.book_items else None
+
+    def _stress_choose(self, tb, pos, parent=None):
+        """Pop-up с вариантами ударения для слова в позиции pos виджета tb."""
+        try:
+            word, w_start, w_end = self._stress_word_at(tb, pos)
         except Exception:
             word = w_start = w_end = None
         if not word:
@@ -5026,11 +5255,12 @@ class ModernTTSApp(*_APP_BASE):
         if not variants:
             self.update_status(_tr("⚠ В этом слове нет гласных"))
             return
+        host = parent or self
 
-        dlg = ctk.CTkToplevel(self)
+        dlg = ctk.CTkToplevel(host)
         dlg.title(_tr("Ударение"))
         dlg.configure(fg_color=COLOR_BG)
-        dlg.transient(self)
+        dlg.transient(host)
         dlg.resizable(False, False)
         try:
             dlg.iconbitmap(self._asset_path("app.ico"))   # фирменный значок в шапке
@@ -5088,8 +5318,8 @@ class ModernTTSApp(*_APP_BASE):
         try:   # окно — по центру над основным, без прыжков
             dlg.update_idletasks()
             w, h = dlg.winfo_width(), dlg.winfo_height()
-            x = self.winfo_rootx() + max(0, (self.winfo_width() - w) // 2)
-            y = self.winfo_rooty() + max(0, (self.winfo_height() - h) // 3)
+            x = host.winfo_rootx() + max(0, (host.winfo_width() - w) // 2)
+            y = host.winfo_rooty() + max(0, (host.winfo_height() - h) // 3)
             dlg.geometry(f"+{x}+{y}")
         except Exception:
             pass
@@ -5210,7 +5440,7 @@ class ModernTTSApp(*_APP_BASE):
             self.donate_btn = ctk.CTkButton(brand, text="Благодарить", width=104, height=26,
                                             corner_radius=8, font=(FONT_FAMILY, 12, "bold"),
                                             fg_color="#c6763a", hover_color="#b0652f",
-                                            text_color="#ffffff",
+                                            text_color=COLOR_ON_ACCENT,
                                             command=self._open_donate_dialog)
             self.donate_btn.pack(side="left", padx=(16, 0))
 
@@ -5232,12 +5462,32 @@ class ModernTTSApp(*_APP_BASE):
                                              button_color=COLOR_FILL_SOFT,
                                              button_hover_color=COLOR_SELECT,
                                              text_color=COLOR_TEXT_MAIN,
-                                             dropdown_fg_color="#fffdf6",
+                                             dropdown_fg_color=COLOR_CARD2,
                                              dropdown_text_color=COLOR_TEXT_MAIN,
                                              dropdown_hover_color=COLOR_SELECT,
                                              command=self._set_lang)
         self.lang_toggle.set("EN" if UI_LANG == "en" else "RU")   # как в прошлый раз
         self.lang_toggle.grid(row=0, column=2, sticky="e", padx=(0, 6))
+
+        # тема — рядом с языком. СЕЙЧАС СКРЫТА (Ярослав, 13.11.26): показывается,
+        # только если THEMES_ENABLED = True; иначе шапка остаётся как была.
+        self.theme_toggle = None
+        if THEMES_ENABLED:
+            theme_vals = [_tr("Светлая"), _tr("Тёмная")]
+            self.theme_toggle = ctk.CTkOptionMenu(topbar, values=theme_vals, width=112,
+                                                  height=28, corner_radius=8,
+                                                  font=(FONT_FAMILY, 12, "bold"),
+                                                  fg_color=COLOR_CARD2,
+                                                  button_color=COLOR_FILL_SOFT,
+                                                  button_hover_color=COLOR_SELECT,
+                                                  text_color=COLOR_TEXT_MAIN,
+                                                  dropdown_fg_color=COLOR_CARD2,
+                                                  dropdown_text_color=COLOR_TEXT_MAIN,
+                                                  dropdown_hover_color=COLOR_SELECT,
+                                                  command=self._set_theme)
+            self.theme_toggle.set(theme_vals[1] if getattr(self, "theme", "light") == "dark"
+                                  else theme_vals[0])
+            self.theme_toggle.grid(row=0, column=3, sticky="e", padx=(0, 6))
 
         # шестерёнка справа от переключателя языка — открывает первичные настройки
         # (модели анализа, движки Vox/Qwen, докачка) заново (просьба Ярослава 13.11.26).
@@ -5305,7 +5555,8 @@ class ModernTTSApp(*_APP_BASE):
                 image=self._gear_img_hover))
             self.btn_settings.bind("<Leave>", lambda e: self.btn_settings.configure(
                 image=self._gear_img))
-            self.btn_settings.grid(row=0, column=3, sticky="e", padx=(6, 0))
+            self.btn_settings.grid(row=0, column=(4 if THEMES_ENABLED else 3),
+                                   sticky="e", padx=(6, 0))
         except Exception as e:
             print(f"⚠️ шестерёнка: {e}")
             self.btn_settings = ctk.CTkButton(topbar, text="⚙", width=30, height=30,
@@ -5313,7 +5564,8 @@ class ModernTTSApp(*_APP_BASE):
                                               hover_color=COLOR_BORDER,
                                               text_color=COLOR_TEXT_MAIN,
                                               command=self._open_settings)
-            self.btn_settings.grid(row=0, column=3, sticky="e", padx=(6, 0))
+            self.btn_settings.grid(row=0, column=(4 if THEMES_ENABLED else 3),
+                                   sticky="e", padx=(6, 0))
 
         # ---------------- левая панель ----------------
         # карточки лежат прямо на фоне окна — без внешней панели и прокрутки
@@ -5370,7 +5622,7 @@ class ModernTTSApp(*_APP_BASE):
                                              font=FONT_SMALL, height=30, corner_radius=3, width=150,
                                              fg_color=COLOR_CARD2, button_color=COLOR_FILL_SOFT,
                                              button_hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
-                                             dropdown_fg_color="#fffdf6", dropdown_text_color=COLOR_TEXT_MAIN,
+                                             dropdown_fg_color=COLOR_CARD2, dropdown_text_color=COLOR_TEXT_MAIN,
                                              dropdown_hover_color=COLOR_SELECT)
         self.preset_menu.grid(row=0, column=1, sticky="ew", padx=(8, 0))
 
@@ -5416,7 +5668,7 @@ class ModernTTSApp(*_APP_BASE):
         self.auto_play_cb = ctk.CTkSwitch(src, text="Озвучивать сразу после анализа", variable=self.auto_play_var,
                                           font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
                                           progress_color=COLOR_BRAND, fg_color=COLOR_SWITCH_OFF,
-                                          button_color="#fffdf6", button_hover_color="#fffdf6",
+                                          button_color=COLOR_FILL_SOFT, button_hover_color=COLOR_SELECT,
                                           command=self.save_settings)
         self.auto_play_cb.pack(fill="x", padx=12, pady=(0, 0))
 
@@ -5425,7 +5677,7 @@ class ModernTTSApp(*_APP_BASE):
         self.emo_auto_cb = ctk.CTkSwitch(src, text="Добавить эмоции", variable=self.emo_auto_var,
                                          font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
                                          progress_color="#F2C94C", fg_color=COLOR_SWITCH_OFF,
-                                         button_color="#fffdf6", button_hover_color="#fffdf6",
+                                         button_color=COLOR_FILL_SOFT, button_hover_color=COLOR_SELECT,
                                          command=self._on_emo_auto_toggle)
         self.emo_auto_cb.pack(fill="x", padx=12, pady=(0, 9))
 
@@ -5441,7 +5693,7 @@ class ModernTTSApp(*_APP_BASE):
                                            corner_radius=3, command=self.on_llm_change,
                                            fg_color=COLOR_CARD2, button_color=COLOR_FILL_SOFT,
                                            button_hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
-                                           dropdown_fg_color="#fffdf6", dropdown_text_color=COLOR_TEXT_MAIN,
+                                           dropdown_fg_color=COLOR_CARD2, dropdown_text_color=COLOR_TEXT_MAIN,
                                            dropdown_hover_color=COLOR_SELECT)
         self.llm_combo.grid(row=0, column=0, sticky="ew")
 
@@ -5466,7 +5718,7 @@ class ModernTTSApp(*_APP_BASE):
 
         self.llm_gpu_cb = ctk.CTkSwitch(gpu_row, text="", variable=self.llm_gpu_var, width=36,
                                         progress_color=COLOR_BRAND, fg_color=COLOR_SWITCH_OFF,
-                                        button_color="#fffdf6", button_hover_color="#fffdf6",
+                                        button_color=COLOR_FILL_SOFT, button_hover_color=COLOR_SELECT,
                                         command=self._on_gpu_toggle)
         self.llm_gpu_cb.pack(side="left", padx=6)
 
@@ -5486,7 +5738,7 @@ class ModernTTSApp(*_APP_BASE):
         self.lbl_chunks.pack(side="left")
         self.chunk_cb = ctk.CTkSwitch(chunk_box, text="", variable=self.chunk_var, width=36,
                                       progress_color=COLOR_BRAND, fg_color=COLOR_SWITCH_OFF,
-                                      button_color="#fffdf6", button_hover_color="#fffdf6",
+                                      button_color=COLOR_FILL_SOFT, button_hover_color=COLOR_SELECT,
                                       command=self._on_chunks_toggle)
         self.chunk_cb.pack(side="left", padx=(2, 0))
         self.chunk_entry = ctk.CTkEntry(chunk_box, textvariable=self.chunk_count_var,
@@ -5514,7 +5766,7 @@ class ModernTTSApp(*_APP_BASE):
                                            corner_radius=3, border_width=1,
                                            border_color=COLOR_BORDER, fg_color=COLOR_BRAND,
                                            hover_color=COLOR_BRAND_HOVER,
-                                           checkmark_color="#fffdf6", font=FONT_TINY,
+                                           checkmark_color=COLOR_ON_ACCENT, font=FONT_TINY,
                                            command=self._on_chapters_toggle)
         self.chapters_cb.pack(side="left", padx=(6, 0))
         # строка с токенами/знаками/VRAM переехала сюда же: слева она, галочка
@@ -5637,7 +5889,7 @@ class ModernTTSApp(*_APP_BASE):
                                            corner_radius=3, command=self.on_tts_change,
                                            fg_color=COLOR_CARD2, button_color=COLOR_FILL_SOFT,
                                            button_hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
-                                           dropdown_fg_color="#fffdf6", dropdown_text_color=COLOR_TEXT_MAIN,
+                                           dropdown_fg_color=COLOR_CARD2, dropdown_text_color=COLOR_TEXT_MAIN,
                                            dropdown_hover_color=COLOR_SELECT)
         self.tts_combo.grid(row=0, column=0, sticky="ew")
 
@@ -5685,10 +5937,11 @@ class ModernTTSApp(*_APP_BASE):
         self.main_area.grid(row=1, column=1, sticky="nsew", padx=(8, 20), pady=(8, 16))
         self._add_gloss(self.main_area, height=60)
         self.main_area.grid_rowconfigure(1, weight=1)
-        self.main_area.grid_columnconfigure(0, weight=1)
+        self.main_area.grid_columnconfigure(0, weight=0)   # панель «Книга по голосам»
+        self.main_area.grid_columnconfigure(1, weight=1)   # поле текста
 
         header = ctk.CTkFrame(self.main_area, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", padx=18, pady=(12, 6))
+        header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=18, pady=(12, 6))
         header.grid_columnconfigure(2, weight=1)
 
         ctk.CTkLabel(header, text="ТЕКСТ", font=(FONT_FAMILY, 10, "bold"),
@@ -5697,19 +5950,29 @@ class ModernTTSApp(*_APP_BASE):
         self.char_count_label = ctk.CTkLabel(header, text="", font=FONT_TINY, text_color=COLOR_TEXT_SEC)
         self.char_count_label.grid(row=0, column=1, padx=(10, 0), sticky="w")
 
-        # порядок в шапке (Ярослав, 09.11.26): «Ударение» идёт ПЕРЕД «Вставить»,
-        # остальные кнопки сдвинуты вправо
+        # порядок в шапке (Ярослав, 14.11.26): «📖 Книга по голосам» — слева от
+        # «Ударение», своим цветом (тёмная зелень). Кнопка «Вставить» убрана.
+        self.btn_book = ctk.CTkButton(header, text=_tr("📖  Книга по голосам"),
+                                      command=self._book_toggle,
+                                      width=156, height=28, corner_radius=3, font=FONT_SMALL,
+                                      fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                                      text_color=COLOR_ON_ACCENT)
+        self.btn_book.grid(row=0, column=2, sticky="e", padx=(6, 0))
+
+        # 🎭 быстрая разметка эмоций: как анализ «Без изменений» с «Добавить эмоции»
+        self.btn_book_emo = ctk.CTkButton(header, text=_tr("🎭  Добавить эмоции"),
+                                          command=self._emo_quick,
+                                          width=158, height=28, corner_radius=3, font=FONT_SMALL,
+                                          fg_color="transparent", hover_color=COLOR_SELECT,
+                                          text_color=COLOR_BRAND, border_width=1,
+                                          border_color=COLOR_BRAND)
+        self.btn_book_emo.grid(row=0, column=3, padx=(6, 0))
+
         self.btn_stress = ctk.CTkButton(header, text=_tr("Ударение"), command=self._open_stress_dialog,
                                         width=96, height=28, corner_radius=3, font=FONT_SMALL,
                                         fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                                         text_color=COLOR_TEXT_MAIN)
-        self.btn_stress.grid(row=0, column=3, padx=(6, 0))
-
-        self.btn_paste_text = ctk.CTkButton(header, text="Вставить", command=self.paste_own_text,
-                                            width=92, height=28, corner_radius=3, font=FONT_SMALL,
-                                            fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
-                                            text_color=COLOR_TEXT_MAIN)
-        self.btn_paste_text.grid(row=0, column=4, padx=(6, 0))
+        self.btn_stress.grid(row=0, column=4, padx=(6, 0))
 
         self.btn_file = ctk.CTkButton(header, text="Файл", command=self.insert_file,
                                       width=80, height=28, corner_radius=3, font=FONT_SMALL,
@@ -5723,12 +5986,87 @@ class ModernTTSApp(*_APP_BASE):
                                        text_color=COLOR_TEXT_SEC)
         self.btn_clear.grid(row=0, column=6, padx=(6, 0))
 
+        # ---------------- панель «Книга по голосам» (левая колонка текста) ----------------
+        # Видна только в режиме книги: список персонажей, у каждого свой голос.
+        self.book_panel = ctk.CTkFrame(self.main_area, fg_color=COLOR_CARD, corner_radius=R_CARD,
+                                       border_width=1, border_color=COLOR_BORDER, width=232)
+        self.book_panel.grid(row=1, column=0, sticky="nsw", padx=(18, 6), pady=(0, 4))
+        self.book_panel.grid_propagate(False)   # длинное имя персонажа не должно её раздувать
+        self.book_panel.grid_remove()
+
+        self.book_title_lbl = ctk.CTkLabel(self.book_panel, text=_tr("Голоса персонажей"),
+                                           font=(FONT_FAMILY, 11, "bold"), text_color=COLOR_HEAD,
+                                           anchor="w")
+        self.book_title_lbl.pack(fill="x", padx=10, pady=(10, 0))
+        self.book_hint = ctk.CTkLabel(self.book_panel, text="", font=FONT_TINY,
+                                      text_color=COLOR_TEXT_SEC, anchor="w", justify="left",
+                                      wraplength=200)
+        self.book_hint.pack(fill="x", padx=10, pady=(0, 6))
+
+        # голос по умолчанию: смена переносит голос на всех, у кого стоял прежний.
+        # Геометрия ровно как у строк персонажей ниже: то же поле, та же линия справа.
+        book_def = ctk.CTkFrame(self.book_panel, fg_color="transparent")
+        book_def.pack(fill="x", padx=6, pady=(0, 6))
+        book_def.grid_columnconfigure(0, weight=1)
+        self.book_def_lbl = ctk.CTkLabel(book_def, text=_tr("По умолчанию"), font=FONT_TINY,
+                                         text_color=COLOR_TEXT_SEC, anchor="w")
+        self.book_def_lbl.grid(row=0, column=0, sticky="w", padx=(2, 4))
+        self.book_def_menu = ctk.CTkOptionMenu(book_def, values=[""], width=104, height=24,
+                                               font=FONT_TINY, corner_radius=3,
+                                               fg_color=COLOR_CARD2, button_color=COLOR_FILL_SOFT,
+                                               button_hover_color=COLOR_SELECT,
+                                               text_color=COLOR_TEXT_MAIN,
+                                               dropdown_fg_color=COLOR_CARD2,
+                                               dropdown_text_color=COLOR_TEXT_MAIN,
+                                               dropdown_hover_color=COLOR_SELECT,
+                                               command=self._book_set_default)
+        self.book_def_menu.grid(row=0, column=1, sticky="e")
+        self.book_def_sep = ctk.CTkFrame(self.book_panel, fg_color=COLOR_BORDER, height=1)
+        self.book_def_sep.pack(fill="x", padx=6, pady=(0, 6))
+
+        self.book_rows = ctk.CTkScrollableFrame(self.book_panel, fg_color="transparent",
+                                                scrollbar_button_color=COLOR_BORDER)
+        self.book_rows.pack(fill="both", expand=True, padx=6, pady=(0, 4))
+        self.book_rows.grid_columnconfigure(0, weight=1)
+
+        book_foot = ctk.CTkFrame(self.book_panel, fg_color="transparent")
+        book_foot.pack(fill="x", padx=10, pady=(0, 10))
+        # одна кнопка вместо «↻ Разметить заново» + галочки «Нейросетью» (Ярослав, 13.11.26)
+        self.btn_book_split = ctk.CTkButton(book_foot, text=_tr("✨ Разметить нейросетью"), height=26,
+                                            corner_radius=3, font=FONT_TINY,
+                                            fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                                            text_color=COLOR_ON_ACCENT,
+                                            command=lambda: self._book_apply_split(use_llm=True))
+        self.btn_book_split.pack(fill="x", pady=(0, 4))
+        self.btn_book_add = ctk.CTkButton(book_foot, text=_tr("➕ Добавить персонажа"), height=26,
+                                          corner_radius=3, font=FONT_TINY,
+                                          fg_color=COLOR_FILL_SOFT, hover_color=COLOR_SELECT,
+                                          text_color=COLOR_TEXT_MAIN, border_width=1,
+                                          border_color=COLOR_BORDER,
+                                          command=self._book_add_character)
+        self.btn_book_add.pack(fill="x", pady=(6, 0))
+
         self.result_box = ctk.CTkTextbox(self.main_area, wrap="word", font=(FONT_FAMILY, 13),
                                          corner_radius=R_CARD, fg_color=COLOR_CARD,
                                          text_color=COLOR_TEXT_MAIN,
                                          border_width=1, border_color=COLOR_BORDER)
-        self.result_box.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 4))
+        self.result_box.grid(row=1, column=1, sticky="nsew", padx=(6, 18), pady=(0, 4))
         self._style_text_selection(self.result_box)
+
+        # -------- список фрагментов «Книги по голосам» (та же ячейка, вместо поля) --------
+        self.book_view = ctk.CTkTextbox(self.main_area, wrap="word", font=(FONT_FAMILY, 13),
+                                        corner_radius=R_CARD, fg_color=COLOR_CARD,
+                                        text_color=COLOR_TEXT_MAIN,
+                                        border_width=1, border_color=COLOR_BORDER)
+        self.book_view.grid(row=1, column=1, sticky="nsew", padx=(6, 18), pady=(0, 4))
+        self.book_view.grid_remove()
+        try:
+            _btb = self.book_view._textbox
+            _btb.configure(tabs=(120,))
+            _btb.bind("<Button-1>", self._book_on_click, add="+")
+            _btb.bind("<Button-3>", self._book_on_menu, add="+")
+        except Exception as _e:
+            print(f"⚠️ Список фрагментов: {_e}")
         self._dnd_attach(self.result_box)      # брось документ сюда — он откроется
 
         try:
@@ -5743,7 +6081,7 @@ class ModernTTSApp(*_APP_BASE):
             print(f"⚠️ Привязки result: {e}")
 
         stats_row = ctk.CTkFrame(self.main_area, fg_color="transparent")
-        stats_row.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 4))
+        stats_row.grid(row=2, column=0, columnspan=2, sticky="ew", padx=20, pady=(0, 4))
         stats_row.grid_columnconfigure(0, weight=1)
 
         self.stats_label = ctk.CTkLabel(stats_row, text="", font=FONT_TINY,
@@ -5760,7 +6098,7 @@ class ModernTTSApp(*_APP_BASE):
         self.audio_control_frame = ctk.CTkFrame(self.main_area, height=60, corner_radius=R_CARD,
                                                 fg_color=COLOR_CARD2, border_width=1,
                                                 border_color=COLOR_BORDER)
-        self.audio_control_frame.grid(row=3, column=0, sticky="ew", padx=18, pady=(0, 14))
+        self.audio_control_frame.grid(row=3, column=0, columnspan=2, sticky="ew", padx=18, pady=(0, 14))
         self.audio_control_frame.grid_columnconfigure(3, weight=1)
 
         self.btn_play = ctk.CTkButton(self.audio_control_frame, text="Озвучить", command=self.play_result,
@@ -5825,6 +6163,11 @@ class ModernTTSApp(*_APP_BASE):
     def _clear_box(self):
         self._set_box_text("", generated=False)
         self._show_placeholder()
+        if getattr(self, "book_mode", False):
+            self.book_items = []
+            self.book_source = ""
+            self._book_render_view()
+            self._book_refresh_panel([self.BOOK_AUTHOR])
 
     def _placeholder_text(self):
         """Заглушка пустого поля на языке интерфейса (переводим явно, без таблицы)."""
@@ -5959,10 +6302,1505 @@ class ModernTTSApp(*_APP_BASE):
         except Exception:
             pass
 
+    # ================= КНИГА ПО ГОЛОСАМ (Ярослав, 14.11.26) =================
+    # Справа — список фрагментов «номер · персонаж | фраза», слева — панель
+    # персонажей с голосами. Голоса проставляются автоматически, любой можно
+    # поправить вручную: голос персонажа — в панели, персонажа фрагмента — в меню.
+
+    BOOK_AUTHOR = "Автор"
+    BOOK_COLORS = ("#8a5a2b", "#3f6a5a", "#7a4a6a", "#5a6a2b", "#2b5a7a",
+                   "#8a3b2b", "#4a5a8a", "#6a4a2b", "#2b6a6a", "#7a5a8a")
+
+    # ---------- разбор книги на реплики (правила) ----------
+
+    @staticmethod
+    def _book_is_dialogue(p):
+        """Абзац-реплика: начинается с тире (русская типографика диалога).
+
+        Модель часто отдаёт обычный дефис вместо длинного тире — принимаем все три вида.
+        """
+        return bool(re.match(r"^[—–-]\s*", (p or "").lstrip()))
+
+    def _book_author_context(self, paras, idx):
+        """Соседние АВТОРСКИЕ абзацы — в них обычно стоит «сказал Иван»."""
+        out = []
+        if idx > 0 and not self._book_is_dialogue(paras[idx - 1]):
+            out.append(paras[idx - 1])
+        if idx + 1 < len(paras) and not self._book_is_dialogue(paras[idx + 1]):
+            out.append(paras[idx + 1])
+        return out
+
+    @staticmethod
+    def _book_gender_of_verb(verb):
+        """Форма глагола речи выдаёт пол: «сказала» — ж., «сказал» — м."""
+        v = (verb or "").lower()
+        if v.endswith("ли"):
+            return ""
+        return "f" if v.endswith(("а", "я")) else "m"
+
+    def _book_attribution_in(self, text):
+        """(слово, пол) — ближайшее к глаголу речи имя/местоимение в куске текста."""
+        for m in BOOK_AFTER_RE.finditer(text or ""):
+            return m.group(2), self._book_gender_of_verb(m.group(1))
+        for m in BOOK_BEFORE_RE.finditer(text or ""):
+            return m.group(1), self._book_gender_of_verb(m.group(2))
+        m = BOOK_EPITHET_RE.search(text or "")
+        if m:
+            for stem, name in BOOK_EPITHETS.items():
+                if m.group(1).lower().startswith(stem):
+                    return name, self._book_guess_gender(name)
+        return None, ""
+
+    def _book_collect_names(self, text):
+        """{имя: сколько раз названо}, {имя: пол}, {прочие имена: сколько}.
+
+        Основной круг — имена рядом с глаголами речи (именительный падеж).
+        Запасной — прочие имена собственные внутри предложений: они нужны, чтобы
+        понять, кого заменяет «он/она» в начале главы («смотрел на Марью»).
+        """
+        names, gender = {}, {}
+        for m in BOOK_AFTER_RE.finditer(text or ""):
+            w = m.group(2)
+            if w.lower() in ("он", "она", "они") or w in BOOK_STOP:
+                continue
+            names[w] = names.get(w, 0) + 1
+            gender.setdefault(w, self._book_gender_of_verb(m.group(1)))
+        for m in BOOK_BEFORE_RE.finditer(text or ""):
+            w = m.group(1)
+            if w in BOOK_STOP:
+                continue
+            names[w] = names.get(w, 0) + 1
+            gender.setdefault(w, self._book_gender_of_verb(m.group(2)))
+        extra = {}
+        for sent in re.split(r"(?<=[.!?…])\s+|\n+", text or ""):
+            words = re.findall(r"[А-ЯЁ][а-яё\-]{1,20}", sent)
+            for w in words[1:]:            # первое слово — начало предложения
+                if w in BOOK_STOP or w in names:
+                    continue
+                extra[w] = extra.get(w, 0) + 1
+        # падежные формы сводим к именительному: «Марью»/«Марьей» -> «Марья»
+        # (именительный берём из слов автора — «спросила Марья»)
+        canon = {}
+        for w in names:
+            canon.setdefault(w[:3].lower().replace("ё", "е"), w)
+        merged = {}
+        for w, c in extra.items():
+            base = canon.get(w[:3].lower().replace("ё", "е")) or w
+            merged[base] = merged.get(base, 0) + c
+        return names, gender, merged
+
+    @staticmethod
+    def _book_guess_gender(name):
+        """Пол по окончанию имени — грубо, только для «он/она»."""
+        return "f" if (name or "").lower().endswith(("а", "я")) else "m"
+
+    def _book_pick_name(self, counts, gender, extra, want):
+        """Самый частый персонаж нужного пола — когда «он/она» ещё не к кому отнести."""
+        cands = dict(extra or {})
+        cands.update(counts or {})
+        best, best_n = None, -1
+        for n, c in cands.items():
+            g = (gender or {}).get(n) or self._book_guess_gender(n)
+            if want and g != want:
+                continue
+            if c > best_n:
+                best, best_n = n, c
+        return best
+
+    def _book_dialogue_parts(self, p):
+        """Абзац-реплика -> [('dlg'|'auth'|'reply', текст)].
+
+        «— Привет! — сказал он. — Как дела?» даёт реплику, слова автора и продолжение.
+        Кусок между тире с маленькой буквы или с глаголом речи — это слова автора.
+        """
+        body = re.sub(r"^\s*[—–-]\s*", "", p or "")
+        # разделитель внутри строки — тире с пробелами; дефис тоже принимаем:
+        # нейросеть нередко возвращает «-» вместо «—» (вопрос Ярослава 13.11.26)
+        raw = re.split(r"\s+[—–-]\s+", body)
+        out = []
+        for i, part in enumerate(raw):
+            part = part.strip()
+            if not part:
+                continue
+            # метка «Автор:» могла остаться от прошлого прохода — это слова автора,
+            # а не реплика (иначе в тексте висело «— Автор: отвечал Страшила»)
+            if re.match(r"^" + re.escape(self.BOOK_AUTHOR) + r"\s*:", part, re.I):
+                out.append(("auth", re.sub(r"^[^:]+:\s*[—–-]?\s*", "", part)))
+                continue
+            if i % 2 == 0:
+                out.append(("dlg", part))
+            else:
+                if BOOK_VERB_RE.search(part) or part[:1].islower():
+                    out.append(("auth", part))
+                else:
+                    out.append(("reply", part))   # вторая реплика без слов автора
+        return out or [("dlg", (p or "").strip())]
+
+    def _book_split_rules(self, text):
+        """Правила: текст -> ([(имя, фраза)], {имя: реплик}).
+
+        Реплика получает имя из слов автора рядом (в этом же абзаце, затем в
+        соседних). Без слов автора диалог двух персонажей чередуется.
+        """
+        paras = [p.strip() for p in re.split(r"\n+", text or "") if p.strip()]
+        counts, gender, extra = self._book_collect_names("\n".join(paras))
+        seen, lines = [], []
+        last_named, recent = None, []
+
+        def put(speaker, phrase):
+            phrase = (phrase or "").strip()
+            if phrase:
+                lines.append((speaker, phrase))
+
+        def push(spk):
+            if not recent or recent[-1] != spk:
+                recent.append(spk)
+                del recent[:-4]
+
+        for idx, p in enumerate(paras):
+            if not self._book_is_dialogue(p):
+                put(self.BOOK_AUTHOR, re.sub(r"^\[\[(.+?)\]\]$", r"\1", p))
+                continue
+
+            name, g = self._book_attribution_in(p)
+            if not name:
+                for ctx in self._book_author_context(paras, idx):
+                    name, g = self._book_attribution_in(ctx)
+                    if name:
+                        break
+            if not name:
+                # имени в именительном нет, но персонаж уже размечен («успокоился страшила»)
+                name = self._book_known_in(p, list(counts) + self._book_known_names())
+                if name:
+                    g = self._book_guess_gender(name)
+            if name:
+                low = name.lower()
+                if low in ("он", "она", "они"):
+                    want = {"он": "m", "она": "f", "они": ""}[low]
+                    name = (next((n for n in reversed(seen)
+                                  if not want
+                                  or (gender.get(n) or self._book_guess_gender(n)) == want), None)
+                            or last_named
+                            or self._book_pick_name(counts, gender, extra, want))
+                elif name in BOOK_STOP:
+                    name = None
+                if name:
+                    gender.setdefault(name, g or self._book_guess_gender(name))
+                    last_named = name
+                    if name not in seen:
+                        seen.append(name)
+            if not name:
+                # слов автора нет: в диалоге двух персонажей реплики чередуются
+                if len(recent) >= 2 and recent[-1] != recent[-2]:
+                    name = recent[-2]
+                elif recent:
+                    name = recent[-1]
+                else:
+                    name = "Неизвестный"     # реплику читает отдельный голос, не автор
+
+            parts = self._book_dialogue_parts(p)
+            for kind, chunk in parts:
+                if kind == "auth":
+                    put(self.BOOK_AUTHOR, chunk)
+                elif kind == "reply":
+                    other = (recent[-2] if len(recent) >= 2 and recent[-1] != recent[-2]
+                             else name)
+                    put(other, chunk)
+                    push(other)
+                else:
+                    put(name, chunk)
+                    push(name)
+
+        got = {}
+        for spk, _ in lines:
+            got[spk] = got.get(spk, 0) + 1
+        for spk in seen:                       # порядок: сперва частые персонажи
+            got.setdefault(spk, 0)
+        order = sorted(got.items(), key=lambda kv: (kv[0] != self.BOOK_AUTHOR, -kv[1]))
+        return lines, dict(order)
+
+    def _book_render(self, lines):
+        """[(имя, фраза)] -> текст «Имя: фраза» построчно (для модели и обмена)."""
+        out = []
+        for spk, phrase in lines:
+            phrase = " ".join((phrase or "").split())
+            if phrase:
+                out.append(f"{spk}: {phrase}")
+        return "\n".join(out)
+
+    @staticmethod
+    def _book_name_like(s):
+        """Похоже на имя персонажа, а не на «Внимание» из обычного текста."""
+        s = (s or "").strip()
+        if not s or len(s) > 40 or re.search(r"[.!?;,\"»«()\[\]]", s):
+            return False
+        words = [w for w in s.split() if w]
+        return bool(words) and all(w[:1].isupper() for w in words)
+
+    def _book_parse_text(self, text):
+        """Размеченный текст -> [(имя, фраза)]. Строка без «Имя:» — продолжение прежнего."""
+        out, last = [], self.BOOK_AUTHOR
+        for raw in (text or "").split("\n"):
+            line = raw.strip()
+            if not line:
+                continue
+            m = re.match(r"^([^:]{1,40}?):\s+(.+)$", line)
+            if m and (m.group(1) in self.book_cast or self._book_name_like(m.group(1))):
+                last = m.group(1).strip()
+                out.append((last, m.group(2).strip()))
+            else:
+                out.append((last, line))
+        return out
+
+    def _book_looks_marked(self, text):
+        """В тексте уже разметка «Имя: фраза»?"""
+        lines = [l.strip() for l in (text or "").split("\n") if l.strip()]
+        if len(lines) < 2:
+            return False
+        good = 0
+        for l in lines:
+            if ":" not in l:
+                continue
+            head = l.split(":", 1)[0]
+            if self._book_name_like(head):
+                good += 1
+        return good / len(lines) >= 0.4
+
+    # ---------- фрагменты: состояние, отрисовка, клики ----------
+
+    def _book_names(self):
+        out = []
+        for it in self.book_items:
+            n = it.get("speaker") or self.BOOK_AUTHOR
+            if n not in out:
+                out.append(n)
+        return out
+
+    def _book_set_items(self, lines, keep_sel=False):
+        """[(имя, фраза)] -> фрагменты + перерисовка списка и панели."""
+        self.book_items = [{"speaker": spk or self.BOOK_AUTHOR, "text": (txt or "").strip()}
+                           for spk, txt in lines if (txt or "").strip()]
+        if not keep_sel:
+            self._book_sel = None
+        self._book_render_view()
+        self._book_refresh_panel(self._book_names())
+
+    def _book_view_text(self):
+        """Фрагменты как текст «Имя: фраза» — для модели и для обычного режима."""
+        return self._book_render([(it.get("speaker"), it.get("text")) for it in self.book_items])
+
+    def _book_render_view(self):
+        """Перерисовать список фрагментов (одно поле Tk: тянет тысячи строк)."""
+        try:
+            tb = self.book_view._textbox
+        except Exception as e:
+            print(f"⚠️ Список фрагментов: {e}")
+            return
+        tb.configure(state="normal")
+        tb.delete("1.0", "end")
+        if not self.book_items:
+            tb.configure(state="disabled")
+            return
+        colors = {}
+        for it in self.book_items:
+            n = it.get("speaker") or self.BOOK_AUTHOR
+            if n not in colors:
+                colors[n] = self.BOOK_COLORS[len(colors) % len(self.BOOK_COLORS)]
+        for n, c in colors.items():
+            tb.tag_configure(f"spk:{n}", foreground=c)
+        tb.tag_configure("selrow", background=COLOR_SELECT[0])
+        tb.tag_configure("fragnum", foreground=COLOR_TEXT_SEC[0])
+        heads, lines = [], []
+        for i, it in enumerate(self.book_items, 1):
+            head = f"{i:>4}  "
+            name = self._book_short(it.get("speaker") or self.BOOK_AUTHOR, 13)
+            heads.append((head, name))
+            text = " ".join((it.get("text") or "").split())
+            lines.append(f"{head}{name}\t{text}")
+        tb.insert("1.0", "\n".join(lines))
+        for i, (head, name) in enumerate(heads, 1):
+            tb.tag_add("fragnum", f"{i}.0", f"{i}.{len(head)}")
+            spk = self.book_items[i - 1].get("speaker") or self.BOOK_AUTHOR
+            tb.tag_add(f"spk:{spk}", f"{i}.{len(head)}", f"{i}.{len(head) + len(name)}")
+        sel = getattr(self, "_book_sel", None)
+        if sel is not None and 0 <= sel < len(self.book_items):
+            tb.tag_add("selrow", f"{sel + 1}.0", f"{sel + 1}.end+1c")
+        tb.configure(state="disabled")
+
+    def _book_line_at(self, event):
+        """Номер фрагмента под курсором (0-based) или None."""
+        try:
+            idx = self.book_view._textbox.index(f"@{event.x},{event.y}")
+            return int(str(idx).split(".")[0]) - 1
+        except Exception:
+            return None
+
+    def _book_on_click(self, event):
+        idx = self._book_line_at(event)
+        if idx is None or not (0 <= idx < len(self.book_items)):
+            return
+        self._book_sel = idx
+        it = self.book_items[idx]
+        tb = self.book_view._textbox
+        try:
+            tb.tag_remove("selrow", "1.0", "end")
+            tb.tag_add("selrow", f"{idx + 1}.0", f"{idx + 1}.end+1c")
+        except Exception:
+            pass
+        self.update_status(f"Фрагмент {idx + 1} · {it.get('speaker')} — "
+                           f"правый клик: сменить персонажа или текст")
+
+    def _book_on_menu(self, event):
+        idx = self._book_line_at(event)
+        if idx is None or not (0 <= idx < len(self.book_items)):
+            return
+        self._book_on_click(event)
+        it = self.book_items[idx]
+        m = Menu(self, tearoff=0)
+        sub = Menu(m, tearoff=0)
+        _style_book_menu(m)
+        _style_book_menu(sub)
+        names = self._book_names()
+        for extra in self.book_cast:
+            if extra not in names:
+                names.append(extra)
+        if not names:
+            names = [self.BOOK_AUTHOR]
+        for n in names:
+            sub.add_command(label=("✔ " if n == it.get("speaker") else "    ") + n,
+                            command=lambda n=n, i=idx: self._book_assign_character(i, n))
+        m.add_cascade(label=_tr("Персонаж"), menu=sub)
+        m.add_command(label=_tr("Изменить текст…"),
+                      command=lambda i=idx: self._book_edit_fragment(i))
+        m.add_command(label=_tr("Изменить громкость…"),
+                      command=lambda i=idx: self._book_volume_dialog(i))
+        m.add_separator()
+        m.add_command(label=_tr("Озвучить с этого фрагмента"),
+                      command=lambda i=idx: self._book_play_from(i))
+        m.add_command(label=_tr("Удалить фрагмент"),
+                      command=lambda i=idx: self._book_delete_fragment(i))
+        try:
+            m.tk_popup(event.x_root, event.y_root)
+        finally:
+            try:
+                m.grab_release()
+            except Exception:
+                pass
+
+    def _book_assign_character(self, idx, name):
+        if not (0 <= idx < len(self.book_items)):
+            return
+        self.book_items[idx]["speaker"] = name
+        if name not in self.book_cast:
+            self.book_cast[name] = self._book_default_voice()
+        self._book_render_view()
+        self._book_refresh_panel(self._book_names())
+        self.save_settings()
+        self.update_status(f"Фрагмент {idx + 1} — {name}")
+
+    def _book_edit_fragment(self, idx, stress_hint=False):
+        if not (0 <= idx < len(self.book_items)):
+            return
+        it = self.book_items[idx]
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Изменить текст фрагмента"))
+        dlg.geometry("560x320" if stress_hint else "560x300")
+        _center_on_parent(dlg)
+        dlg.configure(fg_color=COLOR_BG)
+        _apply_dialog_icon(dlg)
+        dlg.transient(self)
+        top_row = ctk.CTkFrame(dlg, fg_color="transparent")
+        top_row.pack(fill="x", padx=16, pady=(14, 4))
+        ctk.CTkLabel(top_row, text=f"{idx + 1} · {it.get('speaker')}", font=FONT_SMALL,
+                     text_color=COLOR_TEXT_SEC, anchor="w").pack(side="left")
+        if stress_hint:
+            hint_row = ctk.CTkFrame(dlg, fg_color="transparent")
+            hint_row.pack(fill="x", padx=16, pady=(0, 4))
+            ctk.CTkLabel(hint_row, text=_tr("Выделите слово в тексте и нажмите «Ударение»"),
+                         font=FONT_TINY, text_color=COLOR_TEXT_SEC, anchor="w").pack(side="left")
+        else:
+            hint_row = ctk.CTkFrame(dlg, fg_color="transparent")
+            hint_row.pack(fill="x", padx=16, pady=(0, 4))
+        box = ctk.CTkTextbox(dlg, wrap="word", font=(FONT_FAMILY, 13), fg_color=COLOR_CARD,
+                             text_color=COLOR_TEXT_MAIN, border_width=1,
+                             border_color=COLOR_BORDER)
+        box.pack(fill="both", expand=True, padx=16, pady=(0, 10))
+        box.insert("1.0", it.get("text") or "")
+
+        def pick_stress():
+            """Ударение для слова, выделенного в поле (или под курсором)."""
+            tb = box._textbox
+            try:
+                pos = tb.index("sel.first") if tb.tag_ranges("sel") else tb.index("insert")
+            except Exception:
+                pos = tb.index("insert")
+            self._stress_choose(tb, pos, parent=dlg)
+
+        # кнопка «Ударение» — вверху справа, под номером фрагмента (как нарисовал Ярослав)
+        ctk.CTkButton(hint_row, text=_tr("Ударение"), command=pick_stress, width=110, height=26,
+                      corner_radius=3, font=FONT_SMALL,
+                      fg_color=COLOR_FILL_SOFT, hover_color=COLOR_SELECT,
+                      text_color=COLOR_TEXT_MAIN, border_width=1,
+                      border_color=COLOR_BORDER).pack(side="right")
+
+        def save():
+            txt = box.get("1.0", "end-1c").strip()
+            if txt:
+                self.book_items[idx]["text"] = txt
+                self._book_render_view()
+                self.update_status(f"✅ Фрагмент {idx + 1} изменён")
+            dlg.destroy()
+
+        foot = ctk.CTkFrame(dlg, fg_color="transparent")
+        foot.pack(fill="x", padx=16, pady=(0, 14))
+        ctk.CTkButton(foot, text=_tr("Сохранить"), width=120, height=30, corner_radius=3,
+                      fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                      text_color=COLOR_ON_ACCENT, command=save).pack(side="right")
+        ctk.CTkButton(foot, text=_tr("Отмена"), width=100, height=30, corner_radius=3,
+                      fg_color="transparent", border_width=1, border_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_SEC, command=dlg.destroy).pack(side="right", padx=(0, 8))
+        # высота по содержимому: при фиксированных 300/320 низ с «Сохранить»/«Отмена»
+        # уезжал за край окна и кнопок не было видно (баг Ярослава 13.11.26)
+        dlg.update_idletasks()
+        need_h = max(320 if stress_hint else 300, dlg.winfo_reqheight() + 10)
+        dlg.geometry(f"560x{need_h}")
+        box.focus_set()
+
+    def _book_volume_dialog(self, idx):
+        """Громкость реплики: ползунок −5…+5, как у эмоции в настройках голоса.
+
+        Значение уходит в паспорт эмоции этого персонажа (тот же `gain`, что
+        у ползунка в окне эмоций) и запоминается для будущих озвучек.
+        Если эмоции нет — в общую громкость персонажа `book_gain`."""
+        if not (0 <= idx < len(self.book_items)):
+            return
+        it = self.book_items[idx]
+        spk = it.get("speaker") or self.BOOK_AUTHOR
+        emo = ""
+        try:
+            for e, _frag in self._split_emotion_segments(it.get("text") or "", spk):
+                if e:
+                    emo = e
+                    break
+        except Exception:
+            emo = ""
+
+        def cur_steps():
+            if emo:
+                try:
+                    _vid, info = self._find_voice(spk)
+                    return int((((info or {}).get("samples") or {}).get(emo) or {}).get("gain") or 0)
+                except Exception:
+                    return 0
+            return int((getattr(self, "book_gain", {}) or {}).get(spk) or 0)
+
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Изменить громкость"))
+        dlg.geometry("380x200")
+        _center_on_parent(dlg)
+        dlg.configure(fg_color=COLOR_BG)
+        _apply_dialog_icon(dlg)
+        dlg.transient(self)
+        wrap = ctk.CTkFrame(dlg, fg_color="transparent")
+        wrap.pack(fill="both", expand=True, padx=18, pady=14)
+
+        head = f"{emo} · {spk}" if emo else f"{_tr('Без эмоции')} · {spk}"
+        ctk.CTkLabel(wrap, text=head, font=(FONT_FAMILY, 13, "bold"),
+                     text_color=COLOR_TEXT_MAIN, anchor="w").pack(fill="x")
+        ctk.CTkLabel(wrap, text=_tr("Громкость реплики (как ползунок эмоции)"), font=FONT_TINY,
+                     text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", pady=(0, 8))
+
+        val_lbl = ctk.CTkLabel(wrap, text="", font=(FONT_FAMILY, 18), text_color=COLOR_TEXT_MAIN)
+        val_lbl.pack(anchor="w")
+
+        def show(v):
+            s = int(round(float(v)))
+            val_lbl.configure(text=f"{s:+d}" if s else "0",
+                              text_color=COLOR_TEXT_MAIN if s == 0 else COLOR_ACCENT_SOFT)
+            return s
+
+        slider = ctk.CTkSlider(wrap, from_=-5, to=5, number_of_steps=10, height=16,
+                               button_color=COLOR_BRAND, progress_color=COLOR_BRAND,
+                               command=show)
+        slider.pack(fill="x", pady=(6, 2))
+        steps_row = ctk.CTkFrame(wrap, fg_color="transparent")
+        steps_row.pack(fill="x")
+        ctk.CTkLabel(steps_row, text=_tr("тише"), font=FONT_TINY,
+                     text_color=COLOR_TEXT_SEC).pack(side="left")
+        ctk.CTkLabel(steps_row, text=_tr("громче"), font=FONT_TINY,
+                     text_color=COLOR_TEXT_SEC).pack(side="right")
+        slider.set(cur_steps())
+        show(cur_steps())
+
+        def save_and_close():
+            steps = max(-5, min(5, int(round(float(slider.get())))))
+            if emo:
+                written = False
+                try:
+                    _vid, info = self._find_voice(spk)
+                    smp = ((info or {}).get("samples") or {}).get(emo)
+                    if isinstance(smp, dict):
+                        smp["gain"] = steps
+                        written = True
+                except Exception as e:
+                    print(f"⚠️ Громкость эмоции: {e}")
+                if not written:
+                    self.book_gain[spk] = steps
+            else:
+                self.book_gain[spk] = steps
+            self.save_settings()
+            self._book_render_view()
+            self.update_status(f"🔊 Громкость {head}: {steps:+d}" if steps
+                               else f"🔊 Громкость {head}: 0")
+            dlg.destroy()
+
+        foot = ctk.CTkFrame(wrap, fg_color="transparent")
+        foot.pack(fill="x", pady=(12, 0))
+        ctk.CTkButton(foot, text=_tr("Готово"), width=110, height=30, corner_radius=3,
+                      fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                      text_color=COLOR_ON_ACCENT, command=save_and_close).pack(side="right")
+        ctk.CTkButton(foot, text=_tr("Сброс"), width=90, height=30, corner_radius=3,
+                      fg_color="transparent", border_width=1, border_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_SEC,
+                      command=lambda: (slider.set(0), show(0))).pack(side="right", padx=(0, 8))
+        ctk.CTkButton(foot, text=_tr("Отмена"), width=90, height=30, corner_radius=3,
+                      fg_color="transparent", border_width=1, border_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_SEC, command=dlg.destroy).pack(side="right", padx=(0, 8))
+        dlg.after(60, dlg.grab_set)
+
+    def _book_delete_fragment(self, idx):
+        """Удалить фрагмент из списка (ПКМ → «Удалить фрагмент»)."""
+        if not (0 <= idx < len(self.book_items)):
+            return
+        it = self.book_items[idx]
+        head = f"{idx + 1} · {it.get('speaker') or self.BOOK_AUTHOR}"
+        body = (it.get("text") or "").strip()
+        if len(body) > 120:
+            body = body[:120] + "…"
+        if not messagebox.askyesno(_tr("Удалить фрагмент"), f"{head}\n\n{body}\n\n{_tr('Удалить?')}"):
+            return
+        del self.book_items[idx]
+        self._book_sel = None
+        self._book_render_view()
+        self._book_refresh_panel(self._book_names())
+        self.save_settings()
+        self.update_status(f"🗑 {_tr('Фрагмент удалён')}: {head}")
+
+    def _book_play_voice(self, name):
+        """▶ у персонажа: прослушать образец выбранного голоса."""
+        voice = self.book_cast.get(name) or self._book_default_voice() or ""
+        if not voice:
+            return
+        vid, info = self._find_voice(voice)
+        path = (info or {}).get("path") or ""
+        if not path or not os.path.exists(path):
+            self.update_status(f"🔇 {voice}: {_tr('образца нет — запишите голос в карточке «ОЗВУЧКА»')}")
+            return
+        # повторное нажатие по тому же голосу — стоп
+        if getattr(self, "_voice_preview_on", False):
+            same = getattr(self, "_voice_preview_name", None) == voice
+            self._voice_preview_stop()
+            if same:
+                return
+        self._voice_preview_on = True
+        self._voice_preview_name = voice
+        self.update_status(f"▶ {voice}")
+
+        def work():
+            try:
+                with wave.open(path) as w:
+                    sr = w.getframerate()
+                    data = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+                if getattr(self, "book_mode", False):
+                    data = self._book_limit_peak(data)
+                sd.play(data, samplerate=sr, blocking=True)
+            except Exception as e:
+                print(f"⚠️ Прослушка голоса: {e}")
+            finally:
+                self._voice_preview_on = False    # без after: поток не должен трогать Tk
+        threading.Thread(target=work, daemon=True).start()
+
+    def _voice_preview_stop(self):
+        self._voice_preview_on = False
+        try:
+            sd.stop()
+        except Exception:
+            pass
+
+    def _book_play_from(self, idx):
+        self._book_start = idx
+        self.play_result()
+
+    # ---------- панель голосов и режим ----------
+
+    def _book_voice_values(self):
+        """Голоса, доступные персонажам: список голосов текущего движка."""
+        if self.current_engine == "Piper":
+            return sorted(self.tts_models.keys())
+        if self.current_engine == "Qwen":
+            vals = list(QWEN_DISPLAY)
+            return vals + [v for v in self.voice_values("Qwen") if v not in vals]
+        return self.voice_values("Vox")
+
+    @staticmethod
+    def _book_short(name, keep=15):
+        name = (name or "").strip()
+        return name if len(name) <= keep else name[:keep - 1] + "…"
+
+    def _book_update_hint(self):
+        try:
+            self.book_hint.configure(text=_tr(
+                "Голоса проставляются сами. Правый клик по фрагменту — сменить персонажа или текст."))
+        except Exception:
+            pass
+
+    def _book_refresh_panel(self, names=None):
+        """Перерисовать список персонажей с выбором голоса у каждого."""
+        if not self.book_mode:
+            return
+        if names is None:
+            names = self._book_names()
+        uniq = []
+        for n in ([self.BOOK_AUTHOR] + list(names) + list(getattr(self, "book_extra", []) or [])):
+            if n and n not in uniq:
+                uniq.append(n)
+        try:
+            for w in list(self.book_rows.winfo_children()):
+                w.destroy()
+        except Exception:
+            pass
+        values = self._book_voice_values()
+        default = self._book_default_voice()
+        for i, name in enumerate(uniq):
+            cur = self.book_cast.get(name) or default or (values[0] if values else "")
+            if cur:
+                self.book_cast[name] = cur
+            row_vals = values if (cur in values or not cur) else values + [cur]
+            row = ctk.CTkFrame(self.book_rows, fg_color="transparent")
+            row.grid(row=i, column=0, sticky="ew", pady=1)
+            row.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(row, text=self._book_short(name), font=FONT_TINY,
+                         text_color=COLOR_TEXT_MAIN, anchor="w").grid(
+                row=0, column=0, sticky="w", padx=(2, 4))
+            # ▶ — прослушать образец выбранного голоса прямо здесь (14.11.26)
+            ctk.CTkButton(row, text="▶", width=22, height=22, corner_radius=3,
+                          font=(FONT_FAMILY, 10), fg_color="transparent",
+                          hover_color=COLOR_SELECT, text_color=COLOR_TEXT_SEC,
+                          command=lambda n=name: self._book_play_voice(n)).grid(
+                row=0, column=2, sticky="e", padx=(3, 0))
+            try:
+                menu = ctk.CTkOptionMenu(row, values=row_vals or [""], width=104, height=24,
+                                         font=FONT_TINY, corner_radius=3,
+                                         fg_color=COLOR_CARD2, button_color=COLOR_FILL_SOFT,
+                                         button_hover_color=COLOR_SELECT,
+                                         text_color=COLOR_TEXT_MAIN,
+                                         dropdown_fg_color=COLOR_CARD2,
+                                         dropdown_text_color=COLOR_TEXT_MAIN,
+                                         dropdown_hover_color=COLOR_SELECT,
+                                         command=lambda v, n=name: self._book_set_cast(n, v))
+                if cur:
+                    menu.set(cur)
+                menu.grid(row=0, column=1, sticky="e")
+            except Exception as e:
+                print(f"⚠️ Панель книги: {e}")
+        # «голос по умолчанию» над списком персонажей
+        try:
+            dv = default or (values[0] if values else "")
+            self.book_def_menu.configure(values=values if (dv in values or not values) else values + [dv])
+            if dv:
+                self.book_def_menu.set(dv)
+        except Exception as e:
+            print(f"⚠️ Голос по умолчанию: {e}")
+        self._book_update_hint()
+        self._book_align_default()
+
+    def _book_align_default(self, tries=0):
+        """Строка «По умолчанию» — ровно над меню персонажей (то же поле, тот же край).
+
+        Отступы считаются АБСОЛЮТНО от краёв панели (не накоплением), и только когда
+        панель уже разложена: иначе на пустом поле замеры приходят мусорные и панель
+        раздувается, выдавливая кнопки шапки за край окна (баг 14.11.26)."""
+        try:
+            rows = [w for w in self.book_rows.winfo_children() if len(w.winfo_children()) > 1]
+            if not rows:
+                return
+            ref_label, ref_menu = rows[0].winfo_children()[:2]
+            p = self.book_panel
+            ready = (p.winfo_ismapped() and ref_menu.winfo_ismapped()
+                     and ref_menu.winfo_width() > 10 and p.winfo_width() > 50)
+            if not ready:
+                if tries < 6:
+                    self.after(40, lambda: self._book_align_default(tries + 1))
+                return
+            p_left, p_right = p.winfo_rootx(), p.winfo_rootx() + p.winfo_width()
+            pad_l = ref_label.winfo_rootx() - (p_left + 6)     # как у имени персонажа
+            pad_r = (p_right - 6) - (ref_menu.winfo_rootx() + ref_menu.winfo_width())
+            if 0 <= pad_l <= 80:
+                self.book_def_lbl.grid_configure(padx=(max(2, pad_l), 4))
+            if 0 <= pad_r <= 80:
+                self.book_def_menu.grid_configure(padx=(0, pad_r))
+        except Exception as e:
+            print(f"⚠️ Выравнивание «По умолчанию»: {e}")
+
+    def _book_switch_key(self, key):
+        """Переключить таблицу голосов на другую книгу: у каждой книги свой набор.
+
+        Текущий набор уходит в book_casts[прежняя книга], у новой книги набор
+        поднимается из памяти (если она уже размечалась — голоса вернутся)."""
+        key = (key or "").strip() or "—"
+        if key == (getattr(self, "book_key", "") or ""):
+            return
+        old = getattr(self, "book_key", "") or ""
+        if old:
+            self.book_casts[old] = dict(self.book_cast)
+        self.book_key = key
+        self.book_cast = dict(self.book_casts.get(key) or {})
+        print(f"📚 Книга «{key}»: знакомых персонажей {len(self.book_cast)}")
+
+    def _book_casts_pack(self):
+        """Все наборы голосов по книгам + текущий (для settings.json)."""
+        casts = {k: dict(v) for k, v in (getattr(self, "book_casts", {}) or {}).items() if v}
+        key = (getattr(self, "book_key", "") or "").strip()
+        if key:
+            casts[key] = dict(getattr(self, "book_cast", {}) or {})
+        return casts
+
+    def _book_set_cast(self, name, voice):
+        self.book_cast[name] = voice
+        self.book_default = self._book_default_voice()   # не терять выбранный «по умолчанию»
+        self.save_settings()
+        if UI_LANG == "en":
+            self.update_status(f"✅ {name} — voice “{voice}”")
+        else:
+            self.update_status(f"✅ {name} — голос «{voice}»")
+
+    def _book_default_voice(self):
+        """Голос по умолчанию: для новых персонажей и для подстановки пустым строкам."""
+        vals = self._book_voice_values()
+        cur = getattr(self, "book_default", "") or self.tts_combo.get()
+        if vals and cur not in vals:
+            cur = vals[0]
+        return cur or (vals[0] if vals else "")
+
+    def _book_set_default(self, voice):
+        """Смена голоса по умолчанию переносит его на всех, у кого стоял прежний."""
+        old = self._book_default_voice()
+        self.book_default = voice
+        changed = 0
+        for name in list(self.book_cast):
+            if (self.book_cast.get(name) or old) == old:
+                self.book_cast[name] = voice
+                changed += 1
+        self._book_refresh_panel()
+        self.save_settings()
+        if UI_LANG == "en":
+            self.update_status(f"✅ Default voice “{voice}”: {changed} characters updated")
+        else:
+            self.update_status(f"✅ Голос по умолчанию «{voice}»: заменён у {changed} персонаж(ей) книги")
+
+    def _book_add_character(self):
+        """Добавить персонажа вручную — если автоматика кого-то не распознала."""
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(_tr("Новый персонаж"))
+        dlg.geometry("420x190")
+        _center_on_parent(dlg)
+        dlg.configure(fg_color=COLOR_BG)
+        _apply_dialog_icon(dlg)
+        dlg.transient(self)
+        dlg.grab_set()
+        ctk.CTkLabel(dlg, text=_tr("Имя персонажа"), font=FONT_SMALL,
+                     text_color=COLOR_TEXT_MAIN, anchor="w").pack(fill="x", padx=16, pady=(16, 4))
+        entry = ctk.CTkEntry(dlg, font=FONT_SMALL, fg_color=COLOR_CARD2,
+                             text_color=COLOR_TEXT_MAIN, border_color=COLOR_BORDER)
+        entry.pack(fill="x", padx=16)
+        entry.focus_set()
+        ctk.CTkLabel(dlg, text=_tr("Потом назначьте его фрагментам: правый клик → «Персонаж»."),
+                     font=FONT_TINY, text_color=COLOR_TEXT_SEC, anchor="w",
+                     wraplength=380, justify="left").pack(fill="x", padx=16, pady=(8, 0))
+
+        def add(_e=None):
+            name = entry.get().strip()
+            if not name:
+                return
+            self.book_cast.setdefault(name, self._book_default_voice())
+            if name not in (self.book_extra or []):
+                self.book_extra = list(getattr(self, "book_extra", []) or []) + [name]
+            self._book_refresh_panel(self._book_names() + [name])
+            self.save_settings()
+            self.update_status(f"✅ Персонаж «{name}» добавлен")
+            dlg.destroy()
+
+        entry.bind("<Return>", add)
+        foot = ctk.CTkFrame(dlg, fg_color="transparent")
+        foot.pack(fill="x", padx=16, pady=(12, 14))
+        ctk.CTkButton(foot, text=_tr("Добавить"), width=120, height=30, corner_radius=3,
+                      fg_color=COLOR_BOOK, hover_color=COLOR_BOOK_HOVER,
+                      text_color=COLOR_BOOK_TEXT, command=add).pack(side="right")
+        ctk.CTkButton(foot, text=_tr("Отмена"), width=100, height=30, corner_radius=3,
+                      fg_color="transparent", border_width=1, border_color=COLOR_BORDER,
+                      text_color=COLOR_TEXT_SEC, command=dlg.destroy).pack(side="right", padx=(0, 8))
+
+    def _book_segments(self, items=None):
+        """Фрагменты -> [(голос, фраза)] для многоголосого синтеза."""
+        default = self.current_tts_name or self.tts_combo.get()
+        out, unknown = [], set()
+        for it in (items if items is not None else self.book_items):
+            name = it.get("speaker") or self.BOOK_AUTHOR
+            voice = self.book_cast.get(name)
+            if not voice:
+                voice = default
+                unknown.add(name)
+            out.append((voice, it.get("text") or ""))
+        if unknown:
+            print(f"⚠️ Персонажи без голоса (озвучены основным): {', '.join(sorted(unknown))}")
+        return out
+
+    def _book_show_view(self, on):
+        """Переключить правую колонку: список фрагментов или обычное поле текста."""
+        try:
+            if on:
+                self.result_box.grid_remove()
+                self.book_view.grid(row=1, column=1, sticky="nsew", padx=(6, 18), pady=(0, 4))
+            else:
+                self.book_view.grid_remove()
+                self.result_box.grid()
+        except Exception as e:
+            print(f"⚠️ Переключение вида книги: {e}")
+
+    def _book_toggle(self):
+        if self.book_mode:
+            self._book_disable()
+        else:
+            self._book_enable()
+
+    def _book_widen(self, on):
+        """Режим книги занимает место слева — расширяем окно, чтобы текст не сжался."""
+        try:
+            m = re.match(r"(\d+)x(\d+)([+-]\d+)([+-]\d+)", self.geometry())
+            if not m:
+                return
+            w, h, x, y = (int(m.group(1)), int(m.group(2)),
+                          int(m.group(3)), int(m.group(4)))
+            if on:
+                self._book_geo_before = f"{w}x{h}{x:+d}{y:+d}"
+                target = min(self.winfo_screenwidth() - 40, max(w, 1400))
+                if target > w:
+                    x = max(10, min(x, self.winfo_screenwidth() - target - 10))
+                    self.geometry(f"{target}x{h}{x:+d}{y:+d}")
+            else:
+                before = getattr(self, "_book_geo_before", None)
+                if before:
+                    self.geometry(before)
+                    self._book_geo_before = None
+        except Exception as e:
+            print(f"⚠️ Геометрия режима книги: {e}")
+
+    def _book_enable(self):
+        self.book_mode = True
+        # голоса помнятся по книге: подхватываем набор последнего загруженного файла
+        if getattr(self, "_pending_key", ""):
+            self._book_switch_key(self._pending_key)
+        self._book_widen(True)
+        try:
+            self.book_panel.grid()
+            self.btn_book.configure(fg_color=COLOR_BRAND_HOVER)
+        except Exception:
+            pass
+        self._book_show_view(True)
+        self._book_update_hint()
+        try:
+            text = self.result_box.get("1.0", "end-1c")
+        except Exception:
+            text = ""
+        if self._placeholder_active or not (text or "").strip():
+            self.book_items = []
+            self.book_source = ""
+            self._book_render_view()
+            self._book_refresh_panel([self.BOOK_AUTHOR])
+            self.update_status("📖 Режим «Книга по голосам»: вставьте книгу — размечу по персонажам")
+            self.save_settings()
+            return
+        if self._book_looks_marked(text):
+            # исходник для повторной разметки — чистые фразы без «Имя:»
+            self.book_source = "\n".join(t for _n, t in self._book_parse_text(text))
+            self._book_set_items(self._book_parse_text(text))
+            self.update_status("📖 Текст уже размечен — выбирайте голоса слева")
+            self.save_settings()
+        else:
+            self.book_source = text
+            self._book_apply_split()
+        self.save_settings()
+
+    def _book_disable(self):
+        self.book_mode = False
+        self._book_widen(False)
+        try:
+            self.book_panel.grid_remove()
+            self.btn_book.configure(fg_color=COLOR_BRAND)
+        except Exception:
+            pass
+        self._book_show_view(False)
+        if self.book_items and not self._placeholder_active:
+            self._set_box_text("\n".join(it.get("text") or "" for it in self.book_items),
+                               generated=False)
+        self.update_status("📖 Режим книги выключен")
+        self.save_settings()
+
+    def _book_source_text(self):
+        """Исходный (нерзмеченный) текст книги для повторной разметки."""
+        if self.book_source and len(self.book_source) > 20:
+            return self.book_source
+        try:
+            text = self.result_box.get("1.0", "end-1c")
+        except Exception:
+            text = ""
+        return text if text.strip() else self._book_view_text()
+
+    def _book_apply_split(self, use_llm=False, fresh=False, src=None):
+        """Разметить книгу по голосам (кнопка режима и «↻ Разметить заново»).
+
+        src — текст для разметки; по умолчанию сохранённый исходник книги.
+        fresh=True — пришла НОВАЯ книга: голоса персонажей, которых в ней нет,
+        из панели убираем (у той же книги назначения сохраняются)."""
+        src = src if src is not None else self._book_source_text()
+        if not (src or "").strip():
+            messagebox.showinfo(_tr("Книга по голосам"), _tr("Сначала вставьте книгу или текст."))
+            return
+        if use_llm:
+            self._book_split_with_llm(src)
+            return
+        try:
+            self.update_status(_tr("⏳ Разметка по персонажам…"))
+            self.update_idletasks()
+        except Exception:
+            pass
+        lines, counts = self._book_split_rules(src)
+        if not lines:
+            messagebox.showinfo(_tr("Книга по голосам"), _tr("Не удалось разобрать текст на реплики."))
+            return
+        self.book_source = src
+        if fresh:
+            # панель показывает персонажей ТОЛЬКО загруженного участка;
+            # голоса, назначенные раньше, остаются в book_cast и вернутся,
+            # когда этот персонаж снова появится в тексте
+            self.book_extra = []
+        self._book_set_items(lines)
+        n_spk = max(0, len(counts) - 1)
+        if UI_LANG == "en":
+            self.update_status(f"✅ Done: {len(lines)} fragments, {n_spk} characters")
+        else:
+            self.update_status(f"✅ Готово: фрагментов {len(lines)}, персонажей {n_spk}")
+
+    # ---------- разметка нейросетью ----------
+
+    def _book_split_with_llm(self, src):
+        llm_name = self.llm_combo.get()
+        actual = self.llm_display.get(llm_name, llm_name)
+        path = self.llm_models.get(actual)
+        if not path or not os.path.exists(path):
+            if UI_LANG == "en":
+                msg = (f"Model file not found: {path}\n"
+                       "Choose a model in the “AI MODEL” card.")
+            else:
+                msg = (f"Файл модели не найден: {path}\n"
+                       "Выберите модель в карточке «МОДЕЛЬ ИИ».")
+            messagebox.showwarning(_tr("Книга по голосам"), msg)
+            return
+        self._book_llm_src = src
+        self.cancel_event.clear()
+        self._last_pct = -1
+        self.progress_bar.stop()
+        self.progress_bar.set(0)
+        self.update_status(_tr("⏳ Разметка нейросетью…"))
+        threading.Thread(target=self._book_llm_worker,
+                         args=(src, llm_name, path), daemon=True).start()
+
+    def _book_llm_parts(self, text, limit):
+        """Куски книги, которые модель в состоянии принять за один раз."""
+        budget = max(600, int(limit * 0.55))
+        parts, cur = [], ""
+        for p in re.split(r"\n+", text or ""):
+            p = p.strip()
+            if not p:
+                continue
+            if len(p) > budget:
+                for sub in self.split_text_chunks(p, budget):
+                    if cur:
+                        parts.append(cur)
+                        cur = ""
+                    parts.append(sub)
+                continue
+            if cur and len(cur) + 1 + len(p) > budget:
+                parts.append(cur)
+                cur = ""
+            cur = (cur + "\n" + p) if cur else p
+        if cur:
+            parts.append(cur)
+        return parts or [text]
+
+    def _llm_plain(self, system, user):
+        """Прямой вызов модели без правил пресетов (CPU-путь llama-cpp)."""
+        full = []
+        stream = self.llm_model.create_chat_completion(
+            messages=[{"role": "system", "content": system},
+                      {"role": "user", "content": user}],
+            max_tokens=4096, temperature=0.2, stream=True)
+        for chunk in stream:
+            if self.cancel_event.is_set():
+                break
+            try:
+                piece = (chunk["choices"][0].get("delta", {}) or {}).get("content") or ""
+            except Exception:
+                piece = ""
+            if piece:
+                full.append(piece)
+        return "".join(full)
+
+    def _llm_load_for_worker(self, llm_name, path, n_ctx):
+        """Поднять модель анализа в фоновом потоке; вернуть gpu_url или None."""
+        if self.llm_gpu_var.get():
+            self._safe_ui(lambda: self.update_status("Загрузка модели на видеокарту…"))
+            port = self._ensure_gpu_server(path, n_ctx)
+            return f"http://127.0.0.1:{port}/v1/chat/completions"
+        if not (self.llm_model is not None and self.llm_model_path == path
+                and self.llm_model_ctx == n_ctx):
+            self.unload_llm()
+            self.llm_model = Llama(model_path=path, n_ctx=n_ctx, n_gpu_layers=0,
+                                   n_threads=-1, flash_attn=True, verbose=False)
+            self.llm_model_path = path
+            self.llm_model_ctx = n_ctx
+        return None
+
+    def _book_llm_call(self, part, gpu_url):
+        system = ("Ты — разметчик художественного текста для озвучки. Ты НЕ пересказываешь "
+                  "и НЕ переписываешь текст: только ставишь перед каждой репликой имя говорящего.")
+        user = ("Разбей текст на реплики и СОЗДАВАЙ НОВЫЕ СТРОКИ там, где в тексте есть "
+                "слова автора. Каждая реплика и каждые слова автора — отдельная строка:\n"
+                "Имя: текст реплики\n"
+                "Автор: слова автора\n"
+                "Пример:\n"
+                "— Рад, что понравилось, — заметила Озма. — Пойдём дальше.\n"
+                "Озма: — Рад, что понравилось,\n"
+                "Автор: — заметила Озма.\n"
+                "Озма: — Пойдём дальше.\n"
+                "Правила:\n"
+                "- слова персонажа помечай именем этого персонажа (как он назван в тексте);\n"
+                "- слова автора (описания, «сказал он», «подумала она») помечай: Автор: ...;\n"
+                "- если имя рядом не названо, но ясно из смысла — используй его; не выдумывай новых;\n"
+                "- слова автора ВНУТРИ реплики, после второго тире, всегда ОТДЕЛЬНОЙ строкой "
+                "с пометкой Автор: «Озма: — Правда?» + «Автор: — заметила Озма.»;\n"
+                "- НЕ меняй ни одного слова: не сокращай, не переставляй, не добавляй ничего, "
+                "кроме «Имя: » в начале реплики;\n"
+                "- длинное тире (—) и кавычки сохраняй КАК ЕСТЬ: не выбрасывай их, не заменяй "
+                "дефисом и не склеивай реплики из-за них;\n"
+                "- никаких пояснений и заголовков — только размеченный текст.\n\n"
+                f"ТЕКСТ:\n{part}")
+        if gpu_url:
+            out = self.summarize_via_server(system, user, gpu_url,
+                                            expected_chars=int(len(part) * 1.2))
+        else:
+            out = self._llm_plain(system, user)
+        return (out or "").strip()
+
+    def _book_marked_ok(self, got, part=""):
+        """Модель действительно разметила (а не пересказала) — иначе правила."""
+        lines = [l.strip() for l in (got or "").split("\n") if l.strip()]
+        if not lines:
+            return False
+        good = sum(1 for l in lines
+                   if ":" in l and self._book_name_like(l.split(":", 1)[0]))
+        if good / len(lines) < 0.6:
+            return False
+        if part:
+            ratio = len(got) / max(1, len(part))
+            if not (0.75 <= ratio <= 1.8):
+                return False
+        return True
+
+    def _book_known_names(self):
+        """Имена, которые уже выделены разметкой: персонажи книги и фрагменты.
+
+        Нейросеть (или правила) уже назвала персонажей — по этому списку узнаём имя
+        в словах автора после тире, даже если оно стоит в другом падеже.
+        """
+        out = []
+        d = self.__dict__      # не getattr: у «фальшивого self» без Tk он лезет в tkinter
+        items = [it.get("speaker") for it in (d.get("book_items") or []) if isinstance(it, dict)]
+        for n in (list(d.get("book_cast") or {}) + items + list(d.get("book_extra") or [])):
+            n = (n or "").strip()
+            if n and n != self.BOOK_AUTHOR and n not in out:
+                out.append(n)
+        return out
+
+    @staticmethod
+    def _book_stem(name, n=5):
+        """Основа имени для поиска в любом падеже: «Озма» → «озм» (Озмы/Озму/Озмой)."""
+        s = (name or "").strip().lower().replace("ё", "е")[:n]
+        if len(s) > 3 and s[-1] in "аеиоуыэюяйь":
+            s = s[:-1]                     # отбрасываем падежное окончание
+        return s
+
+    def _book_known_in(self, text, names=None):
+        """Известное имя разметки внутри текста — по основе, в любом падеже."""
+        names = names if names is not None else self._book_known_names()
+        low = (text or "").lower().replace("ё", "е")
+        if not low:
+            return None
+        for n in names:
+            st = self._book_stem(n)
+            if len(st) >= 3 and re.search(r"\b" + re.escape(st) + r"[а-яё]*\b", low):
+                return n
+        return None
+
+    def _book_pop_attribution(self, body):
+        """Хвост реплики «— глагол речи …» → (реплика без хвоста, слова автора).
+
+        Модель часто оставляет атрибуцию внутри реплики («Озма: — Правда? — заметила
+        Озма»), хотя правила её отделяют. Признак слов автора — начинается с глагола
+        речи (BOOK_VERB_RE): «— заметила Озма», «— Рассмеялась Озма», «— Заинтересовался
+        соломенный человек». Обычная вторая реплика («— А ты кто?») так не начинается.
+        """
+        body = (body or "").strip()
+        last = None
+        for m in re.finditer(r"\s+[—–-]\s+(.+)$", body):
+            last = m
+        if not last:
+            return body, ""
+        tail = last.group(1).strip()
+        if len(tail) > 120 or not BOOK_VERB_RE.match(tail):
+            return body, ""
+        head = body[:last.start()].strip()
+        if not head:
+            return body, ""
+        return head, "— " + tail
+
+    def _book_fix_llm_attribution(self, marked):
+        """Отделить слова автора, которые модель оставила внутри реплики.
+
+        «Озма: — Правда? — заметила Озма.» → две строки: реплика Озмы и «Автор: — заметила
+        Озма.». Если модель ошибочно пометила всю строку автором, но в атрибуции названо
+        имя — реплика достаётся этому имени.
+        """
+        out, changed = [], 0
+        for raw in (marked or "").split("\n"):
+            line = raw.strip()
+            if not line:
+                continue
+            name, sep, body = line.partition(":")
+            if not sep or not self._book_name_like(name):
+                out.append(line)
+                continue
+            name, body = name.strip(), body.strip()
+            # модель вставила «Автор:» ПРЯМО ВНУТРЬ строки: «Рад, что понравилось,
+            # — Автор: отвечал большой Страшила». Разворачиваем в два фрагмента.
+            mm = re.search(r"\s+[—–-]?\s*" + re.escape(self.BOOK_AUTHOR) + r"\s*:\s*", body)
+            if mm and mm.start() > 0:
+                head = body[:mm.start()].strip(" ,;:—–-")
+                tail = body[mm.end():].strip()
+                if head and tail:
+                    out.append(f"{name}: {head}")
+                    out.append(f"{self.BOOK_AUTHOR}: — {tail}")
+                    changed += 1
+                    continue
+            # СЛОВА АВТОРА В ЛЮБОМ МЕСТЕ СТРОКИ: разбираем её теми же правилами, что и
+            # абзац книги, и выпускаем атрибуцию отдельными строками (Ярослав 13.11.26:
+            # «нейросеть должна на этапе анализа создавать новые строки, если их найдёт»)
+            parts = self._book_dialogue_parts(body)
+            if len(parts) > 1 and any(k == "auth" for k, _ in parts):
+                speaker = name
+                if name == self.BOOK_AUTHOR:
+                    for k, chunk in parts:
+                        if k != "auth":
+                            continue
+                        who, _g = self._book_attribution_in(chunk)
+                        if not (who and who.lower() not in ("он", "она", "они")
+                                and who not in BOOK_STOP):
+                            who = self._book_known_in(chunk)
+                        if who:
+                            speaker = who
+                            break
+                buf = []
+                for kind, chunk in parts:
+                    if kind == "auth":
+                        if buf:
+                            out.append(f"{speaker}: " + " — ".join(buf))
+                            buf = []
+                        out.append(f"{self.BOOK_AUTHOR}: {chunk}")
+                    else:
+                        buf.append(chunk)
+                if buf:
+                    out.append(f"{speaker}: " + " — ".join(buf))
+                changed += 1
+                continue
+            head, tail = self._book_pop_attribution(body)
+            if not tail:
+                out.append(line)
+                continue
+            speaker = name
+            if name == self.BOOK_AUTHOR:        # модель всё списала автору — берём имя из атрибуции
+                who, _g = self._book_attribution_in(tail)
+                if not (who and who.lower() not in ("он", "она", "они") and who not in BOOK_STOP):
+                    who = self._book_known_in(tail)      # имя из уже размеченных персонажей
+                if who:
+                    speaker = who
+            out.append(f"{speaker}: {head}".rstrip())
+            out.append(f"{self.BOOK_AUTHOR}: {tail}")
+            changed += 1
+        if changed:
+            print(f"📖 Слова автора отделены от реплик: {changed}")
+        return "\n".join(out)
+
+    def _book_llm_worker(self, src, llm_name, path):
+        gpu_url = None
+        try:
+            n_ctx = self.model_ctx.get(llm_name, 4096)
+            limit = self.model_limits.get(llm_name, FALLBACK_CHARS)
+            gpu_url = self._llm_load_for_worker(llm_name, path, n_ctx)
+            parts = self._book_llm_parts(src, limit)
+            print(f"📖 Разметка нейросетью: {len(parts)} частей")
+            out = []
+            for i, part in enumerate(parts):
+                if self.cancel_event.is_set():
+                    raise Cancelled()
+                self._safe_ui(lambda i=i, n=len(parts): self.set_progress(
+                    int(i * 95 / max(1, n)), f"Разметка {i + 1}/{n}"))
+                try:
+                    got = self._book_llm_call(part, gpu_url)
+                except Exception as e:
+                    print(f"⚠️ Разметка части {i + 1}: {e}")
+                    got = ""
+                if not self._book_marked_ok(got, part):
+                    print(f"⚠️ Часть {i + 1} не размечена — размечаю правилами")
+                    got = self._book_render(self._book_split_rules(part)[0])
+                else:
+                    got = self._book_fix_llm_attribution(got)   # хвосты «— заметила Озма»
+                out.append(got)
+            self._book_llm_result = "\n".join(out)
+            self._safe_ui(lambda: self._book_llm_done(None))
+        except Cancelled:
+            self._safe_ui(lambda: self._book_llm_done("cancel"))
+        except Exception as e:
+            msg = str(e)
+            self._safe_ui(lambda: self._book_llm_done(msg))
+        finally:
+            if gpu_url:
+                try:
+                    self._stop_gpu_server()
+                except Exception:
+                    pass
+
+    def _book_llm_done(self, err):
+        try:
+            self.progress_bar.stop()
+        except Exception:
+            pass
+        if err == "cancel":
+            self.update_status(_tr("⏹ Разметка отменена"))
+            return
+        if err:
+            self.update_status(_tr("❌ Разметка нейросетью не удалась"))
+            if UI_LANG == "en":
+                msg = f"The model could not mark up the text:\n{err}"
+            else:
+                msg = f"Нейросеть не смогла разметить текст:\n{err}"
+            messagebox.showerror(_tr("Книга по голосам"), msg)
+            return
+        res = getattr(self, "_book_llm_result", "") or ""
+        lines = self._book_parse_text(res)
+        if not lines:
+            messagebox.showinfo(_tr("Книга по голосам"), _tr("Нейросеть вернула пустой результат."))
+            return
+        self.book_source = getattr(self, "_book_llm_src", self.book_source)
+        self._book_set_items(lines)
+        self.set_progress(100, "Готово")
+        if UI_LANG == "en":
+            self.update_status(f"✅ AI markup done: {len(lines)} fragments")
+        else:
+            self.update_status(f"✅ Разметка нейросетью готова: {len(lines)} фрагментов")
+
+    # ---------- анализ текста БЕЗ потери разметки ----------
+
+    BOOK_KEEP_RULE = (
+        "\n\nСОХРАНИ РАЗМЕТКУ: каждая строка ответа начинается с «Имя: » — ровно как в "
+        "исходнике. Не меняй имена персонажей и не сливай строки: сколько строк пришло — "
+        "столько и верни, в том же порядке. Меняется только сам текст реплики.")
+
+    def _book_emotion_names(self):
+        """Эмоции, которые реально есть у голосов книги (для авто-маркеров)."""
+        out = []
+        for voice in dict.fromkeys(v for v in self.book_cast.values() if v):
+            try:
+                for _stem, (label, _p, _t) in self._emotion_samples(voice).items():
+                    if label not in out:
+                        out.append(label)
+            except Exception:
+                continue
+        return out
+
+    def _book_batches(self, limit):
+        """Фрагменты, сгруппированные в пакеты по лимиту модели."""
+        budget = max(800, int(limit * 0.55))
+        out, cur, size = [], [], 0
+        for it in self.book_items:
+            add = len(it.get("text") or "") + len(it.get("speaker") or "") + 3
+            if cur and size + add > budget:
+                out.append(cur)
+                cur, size = [], 0
+            cur.append(it)
+            size += add
+        if cur:
+            out.append(cur)
+        return out
+
+    def _book_index_of(self, batch):
+        """Индекс первого фрагмента пакета в общем списке (по тождеству объектов)."""
+        if not batch or not self.book_items:
+            return None
+        first = batch[0]
+        for i, it in enumerate(self.book_items):
+            if it is first:
+                return i
+        return None
+
+    def _book_apply_analysis(self, batch, out):
+        """Влить ответ модели в пакет фрагментов, не теряя имена персонажей."""
+        raw_lines = [l.strip() for l in (out or "").split("\n") if l.strip()]
+        new = [(s, t) for s, t in self._book_parse_text(out or "") if (t or "").strip()]
+        if not new:
+            print("⚠️ Пустой ответ модели — пакет не тронут")
+            return False
+        if len(new) == len(batch):
+            for it, (_spk, txt) in zip(batch, new):
+                it["text"] = txt          # имя остаётся НАШИМ — разметка не слетает
+            return True
+        # число строк изменилось (сокращение, объединение) — верим только реальной разметке:
+        # строки БЕЗ «Имя:» мы сами подписываем «Автор», это не считается разметкой модели
+        named = sum(1 for l in raw_lines
+                    if ":" in l and self._book_name_like(l.split(":", 1)[0]))
+        start = self._book_index_of(batch)
+        if start is not None and named >= 0.6 * len(raw_lines):
+            print(f"⚠️ Пакет: {len(batch)} фрагм. → {len(new)} строк, беру имена модели")
+            repl = []
+            for spk, txt in new:
+                if not (spk in self.book_cast or self._book_name_like(spk)):
+                    spk = batch[0].get("speaker") or self.BOOK_AUTHOR
+                repl.append({"speaker": spk, "text": txt})
+            self.book_items[start:start + len(batch)] = repl
+            return True
+        print(f"⚠️ Пакет не применён: модель не сохранила разметку "
+              f"({len(batch)} фрагм. → {len(new)} строк, с именем {named})")
+        return False
+
+    def _book_analyze_start(self, llm_name):
+        actual = self.llm_display.get(llm_name, llm_name)
+        path = self.llm_models.get(actual)
+        if not path or not os.path.exists(path):
+            messagebox.showwarning(_tr("Внимание"),
+                                   f"Файл модели не найден: {path}")
+            return
+        if not self.book_items:
+            return
+        self.cancel_event.clear()
+        self._last_pct = -1
+        self.is_processing = True
+        try:
+            self.btn_process.configure(state="disabled", text=_tr("Обработка…"))
+        except Exception:
+            pass
+        self.progress_bar.stop()
+        self.progress_bar.set(0)
+        self.update_status(_tr("⏳ Анализ книги по фрагментам…"))
+        self.save_settings()
+        self._analysis_thread = threading.Thread(target=self._book_analyze_worker,
+                                                 args=(llm_name, path), daemon=True)
+        self._analysis_thread.start()
+
+    def _book_analyze_worker(self, llm_name, path):
+        gpu_url = None
+        applied = failed = 0
+        try:
+            n_ctx = self.model_ctx.get(llm_name, 4096)
+            limit = self.model_limits.get(llm_name, FALLBACK_CHARS)
+            gpu_url = self._llm_load_for_worker(llm_name, path, n_ctx)
+            instr = self.instruction_entry.get("1.0", "end-1c").strip()
+            self._verbatim_mode = (self.preset_menu.get() == self.NO_PROCESS)
+            emo_names = self._book_emotion_names() if self.emo_auto_var.get() else []
+            if emo_names:
+                instr = instr + "\n\n" + emotion_marker_rule(emo_names)
+                print(f"🎭 Авто-эмоции по книге: {len(emo_names)}")
+            ratio = self._preset_ratio(self.preset_menu.get())
+            batches = self._book_batches(limit)
+            total = len(batches)
+            print(f"📖 Анализ книги: {len(self.book_items)} фрагм. → {total} пакетов")
+            for k, batch in enumerate(batches):
+                if self.cancel_event.is_set():
+                    raise Cancelled()
+                self._safe_ui(lambda k=k, n=total: self.set_progress(
+                    int(k * 95 / max(1, n)) + 3, f"Фрагменты {k + 1}/{n}"))
+                text = self._book_render([(it.get("speaker"), it.get("text")) for it in batch])
+                instr_i = instr + self.BOOK_KEEP_RULE
+                if ratio:
+                    tgt = max(60, int(len(text) * ratio))
+                    instr_i += (f"\n\nОГРАНИЧЕНИЕ ОБЪЁМА: от {int(tgt * 0.8)} до {tgt} знаков.")
+                try:
+                    out = self.summarize_text(text, instr_i, server_url=gpu_url,
+                                              expected_chars=int(len(text) * (ratio or 1.0)))
+                except Exception as e:
+                    print(f"⚠️ Пакет {k + 1}: {e}")
+                    failed += len(batch)
+                    continue
+                if self._book_apply_analysis(batch, out):
+                    applied += len(batch)
+                else:
+                    failed += len(batch)
+            self._book_analyze_summary = (applied, failed, len(self.book_items))
+            self._safe_ui(lambda: self._book_analyze_done(None))
+        except Cancelled:
+            self._safe_ui(lambda: self._book_analyze_done("cancel"))
+        except Exception as e:
+            msg = str(e)
+            self._safe_ui(lambda: self._book_analyze_done(msg))
+        finally:
+            if gpu_url:
+                try:
+                    self._stop_gpu_server()
+                    print("🧹 Видеопамять освобождена после анализа книги")
+                except Exception:
+                    pass
+
+    def _book_analyze_done(self, err):
+        try:
+            self.is_processing = False
+            self.btn_process.configure(state="normal", text=_tr("Запустить анализ"))
+            self.progress_bar.stop()
+        except Exception:
+            pass
+        if err == "cancel":
+            self.update_status(_tr("⏹ Анализ отменён"))
+        elif err:
+            self.update_status("❌ Ошибка анализа")
+            messagebox.showerror(_tr("Анализ"), err)
+        else:
+            self.set_progress(100, "Готово")
+            applied, failed, _n = getattr(self, "_book_analyze_summary", (0, 0, 0))
+            if UI_LANG == "en":
+                self.update_status(f"✅ Analysis done: {applied} fragments"
+                                   + (f", {failed} kept as is" if failed else ""))
+            else:
+                self.update_status(f"✅ Анализ завершён: фрагментов {applied}"
+                                   + (f", без изменений {failed}" if failed else ""))
+        self._book_render_view()
+        self._book_refresh_panel(self._book_names())
+        if not err and self.auto_play_var.get() and not self.cancel_event.is_set():
+            self.after(300, self.play_result)
+
     def _restore_source(self):
         if self._last_source:
             self._set_box_text(self._last_source, generated=False)
             self.update_status("↩ Возвращён исходный текст")
+            if getattr(self, "book_mode", False) and self.book_items:
+                self.book_source = self._last_source
+                self.after(60, lambda: self._book_apply_split(fresh=True, src=self._last_source))
 
     def _paste_widget(self, widget, event=None):
         text = self._clip_text()
@@ -6040,7 +7878,7 @@ class ModernTTSApp(*_APP_BASE):
             kwargs["width"] = width
         combo = ctk.CTkComboBox(parent, **kwargs)
         combo.grid(row=row + 1, column=0, padx=20, pady=5, sticky="ew")
-        combo.configure(fg_color=COLOR_CARD2, dropdown_fg_color="#fffdf6",
+        combo.configure(fg_color=COLOR_CARD2, dropdown_fg_color=COLOR_CARD2,
                         button_color=COLOR_FILL_SOFT, button_hover_color=COLOR_SELECT,
                         dropdown_hover_color=COLOR_SELECT,
                         border_width=1, border_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN)
@@ -6226,6 +8064,19 @@ class ModernTTSApp(*_APP_BASE):
         self._last_source = text
         self._set_box_text(text, generated=False)
         self.update_status(f"✅ Вставлено: {name[:40]}. Анализ пойдёт по этому тексту.")
+        # режим «Книга по голосам»: вставленную книгу сразу размечаем по персонажам.
+        # ВАЖНО: источник разметки — именно этот текст (иначе после «Вся книга целиком»
+        # выбор одной главы размечал бы старую книгу из book_source).
+        if getattr(self, "book_mode", False):
+            self._book_switch_key(getattr(self, "_pending_key", "") or name)
+            self.book_source = text
+            if (text or "").strip():
+                # размечаем ЛЮБОЙ непустой текст: короткая глава раньше не размечалась
+                # (был порог 200 знаков), и в списке оставались фрагменты прежней книги
+                if len(text) <= 20000:
+                    self._book_apply_split(fresh=True, src=text)
+                else:
+                    self.after(10, lambda: self._book_apply_split(fresh=True, src=text))
 
     # ============= ФАЙЛЫ PDF/DOC/MD/FB2/EPUB/RTF/HTML =============
 
@@ -6241,6 +8092,8 @@ class ModernTTSApp(*_APP_BASE):
         """Загрузить документ в поле текста: кнопка «Файл» и перетаскивание."""
         ext = os.path.splitext(path)[1].lower()
         src_name = None
+        # ключ книги для памяти голосов: имя файла, у fb2/epub — название книги
+        self._pending_key = os.path.basename(path)
         try:
             if ext == ".pdf":
                 if not PYPDF_AVAILABLE:
@@ -6264,6 +8117,7 @@ class ModernTTSApp(*_APP_BASE):
                 chapters, book_title = (self._parse_fb2 if ext == ".fb2" else self._parse_epub)(path)
                 if not chapters:
                     raise Exception("В файле EPUB не найдено текста глав." if ext == ".epub" else "В файле FB2 не найдено текста глав.")
+                self._pending_key = book_title or os.path.basename(path)
                 if len(chapters) > 2:
                     self._book_dialog(chapters, book_title, path)
                     return
@@ -6613,22 +8467,43 @@ class ModernTTSApp(*_APP_BASE):
                     parts.append(t)
             return "\n".join(parts).strip()
 
+        def sec_title(sec):
+            t = next((x for x in sec if loc(x) == "title"), None)
+            return flat(t) if t is not None else ""
+
+        def collect(sec, parent=""):
+            """Секция-лист = глава; промежуточная (книга/часть) разворачивается в главы.
+
+            У многих fb2 вся книга лежит в ОДНОЙ внешней <section>, а главы —
+            вложенные в неё: раньше такая книга считалась одной главой, и выбор
+            глав не предлагался (фикс 14.11.26, книга «Лоскутушка из Страны Оз»)."""
+            title = sec_title(sec)
+            subs = [s for s in sec if loc(s) == "section"]
+            if subs:
+                out = []
+                own = own_text(sec, skip_title=True, fold_sections=False).strip()
+                if len(own) >= 50:                 # текст прямо в части — как отдельная глава
+                    tt = title or parent
+                    out.append({"title": tt, "text": (tt + "\n\n" + own) if tt else own})
+                for s in subs:
+                    out.extend(collect(s, title or parent))
+                return out
+            txt = own_text(sec, skip_title=True).strip()
+            if len(txt) < 50:
+                return []
+            tt = title or parent
+            return [{"title": tt, "text": (tt + "\n\n" + txt) if tt else txt}]
+
         chapters = []
         for body in [el for el in root if loc(el) == "body"]:
-            has_secs = any(loc(s) == "section" for s in body)
+            secs = [s for s in body if loc(s) == "section"]
+            has_secs = bool(secs)
             # преамбула level-body (автор, реклама библиотеки) берётся только если разделов нет вовсе
             intro = "" if has_secs else own_text(body, fold_sections=False)
             if len(intro) >= 100:
                 chapters.append({"title": "", "text": intro})
-            for sec in body:
-                if loc(sec) != "section":
-                    continue
-                t = next((x for x in sec if loc(x) == "title"), None)
-                title = flat(t) if t is not None else ""
-                txt = own_text(sec, skip_title=True)
-                if len(txt) < 50:
-                    continue
-                chapters.append({"title": title, "text": (title + "\n\n" + txt) if title else txt})
+            for sec in secs:
+                chapters.extend(collect(sec))
         for i, c in enumerate(chapters, 1):
             if not c["title"]:
                 c["title"] = f"Глава {i}"
@@ -6988,6 +8863,101 @@ class ModernTTSApp(*_APP_BASE):
         if not g:
             return arr
         return VoiceRecorderDialog._apply_gain(arr, g)
+
+    # ---------- выравнивание громкости озвучки (LUFS, просьба Ярослава 14.11.26) ----------
+
+    LOUDNESS_TARGET = -18.0       # целевой уровень озвучки книги, LUFS
+    LOUDNESS_MAX_SHIFT = 18.0     # предел автосдвига, дБ
+    LOUDNESS_PEAK_DBFS = -1.5     # защита от клиппинга на выходе
+    QUIET_EMOTIONS = ("шёпотом", "шепотом", "печальный", "тоскливый", "усталый", "грустный")
+
+    def _lufs_of(self, arr, sr):
+        """Интегральная громкость фрагмента в LUFS (EBU R128, pyloudnorm)."""
+        try:
+            import pyloudnorm as pyln
+            x = np.asarray(arr, dtype=np.float64) / 32768.0
+            if x.size < int(sr * 0.12):
+                return None
+            val = float(pyln.Meter(sr).integrated_loudness(x))
+            return val if np.isfinite(val) else None
+        except Exception as e:
+            print(f"⚠️ Замер громкости: {e}")
+            return None
+
+    def _is_quiet_emotion(self, emo):
+        return bool(emo) and str(emo).strip().lower() in self.QUIET_EMOTIONS
+
+    def _book_gain_of(self, spk, emo, arr):
+        """Ручная громкость реплики: ползунок эмоции из паспорта голоса или
+        общий уровень персонажа (book_gain) — в шагах −5…+5, 1 шаг = 10%."""
+        steps = 0
+        if emo:
+            try:
+                _vid, info = self._find_voice(spk)
+                steps = int((((info or {}).get("samples") or {}).get(emo) or {}).get("gain") or 0)
+            except Exception:
+                steps = 0
+        if not steps:
+            steps = int((getattr(self, "book_gain", {}) or {}).get(spk) or 0)
+        if not steps:
+            return arr
+        return VoiceRecorderDialog._apply_gain(arr, max(-5, min(5, steps)))
+
+    def _book_level_segments(self, segs, meta, sr):
+        """Выровнять громкость реплик по персонажам к LOUDNESS_TARGET (LUFS).
+
+        Сдвиг ОДИН на голос и одинаков для всех его реплик — поэтому шёпот
+        остаётся тише, а крик громче (относительная динамика сохраняется).
+        Запускается только когда в озвучке ≥2 голоса или ≥2 эмоции."""
+        try:
+            if not segs or len(segs) != len(meta) or not sr:
+                return
+            voices = {m[0] for m in meta if m[0] and not str(m[0]).startswith("__")}
+            emos = {m[1] for m in meta if len(m) > 1 and m[1]}
+            if len(voices) < 2 and len(emos) < 2:
+                return
+            from collections import defaultdict
+            by_spk = defaultdict(list)
+            for i, m in enumerate(meta):
+                if m[0] and not str(m[0]).startswith("__"):
+                    by_spk[m[0]].append(i)
+            for spk, idxs in by_spk.items():
+                buf = np.concatenate([np.asarray(segs[i], dtype=np.int16) for i in idxs])
+                lv = self._lufs_of(buf, sr)
+                if lv is None:
+                    continue
+                if len(idxs) == 1 and self._is_quiet_emotion(meta[idxs[0]][1]):
+                    print(f"🔊 «{spk}»: единственная реплика помечена тихой — не выравниваю")
+                    continue
+                shift = max(-self.LOUDNESS_MAX_SHIFT,
+                            min(self.LOUDNESS_MAX_SHIFT, self.LOUDNESS_TARGET - lv))
+                if abs(shift) < 0.3:
+                    continue
+                k = 10 ** (shift / 20.0)
+                for i in idxs:
+                    segs[i] = np.clip(np.asarray(segs[i], dtype=np.float32) * k,
+                                      -32768.0, 32767.0).astype(np.int16)
+                print(f"🔊 «{spk}»: {lv:.1f} LUFS → {self.LOUDNESS_TARGET:.0f} "
+                      f"(сдвиг {shift:+.1f} дБ)")
+        except Exception as e:
+            print(f"⚠️ Выравнивание громкости: {e}")
+
+    def _book_limit_peak(self, arr):
+        """Защита от клиппинга: пик не выше LOUDNESS_PEAK_DBFS."""
+        try:
+            a = np.asarray(arr, dtype=np.float32)
+            peak = float(np.max(np.abs(a))) if a.size else 0.0
+            if peak <= 0:
+                return arr
+            limit = 32767.0 * (10 ** (self.LOUDNESS_PEAK_DBFS / 20.0))
+            if peak > limit:
+                a = a * (limit / peak)
+                print(f"🔊 Лимитер: пик {20 * np.log10(peak / 32767):+.1f} → "
+                      f"{self.LOUDNESS_PEAK_DBFS} dBFS")
+            return np.clip(a, -32768.0, 32767.0).astype(np.int16)
+        except Exception as e:
+            print(f"⚠️ Лимитер: {e}")
+            return arr
 
     def get_ref(self, speaker, emotion=None):
         vid, info = self._find_voice(speaker)
@@ -8325,7 +10295,7 @@ class ModernTTSApp(*_APP_BASE):
                 font=FONT_TINY,
                 fg_color=COLOR_BRAND if sel else (COLOR_CARD if empty else COLOR_CARD2),
                 hover_color=COLOR_BRAND_HOVER if sel else COLOR_SELECT,
-                text_color="#fffdf6" if sel else (COLOR_TEXT_SEC if empty else COLOR_TEXT_MAIN),
+                text_color=COLOR_ON_ACCENT if sel else (COLOR_TEXT_SEC if empty else COLOR_TEXT_MAIN),
                 border_width=1 if empty else 0, border_color=COLOR_BORDER,
                 command=lambda name=name: self._vox_palette_pick(name))
             b.pack(side="left", padx=2, pady=2)
@@ -8906,6 +10876,19 @@ class ModernTTSApp(*_APP_BASE):
                 out.extend((None, s) for s in sentences[1:])
         return out or [(None, text)]
 
+    def _qwen_voice_for(self, name):
+        """(spk_id, vpack, kind) по имени голоса — для реплик «Книги по голосам»."""
+        if name in QWEN_DISPLAY:
+            if not self._qwen_ready("custom"):
+                self._qwen_fetch(["custom"], cancel=self.cancel_event)
+            return QWEN_BY_DISPLAY[name][0], None, "custom"
+        _vid, _info = self._find_voice(name)
+        if not _info or not (_info.get("path") and os.path.exists(_info.get("path") or "")):
+            raise Exception(f"голос «{name}» пуст")
+        if not self._qwen_ready("base"):
+            self._qwen_fetch(["base"], cancel=self.cancel_event)
+        return None, (_vid, _info), "base"
+
     def _qwen_synth_chunk(self, model, spk_id, vpack, ch_clean, emo_label, user_instr, lang):
         instruct = self._qwen_instruct_for(emo_label, user_instr, vpack)
         cfg = self.qwen_cfg
@@ -9220,7 +11203,7 @@ class ModernTTSApp(*_APP_BASE):
         # программы (просьба Ярослава, 09.11.26)
         ctk.CTkButton(dlg, text="🔊 " + _tr("Сгенерировать и послушать"), height=30,
                       corner_radius=3, fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
-                      text_color="#fffdf6", command=gen).pack(fill="x", padx=16, pady=(2, 4))
+                      text_color=COLOR_ON_ACCENT, command=gen).pack(fill="x", padx=16, pady=(2, 4))
         ctk.CTkButton(dlg, text="💾 " + _tr("Сохранить"), height=30, corner_radius=3,
                       fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                       text_color=COLOR_TEXT_MAIN, command=keep).pack(fill="x", padx=16, pady=(0, 4))
@@ -9318,7 +11301,7 @@ class ModernTTSApp(*_APP_BASE):
                      text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x", padx=16, pady=(10, 2))
         # образцу нужно 5–15 секунд чистой речи — фраза длиннее, чем у Qwen
         txt = box(66)
-        txt.insert("1.0", "Здравствуйте! Это образец голоса, который нейросеть смоделировала по "
+        txt.insert("1.0", "Здравствуйте! Этот голос нейросеть смоделировала по "
                           "моему описанию. За окном ясное утро, впереди длинный день и много "
                           "интересных разговоров.")
         ctk.CTkLabel(dlg, text=_tr("Имя голоса в списке"), font=FONT_SMALL,
@@ -9425,7 +11408,7 @@ class ModernTTSApp(*_APP_BASE):
         # главное действие окна — в фирменном медно-оранжевом, как главные кнопки программы
         ctk.CTkButton(dlg, text="🔊 " + _tr("Сгенерировать и послушать"), height=30,
                       corner_radius=3, fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
-                      text_color="#fffdf6", command=gen).pack(fill="x", padx=16, pady=(2, 4))
+                      text_color=COLOR_ON_ACCENT, command=gen).pack(fill="x", padx=16, pady=(2, 4))
         ctk.CTkButton(dlg, text="💾 " + _tr("Сохранить"), height=30, corner_radius=3,
                       fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                       text_color=COLOR_TEXT_MAIN, command=keep).pack(fill="x", padx=16, pady=(0, 4))
@@ -9569,6 +11552,29 @@ class ModernTTSApp(*_APP_BASE):
         except Exception:
             pass
 
+    def _piper_voice_for(self, name):
+        """Объект голоса Piper по имени — с кэшем (в книге у персонажей свои голоса)."""
+        if not name:
+            return self.tts_voice
+        if self.tts_voice is not None and name == self.tts_combo.get():
+            return self.tts_voice
+        path = self.tts_models.get(name)
+        if not path or not os.path.exists(path):
+            return self.tts_voice
+        cache = getattr(self, "_piper_cache", None)
+        if cache is None:
+            cache = self._piper_cache = {}
+        if name in cache:
+            return cache[name]
+        if len(cache) >= 3:          # держим в памяти не больше трёх голосов
+            cache.clear()
+        try:
+            cache[name] = PiperVoice.load(path)
+        except Exception as e:
+            print(f"⚠️ Piper-голос «{name}»: {e}")
+            cache[name] = self.tts_voice
+        return cache[name]
+
     def load_tts_on_select(self):
         name = self.tts_combo.get()
         if not name:
@@ -9620,6 +11626,22 @@ class ModernTTSApp(*_APP_BASE):
             except Exception:
                 pass
 
+    def _set_theme(self, choice):
+        """Светлая / тёмная тема из макета fair-redesign: CTk сам перекрашивает
+        все пары (светлая, тёмная), шапку Windows красим заново вручную."""
+        mode = "dark" if ("Тёмн" in str(choice) or "Dark" in str(choice).lower()) else "light"
+        self.theme = mode
+        try:
+            ctk.set_appearance_mode(mode)
+        except Exception as e:
+            print(f"⚠️ Тема: {e}")
+        try:
+            self.theme_toggle.set(_tr("Тёмная") if mode == "dark" else _tr("Светлая"))
+        except Exception:
+            pass
+        self.after(60, lambda: _dwm_titlebar(self))
+        self.save_settings()
+
     def _set_lang(self, value):
         global UI_LANG
         UI_LANG = "en" if value == "EN" else "ru"
@@ -9648,6 +11670,12 @@ class ModernTTSApp(*_APP_BASE):
                 "chunks_by": bool(self.chapters_var.get()),
                 "custom_voices": self.custom_voices,
                 "engine_voices": self.engine_voices,
+                "book_cast": dict(getattr(self, "book_cast", {}) or {}),
+                "book_casts": self._book_casts_pack(),
+                "book_key": getattr(self, "book_key", "") or "",
+                "book_gain": {str(k): int(v) for k, v in (getattr(self, "book_gain", {}) or {}).items()
+                              if v},
+                "book_default": getattr(self, "book_default", "") or "",
                 "ctx_choices": self.ctx_choices,
                 "speech_rate": self.speech_rate,
                 "vox_fast": bool(self.vox_fast_var.get()),
@@ -9663,6 +11691,7 @@ class ModernTTSApp(*_APP_BASE):
                 "llm_gpu": bool(self.llm_gpu_var.get()),
                 "external_llms": self.external_llms,
                 "geometry": self.geometry(),
+                "theme": getattr(self, "theme", "light"),
                 "ui_lang": UI_LANG,
                 "donate_done": bool(getattr(self, "donate_done", False)),
                 "model_offer_muted": bool(getattr(self, "model_offer_muted", False)),
@@ -9724,7 +11753,13 @@ class ModernTTSApp(*_APP_BASE):
         geo = data.get("geometry")
         if isinstance(geo, str) and re.fullmatch(r"\d+x\d+([+-]-?\d+){2}", geo):
             try:
-                self.geometry(geo)
+                m = re.match(r"(\d+)x(\d+)([+-]-?\d+)([+-]-?\d+)", geo)
+                w, h, x, y = (int(m.group(1)), int(m.group(2)),
+                              int(m.group(3)), int(m.group(4)))
+                if w < 1240:       # шапка с кнопками книги должна влезать целиком
+                    x = min(x, max(0, self.winfo_screenwidth() - 1240 - 10))
+                    w = 1240
+                self.geometry(f"{w}x{h}{x:+d}{y:+d}")
             except Exception:
                 pass
 
@@ -9743,6 +11778,34 @@ class ModernTTSApp(*_APP_BASE):
         if isinstance(ev, dict):
             self.engine_voices = {k: v for k, v in ev.items()
                                   if k in ("Vox", "Qwen", "Piper") and isinstance(v, str) and v}
+
+        # голоса персонажей «Книги по голосам» — помним между запусками
+        bc = data.get("book_cast")
+        if isinstance(bc, dict):
+            self.book_cast = {str(k): str(v) for k, v in bc.items() if k and v}
+        self.book_default = str(data.get("book_default") or "")
+        # голоса по книгам: {название книги: {персонаж: голос}}
+        casts = data.get("book_casts")
+        if isinstance(casts, dict):
+            self.book_casts = {}
+            for k, v in casts.items():
+                if isinstance(v, dict):
+                    self.book_casts[str(k)] = {str(a): str(b) for a, b in v.items() if a and b}
+        self.book_key = str(data.get("book_key") or "")
+        bg = data.get("book_gain")
+        if isinstance(bg, dict):
+            self.book_gain = {}
+            for k, v in bg.items():
+                try:
+                    self.book_gain[str(k)] = max(-5, min(5, int(v)))
+                except (TypeError, ValueError):
+                    pass
+        if self.book_key and self.book_key in self.book_casts:
+            self.book_cast = dict(self.book_casts[self.book_key])
+        elif self.book_cast:
+            # старый формат (одна таблица на всё) — переносим в память текущей книги
+            self.book_key = self.book_key or "—"
+            self.book_casts.setdefault(self.book_key, dict(self.book_cast))
 
         # встроенные голоса («Алсу», «Джон»): добавляем в свободные слоты, если их ещё нет
         # (до _apply_engine — список голосов он построит уже с ними)
@@ -10044,6 +12107,27 @@ class ModernTTSApp(*_APP_BASE):
             if v is not None and v.get():
                 out.append(p)
         return out
+
+    def _emo_quick(self):
+        """Кнопка «Добавить эмоции»: то же, что анализ «Без изменений» + «Добавить эмоции»."""
+        if self.is_processing:
+            return
+        if self.current_engine == "Piper":
+            messagebox.showinfo(
+                _tr("Добавить эмоции"),
+                _tr("Эмоции ставятся на Vox и Qwen. Переключите движок в карточке «ОЗВУЧКА»."))
+            return
+        try:
+            self.preset_menu.set(self.NO_PROCESS)     # «Без изменений»
+        except Exception as e:
+            print(f"⚠️ Пресет: {e}")
+        self._emo_pref = True
+        try:
+            self.emo_auto_var.set(True)
+            self._on_emo_auto_toggle()               # подскажет, если у голоса нет эмоций
+        except Exception as e:
+            print(f"⚠️ Эмоции: {e}")
+        self.start_full_process()
 
     def _sync_emo_auto(self):
         """«Добавить эмоции» имеет смысл только на Vox: на Piper переключатель гаснет."""
@@ -10417,7 +12501,7 @@ class ModernTTSApp(*_APP_BASE):
         btn_go = ctk.CTkButton(row, text=_tr("Отмена"), width=150, height=34,
                                corner_radius=R_PANEL, font=FONT_SUBHEADER,
                                fg_color="#c6763a", hover_color="#a95f2c",
-                               text_color="#ffffff",
+                               text_color=COLOR_ON_ACCENT,
                                command=lambda: self._start_cuda_download(dlg, bar, info, btn_go))
         btn_go.pack(side="left")
         self._start_cuda_download(dlg, bar, info, btn_go)
@@ -10685,6 +12769,7 @@ class ModernTTSApp(*_APP_BASE):
     # ---------------- эмоции голоса (API для колонки в окне «Образец голоса») ----------------
 
     _emo_busy = False
+    _emo_batch = None
     voice_dialog = None     # открытое окно «Образец голоса» — обновляем колонку после синтеза
 
     def _refresh_voice_dialog(self):
@@ -10711,7 +12796,8 @@ class ModernTTSApp(*_APP_BASE):
         старой и колесо мыши «не едет» — до пятой записи не достаться (просьба
         Ярослава, 11.11.26). Пересчитываем сами."""
         box = None
-        for row in (rows if rows is not None else self._emo_rows_all) or []:
+        for row in (rows if rows is not None
+                    else getattr(self, "_emo_rows_all", [])) or []:
             m = row["frame"].master
             if m is not None and hasattr(m, "_parent_canvas"):
                 box = m
@@ -10885,6 +12971,42 @@ class ModernTTSApp(*_APP_BASE):
         except Exception:
             pass
 
+    # ---------- «Записать все эмоции»: очередь (просьба Ярослава, 14.11.26) ----------
+
+    def emo_synth_batch(self, slot_id, labels):
+        """Поставить все эмоции в очередь: каждая синтезируется после предыдущей."""
+        self._emo_batch = {"slot": str(slot_id), "labels": list(labels),
+                           "done": [], "fail": [], "cur": None}
+        self._emo_batch_next()
+
+    def _emo_batch_next(self):
+        b = getattr(self, "_emo_batch", None)
+        if not b:
+            return
+        if not b["labels"]:
+            done, fail = len(b["done"]), len(b["fail"])
+            self._emo_batch = None
+            msg = f"✅ {_tr('Записано эмоций')}: {done}"
+            if fail:
+                msg += f" · {_tr('с ошибкой')}: {fail}"
+            self.update_status(msg)
+            self._refresh_voice_dialog()
+            return
+        label = b["labels"].pop(0)
+        b["cur"] = label
+        total = len(b["done"]) + len(b["fail"]) + len(b["labels"]) + 1
+        self.update_status(f"⏳ «{label}» — {len(b['done']) + len(b['fail']) + 1}/{total}")
+        self.emotion_synth(b["slot"], label)
+
+    def _emo_batch_step(self, ok):
+        """Отметить результат текущей эмоции и запустить следующую из очереди."""
+        b = getattr(self, "_emo_batch", None)
+        if not b:
+            return False
+        (b["done"] if ok else b["fail"]).append(b.get("cur"))
+        self.after(80, self._emo_batch_next)     # даём окну перерисоваться
+        return True
+
     def emotion_synth(self, slot_id, label):
         """Синтез эмоционального образца нейросетью из нейтрального образца этого голоса."""
         if self._emo_busy:
@@ -10962,6 +13084,7 @@ class ModernTTSApp(*_APP_BASE):
 
     def _emotion_synth_ok(self, slot_id, label, fp, phrase, secs):
         self._emo_busy = False
+        batch = self._emo_batch_step(True)
         info = self.custom_voices.get(str(slot_id))
         if isinstance(info, dict):
             samples = info.setdefault("samples", {})
@@ -10975,11 +13098,16 @@ class ModernTTSApp(*_APP_BASE):
                 samples[label]["gain"] = _g     # ползунок громкости тот же
             self.save_settings()
         self._refresh_voice_dialog()
-        self.update_status(f"✨ «{label}» — {_tr('синтезирована')} ({secs:.1f} с)")
+        if not batch:      # в очереди «Записать все» статус ведёт сама очередь
+            self.update_status(f"✨ «{label}» — {_tr('синтезирована')} ({secs:.1f} с)")
 
     def _emotion_synth_fail(self, err):
         self._emo_busy = False
-        self.update_status(f"❌ {_tr('Эмоция не синтезирована')}: {str(err)[:160]}")
+        batch = self._emo_batch_step(False)
+        if not batch:
+            self.update_status(f"❌ {_tr('Эмоция не синтезирована')}: {str(err)[:160]}")
+        else:
+            print(f"⚠️ Эмоция в очереди не синтезирована: {str(err)[:160]}")
         self._refresh_voice_dialog()
 
     def delete_emotion(self, slot_id, label):
@@ -12048,6 +14176,11 @@ class ModernTTSApp(*_APP_BASE):
         box_text = "" if self._placeholder_active else self.result_box.get("1.0", "end-1c").strip()
         source_text = "" if self._result_is_generated else box_text
 
+        # «Книга по голосам»: анализируем фрагменты, а не поле текста
+        if getattr(self, "book_mode", False) and self.book_items:
+            self._launch_analysis("", self._book_view_text())
+            return
+
         if not url and not source_text:
             messagebox.showwarning("Нечего анализировать",
                                    "Вставьте ссылку на статью или видео, текст или файл — либо наберите текст в поле справа.")
@@ -12090,6 +14223,16 @@ class ModernTTSApp(*_APP_BASE):
         if not llm_name and not (self.preset_menu.get() == self.NO_PROCESS
                                  and not self.emo_auto_var.get()):
             messagebox.showwarning("Внимание", "Выберите модель ИИ в карточке «МОДЕЛЬ ИИ»")
+            return
+
+        # «Книга по голосам»: анализ идёт пакетами фрагментов и НЕ теряет разметку
+        if getattr(self, "book_mode", False) and self.book_items:
+            if self.preset_menu.get() == self.NO_PROCESS and not self.emo_auto_var.get():
+                self.update_status(_tr("✅ Текст без изменений — нейросеть не вызывалась"))
+                if self.auto_play_var.get() and not self.cancel_event.is_set():
+                    self.after(300, self.play_result)
+                return
+            self._book_analyze_start(llm_name)
             return
 
         if self.current_engine == "Qwen":
@@ -12612,7 +14755,16 @@ class ModernTTSApp(*_APP_BASE):
     def play_result(self):
         if self.is_processing:
             return
-        text = "" if self._placeholder_active else self.result_box.get("1.0", "end-1c").strip()
+        # «Книга по голосам»: озвучиваем фрагменты (можно с выбранного)
+        book_items = None
+        if getattr(self, "book_mode", False) and self.book_items:
+            start = getattr(self, "_book_start", 0) or 0
+            self._book_start = 0
+            book_items = (self.book_items[start:] if 0 <= start < len(self.book_items)
+                          else list(self.book_items))
+            text = "\n".join(f"{it.get('speaker')}: {it.get('text')}" for it in book_items)
+        else:
+            text = "" if self._placeholder_active else self.result_box.get("1.0", "end-1c").strip()
         if not text:
             messagebox.showwarning("Внимание", "Нет текста для озвучки.")
             return
@@ -12644,6 +14796,28 @@ class ModernTTSApp(*_APP_BASE):
 
         voice_key = (self.current_tts_name or self.tts_combo.get()) \
             if self.current_engine in ("Vox", "Qwen") else self.tts_combo.get()
+        # «Книга по голосам»: каждая реплика своим голосом; кэш зависит от состава
+        book_segments = None
+        if book_items:
+            book_segments = self._book_segments(book_items)
+            book_segments = [(v, t) for v, t in book_segments if (t or "").strip()]
+            if not book_segments:
+                messagebox.showwarning("Внимание", "Фрагменты пустые — озвучивать нечего.")
+                return
+            voice_key = ("BOOK:" + json.dumps(self.book_cast, ensure_ascii=False, sort_keys=True)
+                         + "|G:" + json.dumps(getattr(self, "book_gain", {}) or {},
+                                              ensure_ascii=False, sort_keys=True))
+            # громкость эмоций тоже влияет на звук — иначе после правки ползунка играл бы кэш
+            _emo_gains = {}
+            for _name in (self.book_cast or {}):
+                try:
+                    _vid, _info = self._find_voice(_name)
+                    _smp = (_info or {}).get("samples") or {}
+                    _emo_gains[_name] = {k: int((v or {}).get("gain") or 0)
+                                         for k, v in _smp.items()}
+                except Exception:
+                    continue
+            voice_key += "|E:" + json.dumps(_emo_gains, ensure_ascii=False, sort_keys=True)
         cached = getattr(self, "_last_audio", None)
         if (cached and cached[0] == text and cached[1] == self.current_engine
                 and cached[2] == voice_key and abs(cached[3] - self.speech_rate) < 1e-9
@@ -12660,7 +14834,8 @@ class ModernTTSApp(*_APP_BASE):
         self.progress_bar.stop()
         self.progress_bar.set(0)
         self.update_status("⏳ Синтез речи…")
-        threading.Thread(target=self.generate_and_play, args=(text,), daemon=True).start()
+        threading.Thread(target=self.generate_and_play, args=(text,),
+                         kwargs={"segments": book_segments}, daemon=True).start()
 
     def _save_last_audio(self):
         """Кнопка ⬇: сохранить WAV последней озвучки в выбранный файл."""
@@ -12713,17 +14888,20 @@ class ModernTTSApp(*_APP_BASE):
         except Exception as e:
             print(f"\u26a0\ufe0f \u043f\u043e\u0442\u043e\u0447\u043d\u0430\u044f \u043e\u0437\u0432\u0443\u0447\u043a\u0430: \u0447\u0430\u043d\u043a {i + 1} \u043d\u0435 \u0432\u044b\u0448\u0435\u043b: {e}")
 
-    def generate_and_play(self, text: str, play: bool = True):
+    def generate_and_play(self, text: str, play: bool = True, segments=None):
         """Точка входа озвучки (зовёт и окно, и fair_api). Флаг _synth_busy нужен
         анализу: перед выгрузкой голосовой модели он ждёт конец синтеза, чтобы не
-        снять движок посреди генерации (просьба Ярослава 10.11.26)."""
+        снять движок посреди генерации (просьба Ярослава 10.11.26).
+
+        segments — [(голос, фраза)] для режима «Книга по голосам»: каждая реплика
+        синтезируется своим голосом; None — обычная озвучка одним голосом."""
         self._synth_busy = True
         try:
-            return self._synth_guarded(text, play=play)
+            return self._synth_guarded(text, play=play, segments=segments)
         finally:
             self._synth_busy = False
 
-    def _synth_guarded(self, text: str, play: bool = True):
+    def _synth_guarded(self, text: str, play: bool = True, segments=None):
         temp_file = os.path.join(self.BASE_DIR, "temp_output_pro.wav")
         try:
             orig_text = text
@@ -12752,25 +14930,29 @@ class ModernTTSApp(*_APP_BASE):
                 if not speaker:
                     raise Exception("Не выбран голос для озвучки: запишите образец «🎙 Образец голоса».")
                 ref_wav, ref_text = self.get_ref(speaker)
-                # Vox «съедает» последнее слово, если фраза не закрыта знаком препинания
-                text = text.strip()
-                if text and text[-1] not in ".!?…:;»\"')":
-                    text += "."
                 # маркер (эмоция) переключает образец голоса на одно предложение;
-                # по умолчанию (без маркера) — нейтральный образец слота
-                ref_by_emo = {None: (ref_wav, ref_text)}
-                chunks = []
-                for emo, frag in self._split_emotion_segments(text, speaker):
-                    if emo and emo not in ref_by_emo:
-                        ref_by_emo[emo] = self.get_ref(speaker, emo)
-                    # 200 знаков — компромисс: тембр держится, пауз между фразами немного
-                    chunks += [(emo, c) for c in self.split_text_chunks(frag, limit=200)]
+                # по умолчанию (без маркера) — нейтральный образец слота.
+                # В режиме «Книга по голосам» образцов несколько — по одному на голос.
+                ref_cache = {(speaker, None): (ref_wav, ref_text)}
+                chunks = []          # (голос, эмоция, текст)
+                for spk, seg_text in (segments or [(speaker, text)]):
+                    seg_text = (seg_text or "").strip()
+                    if not seg_text:
+                        continue
+                    # Vox «съедает» последнее слово, если фраза не закрыта знаком препинания
+                    if seg_text[-1] not in ".!?…:;»\"')":
+                        seg_text += "."
+                    for emo, frag in self._split_emotion_segments(seg_text, spk):
+                        # 200 знаков — компромисс: тембр держится, пауз между фразами немного
+                        chunks += [(spk, emo, c) for c in self.split_text_chunks(frag, limit=200)]
                 print(f"📚 Чанков для озвучки: {len(chunks)}"
-                      + (f" · эмоции: {', '.join(e for e in ref_by_emo if e)}" if len(ref_by_emo) > 1 else ""))
+                      + (f" · голосов: {len({c[0] for c in chunks})}" if len({c[0] for c in chunks}) > 1 else "")
+                      + (f" · эмоции: {', '.join({c[1] for c in chunks if c[1]})}" if any(c[1] for c in chunks) else ""))
                 segs = []
+                seg_meta = []        # (голос, эмоция) — для выравнивания громкости
                 sr_out = None
                 skipped = 0
-                for i, (emo, ch) in enumerate(chunks):
+                for i, (spk, emo, ch) in enumerate(chunks):
                     if self.cancel_event.is_set():
                         raise Cancelled()
                     self._safe_ui(lambda p=i, n=len(chunks): self.set_progress(
@@ -12781,11 +14963,17 @@ class ModernTTSApp(*_APP_BASE):
                         continue
                     if ch_clean[-1] not in ".!?…:;":
                         ch_clean += "."
-                    chunk_ref_wav, chunk_ref_text = ref_by_emo[emo]
+                    key = (spk, emo)
+                    if key not in ref_cache:
+                        try:
+                            ref_cache[key] = self.get_ref(spk, emo)
+                        except Exception as e:
+                            print(f"⚠️ Голос «{spk}» недоступен ({e}) — говорю основным")
+                            ref_cache[key] = ref_cache[(speaker, None)]
+                    chunk_ref_wav, chunk_ref_text = ref_cache[key]
                     arr, sr = self._vox_synth_chunk(ch_clean, chunk_ref_wav, chunk_ref_text,
                                                     fast=fast, actual_rate=actual_rate)
-                    if emo:      # 🔊 громкость эмоции (ползунок в окне эмоций)
-                        arr = self._gain_of_emo(speaker, emo, arr)
+                    arr = self._book_gain_of(spk, emo, arr)   # 🔊 ползунок громкости реплики
                     # всё равно пусто — фиксируем пропуск в логе, а не молча
                     if len(arr) < int(sr * 0.1):
                         skipped += 1
@@ -12794,13 +14982,17 @@ class ModernTTSApp(*_APP_BASE):
                     arr = self._stretch_int16(arr, actual_rate)
                     sr_out = sr
                     segs.append(arr)
+                    seg_meta.append((spk, emo))
                     self._seg_emit(i, len(chunks), arr, sr_out)
                 if skipped:
                     print(f"⚠️ Всего пропущено чанков: {skipped}")
 
                 if not segs:
                     raise Exception("Vox не синтезировал ни одной фразы — проверьте голос-образец.")
+                self._book_level_segments(segs, seg_meta, sr_out)   # 🔊 выравнивание по голосам
                 audio = self._join_chunks(segs, sr_out)
+                if self.book_mode:                                  # защита от клиппинга — в книге
+                    audio = self._book_limit_peak(audio)
                 with wave.open(temp_file, 'wb') as f:
                     f.setnchannels(1);
                     f.setsampwidth(2);
@@ -12843,21 +15035,28 @@ class ModernTTSApp(*_APP_BASE):
                 # поле инструкции в карточке — только зеркало; характер живёт
                 # в паспорте голоса (vpack) и подмешивается в _qwen_instruct_for
                 user_instr = ""
-                # как у Vox: незакрытая пунктуацией фраза «съедает» хвост фразы — закрываем знаком
-                text = text.strip()
-                if text and text[-1] not in ".!?…:;»\"')":
-                    text += "."
-                chunks = []
-                for emo, frag in self._split_emotion_segments_qwen(text):
-                    chunks += [(emo, c) for c in self.split_text_chunks(frag, limit=220)]
+                # «Книга по голосам»: реплики разных персонажей — разными голосами Qwen
+                qwen_spk_cache = {speaker: (spk_id, vpack, need_kind)}
+                chunks = []          # (голос, эмоция, текст)
+                for spk, seg_text in (segments or [(speaker, text)]):
+                    seg_text = (seg_text or "").strip()
+                    if not seg_text:
+                        continue
+                    # как у Vox: незакрытая пунктуацией фраза «съедает» хвост фразы
+                    if seg_text[-1] not in ".!?…:;»\"')":
+                        seg_text += "."
+                    for emo, frag in self._split_emotion_segments_qwen(seg_text):
+                        chunks += [(spk, emo, c) for c in self.split_text_chunks(frag, limit=220)]
                 print(f"📚 Чанков Qwen: {len(chunks)}"
-                      + (f" · эмоции: {', '.join(dict.fromkeys(e for e, _ in chunks if e))}"
-                         if any(e for e, _ in chunks) else ""))
+                      + (f" · голосов: {len({c[0] for c in chunks})}" if len({c[0] for c in chunks}) > 1 else "")
+                      + (f" · эмоции: {', '.join(dict.fromkeys(c[1] for c in chunks if c[1]))}"
+                         if any(c[1] for c in chunks) else ""))
                 self._qwen_new_run_seed()
                 segs = []
+                seg_meta = []        # (голос, эмоция) — для выравнивания громкости
                 sr_out = None
                 skipped = 0
-                for i, (emo, ch) in enumerate(chunks):
+                for i, (spk, emo, ch) in enumerate(chunks):
                     if self.cancel_event.is_set():
                         raise Cancelled()
                     self._safe_ui(lambda p=i, n=len(chunks): self.set_progress(
@@ -12867,8 +15066,17 @@ class ModernTTSApp(*_APP_BASE):
                         continue
                     if ch_clean[-1] not in ".!?…:;":
                         ch_clean += "."
-                    arr, sr = self._qwen_synth_chunk(model, spk_id, vpack, ch_clean,
+                    if spk not in qwen_spk_cache:
+                        try:
+                            qwen_spk_cache[spk] = self._qwen_voice_for(spk)
+                        except Exception as e:
+                            print(f"⚠️ Голос «{spk}» недоступен ({e}) — говорю основным")
+                            qwen_spk_cache[spk] = qwen_spk_cache[speaker]
+                    _sid, _vpack, _kind = qwen_spk_cache[spk]
+                    _model = model if (spk == speaker) else self._qwen_model(_kind)
+                    arr, sr = self._qwen_synth_chunk(_model, _sid, _vpack, ch_clean,
                                                      emo, user_instr, lang)
+                    arr = self._book_gain_of(spk, emo, arr)   # 🔊 ползунок громкости реплики
                     if len(arr) < int(sr * 0.1):
                         skipped += 1
                         print(f"❌ Чанк {i+1} пропущен (модель не дала аудио): {ch_clean[:70]}...")
@@ -12876,12 +15084,16 @@ class ModernTTSApp(*_APP_BASE):
                     arr = self._stretch_int16(arr, actual_rate)
                     sr_out = sr
                     segs.append(arr)
+                    seg_meta.append((spk, emo))
                     self._seg_emit(i, len(chunks), arr, sr_out)
                 if skipped:
                     print(f"⚠️ Всего пропущено чанков: {skipped}")
                 if not segs:
                     raise Exception("Qwen не синтезировал ни одной фразы.")
+                self._book_level_segments(segs, seg_meta, sr_out)   # 🔊 выравнивание по голосам
                 audio = self._join_chunks(segs, sr_out)
+                if self.book_mode:                                  # защита от клиппинга — в книге
+                    audio = self._book_limit_peak(audio)
                 with wave.open(temp_file, 'wb') as f:
                     f.setnchannels(1);
                     f.setsampwidth(2);
@@ -12903,31 +15115,44 @@ class ModernTTSApp(*_APP_BASE):
                     except Exception:
                         cfg = None
 
-                pieces = self.split_text_chunks(text, limit=240) or [text]
+                # «Книга по голосам»: у каждой реплики свой Piper-голос
+                pieces = []          # (голос|None, текст)
+                for spk, seg_text in (segments or [(None, text)]):
+                    seg_text = (seg_text or "").strip()
+                    if not seg_text:
+                        continue
+                    for pc in (self.split_text_chunks(seg_text, limit=240) or [seg_text]):
+                        pieces.append((spk, pc))
                 total = len(pieces)
                 all_bytes = []
+                plan = []            # (голос|None, байт) — границы кусков для громкости
                 sr, ch = None, None
-                for idx, piece in enumerate(pieces):
+                for idx, (spk, piece) in enumerate(pieces):
                     if self.cancel_event.is_set():
                         raise Cancelled()
                     self._safe_ui(lambda i=idx, n=total: self.set_progress(
                         int(i * 95 / max(1, n)), f"Синтез {i + 1}/{n}"))
                     _p0 = len(all_bytes)     # потоковая озвучка: начало этого куска
+                    voice_obj = self._piper_voice_for(spk) if spk else self.tts_voice
                     try:
-                        gen = self.tts_voice.synthesize(piece, cfg) if cfg is not None else self.tts_voice.synthesize(piece)
+                        gen = voice_obj.synthesize(piece, cfg) if cfg is not None else voice_obj.synthesize(piece)
                     except TypeError:
-                        gen = self.tts_voice.synthesize(piece)
+                        gen = voice_obj.synthesize(piece)
                         cfg = None
                     for chunk in gen:
                         if hasattr(chunk, 'audio_int16_bytes'):
                             all_bytes.append(chunk.audio_int16_bytes)
+                            plan.append((spk, len(chunk.audio_int16_bytes)))
                             if sr is None: sr, ch = chunk.sample_rate, chunk.sample_channels
                         elif hasattr(chunk, 'audio_float_array'):
                             a = (chunk.audio_float_array * 32767).astype(np.int16)
                             all_bytes.append(a.tobytes())
+                            plan.append((spk, a.nbytes))
                             if sr is None: sr, ch = chunk.sample_rate, chunk.sample_channels
                     if idx < total - 1:  # естественная пауза между фрагментами
-                        all_bytes.append(np.zeros(int((sr or 22050) * 0.12), dtype=np.int16).tobytes())
+                        gap = np.zeros(int((sr or 22050) * 0.12), dtype=np.int16)
+                        all_bytes.append(gap.tobytes())
+                        plan.append((None, gap.nbytes))
                     self._seg_emit(idx, total,
                                    np.frombuffer(b"".join(all_bytes[_p0:]), dtype=np.int16),
                                    sr or 22050, ch or 1)
@@ -12936,10 +15161,34 @@ class ModernTTSApp(*_APP_BASE):
                     raise Exception("Piper не сгенерировал аудио")
 
                 data = b"".join(all_bytes)
+                # 🔊 громкость: ручные ползунки + выравнивание по персонажам (до ресемпла)
+                if self.book_mode and plan:
+                    try:
+                        ch_n = ch or 1
+                        arr_all = np.frombuffer(data, dtype=np.int16).copy()
+                        parts, meta, off = [], [], 0
+                        for spk_i, blen in plan:
+                            n = (blen // 2) // ch_n * ch_n
+                            parts.append(arr_all[off:off + n])
+                            off += n
+                            meta.append((spk_i or "__gap__", None))
+                        for i, m in enumerate(meta):
+                            if m[0] != "__gap__" and parts[i].size:
+                                parts[i] = self._book_gain_of(m[0], None, parts[i])
+                        self._book_level_segments(parts, meta, sr)
+                        data = np.concatenate(parts).astype(np.int16).tobytes()
+                    except Exception as e:
+                        print(f"⚠️ Громкость Piper: {e}")
                 if rate != 1.0 and cfg is None:
                     arr = np.frombuffer(data, dtype=np.int16)
                     arr = self._stretch_int16(arr, rate)
                     data = arr.tobytes()
+                if self.book_mode:      # защита от клиппинга — только в книжном режиме
+                    try:
+                        arr = self._book_limit_peak(np.frombuffer(data, dtype=np.int16))
+                        data = arr.tobytes()
+                    except Exception:
+                        pass
 
                 with wave.open(temp_file, 'wb') as f:
                     f.setnchannels(ch);
