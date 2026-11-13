@@ -2410,7 +2410,11 @@ _PAIRS += [
     ("Модель ИИ", "AI model"),
     ("Нужна модель для анализа текста", "A model is needed for text analysis"),
     ("Модель не скачана", "Model not downloaded"),
-    ("Нет модели — нажмите ⬇", "No model — press ⬇"),
+    ("Нет модели — нажмите «Другая модель»", "No model — press “Another model”"),
+    # ---- шестерёнка в шапке: первичные настройки заново (13.11.26) ----
+    ("Настройки", "Settings"),
+    ("Настройки моделей и движков", "Models and engines"),
+    ("Применить и докачать", "Apply and download"),
     # ---- голоса Piper ----
     ("Голоса Piper", "Piper voices"),
     ("Установлен", "Installed"),
@@ -2594,14 +2598,22 @@ def _tr_val(val):
 
 
 _PAIRS += [
-    ("2. Голосовой движок VoxCPM2 — на выбор два варианта (веса общие, ≈4,5 ГБ), можно поставить оба вместе",
-     "2. VoxCPM2 speech engine — two variants to choose from (shared weights, ≈4.5 GB); you can install both"),
+    ("2. Голосовой движок VoxCPM2 — три варианта: обычный, Turbo и Tiny; можно поставить любой набор "
+     "(классические веса ≈4,5 ГБ, Tiny — свои ≈3 ГБ)",
+     "2. VoxCPM2 speech engine — three variants: regular, Turbo and Tiny; any combination "
+     "(classic weights ≈4.5 GB, Tiny has its own ≈3 GB)"),
+    ("Vox Tiny — маленькая русская модель (0.5B, ≈3 ГБ), говорит своим голосом; нужно 4 ГБ видеопамяти",
+     "Vox Tiny — a small Russian model (0.5B, ≈3 GB); speaks with its own voice; needs 4 GB of video memory"),
+    ("2 · Vox Tiny: веса ≈3 ГБ…", "2 · Vox Tiny: weights ≈3 GB…"),
+    ("Vox Tiny не установлен: ", "Vox Tiny was not installed: "),
     ("Vox Turbo — быстрее на ~50%; нужно 12 ГБ видеопамяти",
      "Vox Turbo is ~50% faster; needs 12 GB of video memory"),
-    ("Vox (рекомендуется) — обычный вариант (медленнее); достаточно 8 ГБ видеопамяти",
-     "Vox (recommended) — the regular variant (slower); 8 GB of video memory is enough"),
-    ("видеопамяти меньше 8 ГБ — Vox не запустится: ему нужно 8 ГБ, Turbo — 12 ГБ",
-     "less than 8 GB of video memory — Vox will not run: it needs 8 GB, Turbo needs 12 GB"),
+    ("Vox (рекомендуется) — обычный вариант; достаточно 8 ГБ видеопамяти",
+     "Vox (recommended) — the regular variant; 8 GB of video memory is enough"),
+    ("видеопамяти меньше 8 ГБ — Vox не запустится: ему нужно 8 ГБ, Turbo — 12 ГБ, "
+     "Tiny хватает 4 ГБ",
+     "less than 8 GB of video memory — Vox will not run: it needs 8 GB, Turbo needs 12 GB; "
+     "Tiny needs 4 GB"),
     ("⚠ Для Turbo нужно 12 ГБ видеопамяти (Vox хватает 8 ГБ)",
      "⚠ Turbo needs 12 GB of video memory (8 GB is enough for Vox)"),
     ("Vox уже установлен", "Vox is already installed"),
@@ -3869,10 +3881,43 @@ class ModernTTSApp(*_APP_BASE):
             except Exception:
                 pass
 
-    def _first_run_setup(self, preset=None):
+    def _open_settings(self):
+        """Шестерёнка справа от переключателя языка: первичные настройки (модели
+        анализа, движки Vox и Qwen, докачка) можно открыть заново — просьба
+        Ярослава 13.11.26."""
+        self._first_run_setup(settings_mode=True)
+
+    def _after_settings_apply(self):
+        """После «Применить и докачать» из шестерёнки: обновить список моделей и
+        поставить текущей первую из отмеченных в окне настроек."""
+        try:
+            self.scan_models()
+        except Exception as e:
+            print(f"⚠️ настройки: список моделей не обновился: {e}")
+            return
+        try:
+            marked = [n for n, v in (getattr(self, "_setup_llm_vars", None) or {}).items()
+                      if v.get()]
+        except Exception:
+            marked = []
+        for nm in marked:
+            if nm in self.llm_models:
+                try:
+                    disp = next((d for d, a in self.llm_display.items() if a == nm), None)
+                    if disp:
+                        self.llm_combo.set(disp)
+                    self.on_llm_change(nm)
+                except Exception:
+                    pass
+                break
+
+    def _first_run_setup(self, preset=None, settings_mode=False):
         """Первичная установка: одно окно на три строки — модель анализа (обязательно),
         Vox (галочка), Qwen3-TTS (выбор размера движка). Видеокарта показана сразу.
-        preset: "vox"/"0.6B"/"1.7B" — заранее отметить нужную галочку."""
+        preset: "vox"/"0.6B"/"1.7B" — заранее отметить нужную галочку.
+        settings_mode: то же окно открыто шестерёнкой из шапки (13.11.26): чекбоксы
+        отмечают уже скачанное, «Применить и докачать» довозит недостающее, а цепочка
+        первого запуска после закрытия НЕ запускается."""
         old = getattr(self, "_setup_dialog", None)
         try:
             if old is not None and old.winfo_exists():
@@ -3885,7 +3930,7 @@ class ModernTTSApp(*_APP_BASE):
         gname, gvram = self._gpu_summary()
         print(f"🧭 мастер: окно, gpu={gname!r} vram={gvram}")
         dlg = ctk.CTkToplevel(self)
-        dlg.title(_tr("Первичная установка"))
+        dlg.title(_tr("Настройки") if settings_mode else _tr("Первичная установка"))
         dlg.geometry("640x430")
         _center_on_parent(dlg)
         dlg.resizable(False, False)
@@ -3898,12 +3943,14 @@ class ModernTTSApp(*_APP_BASE):
 
         def _after_close(event=None):
             if event is None or getattr(event, "widget", None) is dlg:
-                self.after(400, self._first_run_chain)
+                if not settings_mode:            # из настроек цепочку не зовём
+                    self.after(400, self._first_run_chain)
         dlg.bind("<Destroy>", _after_close)
 
         body = ctk.CTkFrame(dlg, fg_color=COLOR_PANEL, corner_radius=R_PANEL)
         body.pack(fill="both", expand=True, padx=12, pady=12)
-        ctk.CTkLabel(body, text=_tr("Первичная установка FAIR"), font=FONT_SUBHEADER,
+        ctk.CTkLabel(body, text=_tr("Настройки моделей и движков") if settings_mode
+                     else _tr("Первичная установка FAIR"), font=FONT_SUBHEADER,
                      text_color=COLOR_HEAD).pack(pady=(10, 3))
         if gname:
             gpu_txt = f"\U0001F5A5 {gname} \u2014 {gvram:.1f} {_tr('ГБ видеопамяти')}"
@@ -3947,7 +3994,9 @@ class ModernTTSApp(*_APP_BASE):
                 + (f" — {_size}" if _size else "")
             _fr = ctk.CTkFrame(r1, fg_color="transparent")
             _fr.pack(fill="x", padx=(10, 2), pady=2)
-            _var = ctk.BooleanVar(value=(_p is self.MODEL_PACKS[0]))
+            _inst = str(_p.get("name") or "") in (getattr(self, "llm_models", None) or {})
+            _var = ctk.BooleanVar(value=_inst if settings_mode
+                                  else (_p is self.MODEL_PACKS[0]))
             _cb = ctk.CTkCheckBox(_fr, text="", checkbox_width=18, checkbox_height=18,
                                   fg_color="#c6763a", hover_color="#a95f2c", variable=_var)
             self._edge_check(_cb, _fr, y_off=2)
@@ -3969,13 +4018,19 @@ class ModernTTSApp(*_APP_BASE):
             _lb.bind("<Button-1>", lambda e, f=_click_llm: f())
             self._setup_llm_vars[_p["name"]] = _var
 
+        if settings_mode and not any(v.get() for v in self._setup_llm_vars.values()):
+            _first = next(iter(self._setup_llm_vars.values()), None)
+            if _first is not None:
+                _first.set(True)      # без модели анализ не запустится
+
         r2 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
         r2.pack(fill="x", padx=12, pady=3)
         # Vox — два варианта одного движка: Turbo (быстрый) и Classic (обычный); веса общие
         ctk.CTkLabel(r2, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
                      justify="left", wraplength=540,
-                     text=_tr("2. Голосовой движок VoxCPM2 — на выбор два варианта "
-                              "(веса общие, ≈4,5 ГБ), можно поставить оба вместе")
+                     text=_tr("2. Голосовой движок VoxCPM2 — три варианта: обычный, "
+                              "Turbo и Tiny; можно поставить любой набор "
+                              "(классические веса ≈4,5 ГБ, Tiny — свои ≈3 ГБ)")
                      ).pack(fill="x", padx=10, pady=(5, 1))
         # Turbo требует 12 ГБ (пул-резерв 55% должен накрыть веса ≈4,7 ГБ);
         # Classic достаточно 8 ГБ.
@@ -3983,13 +4038,18 @@ class ModernTTSApp(*_APP_BASE):
         # Vox Turbo — ниже и без галочки.
         self._setup_vox_turbo = ctk.BooleanVar(value=False)
         self._setup_vox_classic = ctk.BooleanVar(value=bool(gvram and gvram >= 8.0))
+        # 13.11.26: третий вариант — русская Vox Tiny (0.5B); в мастере его не было
+        self._setup_vox_tiny = ctk.BooleanVar(value=False)
         vcb = {}
         for _kind, _var, _txt in (
                 ("classic", self._setup_vox_classic,
-                 _tr("Vox (рекомендуется) — обычный вариант (медленнее); достаточно 8 ГБ "
+                 _tr("Vox (рекомендуется) — обычный вариант; достаточно 8 ГБ "
                      "видеопамяти")),
                 ("turbo", self._setup_vox_turbo,
-                 _tr("Vox Turbo — быстрее на ~50%; нужно 12 ГБ видеопамяти"))):
+                 _tr("Vox Turbo — быстрее на ~50%; нужно 12 ГБ видеопамяти")),
+                ("tiny", self._setup_vox_tiny,
+                 _tr("Vox Tiny — маленькая русская модель (0.5B, ≈3 ГБ), говорит "
+                     "своим голосом; нужно 4 ГБ видеопамяти"))):
             fr = ctk.CTkFrame(r2, fg_color="transparent")
             fr.pack(fill="x", padx=(10, 2), pady=2)
             cb = ctk.CTkCheckBox(fr, text="", checkbox_width=18, checkbox_height=18,
@@ -4009,6 +4069,10 @@ class ModernTTSApp(*_APP_BASE):
             # ctk.CTkLabel(r2, text="   ✅ " + _tr("Vox уже установлен"), font=FONT_TINY,
             #              text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x",
             #              padx=10, pady=(0, 2))
+        if self._vox_extra_weights("tiny"):
+            vcb["tiny"].select()
+            vcb["tiny"].configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
+                                  border_color="#8a8a8a", state="disabled")
         if self._nano_installed():
             vcb["turbo"].select()
             vcb["turbo"].configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
@@ -4019,13 +4083,18 @@ class ModernTTSApp(*_APP_BASE):
             #              text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x",
             #              padx=10, pady=(0, 2))
         if gvram and gvram < 8.0:
-            for _cb in vcb.values():
+            for _kind, _cb in vcb.items():
+                if _kind == "tiny" and gvram >= 4.0 and not self._vox_extra_weights("tiny"):
+                    _cb.configure(state="normal")   # 0.5B — ей хватает 4 ГБ
+                    self._setup_vox_tiny.set(True)
+                    continue
                 if str(_cb.cget("state")) != "disabled":
                     _cb.configure(state="disabled")
             self._setup_vox_turbo.set(False)
             self._setup_vox_classic.set(False)
             ctk.CTkLabel(r2, text="   ⚠ " + _tr("видеопамяти меньше 8 ГБ — "
-                                                     "Vox не запустится: ему нужно 8 ГБ, Turbo — 12 ГБ"),
+                                                     "Vox не запустится: ему нужно 8 ГБ, Turbo — 12 ГБ, "
+                                                     "Tiny хватает 4 ГБ"),
                          font=FONT_TINY, text_color=COLOR_RED, anchor="w",
                          wraplength=560, justify="left").pack(fill="x", padx=10, pady=(0, 4))
         elif not gvram:
@@ -4088,7 +4157,8 @@ class ModernTTSApp(*_APP_BASE):
 
         rowb = ctk.CTkFrame(body, fg_color="transparent")
         rowb.pack(fill="x", padx=16, pady=(6, 8))
-        btn_go = ctk.CTkButton(rowb, text=_tr("Установить выбранное"), width=200, height=34,
+        btn_go = ctk.CTkButton(rowb, text=_tr("Применить и докачать") if settings_mode
+                               else _tr("Установить выбранное"), width=200, height=34,
                                corner_radius=R_PANEL, font=FONT_SUBHEADER,
                                fg_color="#c6763a", hover_color="#a95f2c",
                                text_color="#ffffff")
@@ -4150,7 +4220,8 @@ class ModernTTSApp(*_APP_BASE):
                     if not os.path.isfile(gguf_final):
                         set_info(_tr("Модель анализа не докачалась — попробуйте ещё раз"))
                         return
-                if (self._setup_vox_turbo.get() or self._setup_vox_classic.get()) \
+                if (self._setup_vox_turbo.get() or self._setup_vox_classic.get()
+                        or self._setup_vox_tiny.get()) \
                         and not self._vox_installed() and not self._setup_cancel.is_set():
                     set_info(_tr("2 · Голосовой движок Vox: GPU-среда…"))
                     self._vox_cancelled = False
@@ -4197,6 +4268,15 @@ class ModernTTSApp(*_APP_BASE):
                         self._nano_ok = True
                     elif not self._setup_cancel.is_set():
                         set_info(_tr("Vox Turbo не установлен: ") + str(detail_n)[-160:])
+                if self._setup_vox_tiny.get() and not self._vox_extra_weights("tiny") \
+                        and not self._setup_cancel.is_set():
+                    set_info(_tr("2 · Vox Tiny: веса ≈3 ГБ…"))
+                    try:
+                        from huggingface_hub import snapshot_download
+                        snapshot_download(self.VOX_EXTRA_VARIANTS["tiny"]["repo"])
+                    except Exception as e:
+                        if not self._setup_cancel.is_set():
+                            set_info(_tr("Vox Tiny не установлен: ") + str(e)[-160:])
                 _q_sizes = [s for s, on in (("0.6B", self._setup_q06.get()),
                                             ("1.7B", self._setup_q17.get())) if on]
                 if _q_sizes and not self._setup_cancel.is_set():
@@ -4268,6 +4348,8 @@ class ModernTTSApp(*_APP_BASE):
                     return
                 self._ui(self._refresh_voices)
                 self._ui(self._mark_setup_done)
+                if settings_mode:
+                    self._ui(self._after_settings_apply)
                 set_info("\u2705 " + _tr("Установка завершена — можно работать"))
                 try:
                     if dlg.winfo_exists():
@@ -5134,15 +5216,104 @@ class ModernTTSApp(*_APP_BASE):
 
         self.status_frame = ctk.CTkFrame(topbar, fg_color="transparent")
         self.status_frame.grid(row=0, column=1, sticky="e", padx=(24, 14))
-        self.status_label_main = ctk.CTkLabel(self.status_frame, text="Готово", font=FONT_TINY,
+        # шрифт строки статуса на 20% крупнее прежнего FONT_TINY=10 (просьба Ярослава 13.11.26)
+        self.status_label_main = ctk.CTkLabel(self.status_frame, text="Готово",
+                                              font=(FONT_FAMILY, 12),
                                               text_color=COLOR_TEXT_SEC, anchor="e", justify="right")
         self.status_label_main.pack(side="right")
 
         # кнопки языка — узкие, чтобы не растягивали шапку
-        self.lang_toggle = SegmentToggle(topbar, values=["RU", "EN"], height=28,
-                                          btn_width=34, command=self._set_lang)
+        # язык — компактный выпадающий список: в шапке видно только текущий язык,
+        # остальные выбираются из списка (просьба Ярослава 13.11.26)
+        self.lang_toggle = ctk.CTkOptionMenu(topbar, values=["RU", "EN"], width=62,
+                                             height=28, corner_radius=8,
+                                             font=(FONT_FAMILY, 12, "bold"),
+                                             fg_color=COLOR_CARD2,
+                                             button_color=COLOR_FILL_SOFT,
+                                             button_hover_color=COLOR_SELECT,
+                                             text_color=COLOR_TEXT_MAIN,
+                                             dropdown_fg_color="#fffdf6",
+                                             dropdown_text_color=COLOR_TEXT_MAIN,
+                                             dropdown_hover_color=COLOR_SELECT,
+                                             command=self._set_lang)
         self.lang_toggle.set("EN" if UI_LANG == "en" else "RU")   # как в прошлый раз
-        self.lang_toggle.grid(row=0, column=2, sticky="e", padx=(0, 4))
+        self.lang_toggle.grid(row=0, column=2, sticky="e", padx=(0, 6))
+
+        # шестерёнка справа от переключателя языка — открывает первичные настройки
+        # (модели анализа, движки Vox/Qwen, докачка) заново (просьба Ярослава 13.11.26).
+        # Иконка во всю кнопку: CTkLabel/CTkButton добавляют ~16 px внутренних отступов
+        # и шестерёнка выходила мелкой, поэтому кнопка целиком нарисована картинкой
+        # 30×30 (скруглённый фон + рамка + крупная шестерёнка) в tkinter.Label.
+        self.btn_settings = None
+        try:
+            import tkinter as _tk
+            from PIL import Image as _GImg, ImageDraw as _GDraw, ImageFont as _GFont
+            from PIL import ImageTk as _GTk
+
+            def _rgb(pair, idx=0):
+                h = str(pair[idx]).lstrip("#")
+                return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) + (255,)
+
+            def _gear_png(fill):
+                """Кнопка целиком: скруглённый фон, рамка и контурная шестерёнка
+                (6 зубцов, как в образце Ярослава 13.11.26). Профиль зуба — плоская
+                вершина + плавные скругления к плоской впадине; рисуем 480×480
+                и сжимаем до 30 px, поэтому линии гладкие."""
+                import math as _m
+                S = 480
+                im = _GImg.new("RGBA", (S, S), (0, 0, 0, 0))
+                d = _GDraw.Draw(im)
+                d.rounded_rectangle((10, 10, S - 10, S - 10), radius=120, fill=fill,
+                                    outline=_rgb(COLOR_BORDER), width=14)
+                cx = cy = S / 2.0
+                # знак на 25% мельче прежнего (просьба Ярослава 13.11.26): 212→159 и т.д.
+                r_out, r_in, hole = 159.0, 126.0, 61.5
+                top_frac, fillet = 0.18, 0.30   # мягкие лепестки, как в образце
+                fg = (0x4A, 0x55, 0x68, 255)      # серо-синий, как на образце
+                lw = 29                            # 75% от прежних 38 (~1,8 px в 30)
+
+                def _r(a):
+                    step = 2 * _m.pi / 6
+                    ph = (a % step) / step
+                    dlt = abs(ph - 0.5)
+                    half = top_frac / 2
+                    if dlt <= half:
+                        return r_out
+                    if dlt >= half + fillet:
+                        return r_in
+                    t = (dlt - half) / fillet
+                    t = t * t * (3 - 2 * t)       # smoothstep
+                    return r_out + (r_in - r_out) * t
+
+                pts = []
+                n = 720
+                for i in range(n):
+                    a = 2 * _m.pi * i / n
+                    r = _r(a)
+                    pts.append((cx + r * _m.cos(a), cy + r * _m.sin(a)))
+                pts.append(pts[0])
+                d.line(pts, fill=fg, width=lw, joint="curve")
+                d.ellipse((cx - hole, cy - hole, cx + hole, cy + hole), outline=fg, width=lw)
+                return im.resize((30, 30), _GImg.LANCZOS)
+
+            self._gear_img = _GTk.PhotoImage(_gear_png(_rgb(COLOR_FILL_SOFT)))
+            self._gear_img_hover = _GTk.PhotoImage(_gear_png(_rgb(COLOR_BORDER)))
+            self.btn_settings = _tk.Label(topbar, image=self._gear_img, bd=0, padx=0, pady=0,
+                                          bg=str(COLOR_BG[0]), cursor="hand2")
+            self.btn_settings.bind("<Button-1>", lambda e: self._open_settings())
+            self.btn_settings.bind("<Enter>", lambda e: self.btn_settings.configure(
+                image=self._gear_img_hover))
+            self.btn_settings.bind("<Leave>", lambda e: self.btn_settings.configure(
+                image=self._gear_img))
+            self.btn_settings.grid(row=0, column=3, sticky="e", padx=(6, 0))
+        except Exception as e:
+            print(f"⚠️ шестерёнка: {e}")
+            self.btn_settings = ctk.CTkButton(topbar, text="⚙", width=30, height=30,
+                                              corner_radius=8, fg_color=COLOR_FILL_SOFT,
+                                              hover_color=COLOR_BORDER,
+                                              text_color=COLOR_TEXT_MAIN,
+                                              command=self._open_settings)
+            self.btn_settings.grid(row=0, column=3, sticky="e", padx=(6, 0))
 
         # ---------------- левая панель ----------------
         # карточки лежат прямо на фоне окна — без внешней панели и прокрутки
@@ -5281,13 +5452,9 @@ class ModernTTSApp(*_APP_BASE):
                                             command=self.pick_llm_file)
         self.btn_llm_browse.grid(row=0, column=2, padx=(6, 0))
 
-        # компактная кнопка «скачать модель» — та же, что предлагается при первом запуске
-        self.btn_llm_dl = ctk.CTkButton(llm_row, text="⬇", width=30, height=30,
-                                        corner_radius=3, font=(FONT_FAMILY, 13, "bold"),
-                                        fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
-                                        text_color=COLOR_TEXT_MAIN,
-                                        command=lambda: self._offer_model_download(force=True))
-        self.btn_llm_dl.grid(row=0, column=1, padx=(6, 0))
+        # ⬇ «скачать модель» из строки выбора УБРАНА (просьба Ярослава 13.11.26):
+        # она стояла между выбором модели и «Другая модель» и мешала. Скачивание
+        # осталось в диалоге «Модель ИИ» (_offer_model_download) — не возвращать.
 
         # Слева — процессор, справа — видеокарта: положение тумблера = где считает модель
         gpu_row = ctk.CTkFrame(ai, fg_color="transparent")
@@ -10867,7 +11034,7 @@ class ModernTTSApp(*_APP_BASE):
         if not self.llm_display:
             # пустой список: без подсказки CTkOptionMenu показывает «CTkOptionMenu»
             self.llm_combo.configure(values=[], state="disabled")
-            self.llm_combo.set(_tr("Нет модели — нажмите ⬇"))
+            self.llm_combo.set(_tr("Нет модели — нажмите «Другая модель»"))
             return
         self.llm_combo.configure(values=list(self.llm_display.keys()), state="normal")
         if keep and keep in self.llm_display:
