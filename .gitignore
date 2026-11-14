@@ -47,6 +47,8 @@ _mockups/
 !build_installer/fair.spec
 
 # runtime/local noise
+# кэш озвучки по фрагментам («Книга по голосам») — звук локальный, не в репозиторий
+book_cache/
 fair_log.txt
 fair_api_endpoint.json
 mcp_smoke.log
