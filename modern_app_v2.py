@@ -74,6 +74,16 @@ COLOR_BOOK = ("#4E7A54", "#7FBF8B")
 COLOR_BOOK_HOVER = ("#3F6547", "#9BD0A5")
 COLOR_BOOK_TEXT = ("#FFFFFF", "#150F0A")
 
+# ── Редизайн 2.1 ──────────────────────────────────────────────────────────────
+# Плоские панели с «волосяными» линиями вместо карточек с рамками и глянцем.
+COLOR_HAIR = ("#E7DFD1", "#2A2723")          # тонкая линия-разделитель
+COLOR_INSPECTOR = ("#F7F2E9", "#171614")     # фон инспектора — --surface
+COLOR_DOC = ("#FFFDF8", "#141311")           # лист документа — --panel
+COLOR_PLAYER = ("#FFFCF6", "#1A1815")        # подложка плеера
+COLOR_RAIL = ("#F3EDE3", "#131210")          # рейка иконок
+R_SOFT = 10                                   # радиус панелей и строк
+R_PILL = 99                                   # радиус «пилюль» и чипов
+
 # ---------- «Книга по голосам»: разбор реплик по персонажам ----------
 # Основы глаголов речи: по ним ищем слова автора («— сказал Иван», «Марья ответила»).
 BOOK_VERB_STEMS = ("сказа", "говор", "ответ", "спрос", "произн", "воскли", "проговор",
@@ -616,22 +626,33 @@ TORCH_CU_WHL_URL = ("https://download.pytorch.org/whl/cu121/"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Установленная версия: ресурсы лежат рядом с exe (в сборке — во внутренней папке),
-# а всё, что приложение пишет само (настройки, модели, голоса), — в %LOCALAPPDATA%\FAIR:
-# Program Files доступна только на чтение, и settings.json там не сохранится.
+# ── Версия 2.1 живёт рядом с 1.11 ────────────────────────────────────────────
+# Своё у неё — только состояние: settings.json, библиотека, журнал (DATA_DIR).
+# Всё тяжёлое (модели ИИ, голоса, vox, tools, кэш книг) читается из общей папки
+# данных 1.11 (BASE_DIR): иначе 2.1 пришлось бы заново качать 6 ГБ моделей.
+APP_VERSION = "2.1"
+APP_TITLE = "FAIR 2.1"
+DATA_DIR_NAME = "FAIR21"     # %LOCALAPPDATA%\FAIR21 — настройки версии 2.1
+SHARED_DIR_NAME = "FAIR"     # %LOCALAPPDATA%\FAIR  — модели и инструменты 1.11
+
 FROZEN = bool(getattr(sys, "frozen", False))
+DATA_DIR = BASE_DIR
 if FROZEN:
-    BASE_DIR = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "FAIR")
+    _local = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    BASE_DIR = os.path.join(_local, SHARED_DIR_NAME)    # общие модели/голоса/инструменты
+    DATA_DIR = os.path.join(_local, DATA_DIR_NAME)      # свои настройки и библиотека
     try:
         for _sub in ("", "models", "models_llm", "voices"):
             os.makedirs(os.path.join(BASE_DIR, _sub), exist_ok=True)
+        for _sub in ("", "library"):
+            os.makedirs(os.path.join(DATA_DIR, _sub), exist_ok=True)
     except Exception as _e:
         print(f"⚠️ папка данных: {_e}")
 
 def _flog(msg):
     """Журнал первого запуска — чтобы потом было видно, что и почему не сработало."""
     try:
-        with open(os.path.join(BASE_DIR, "fair_log.txt"), "a", encoding="utf-8") as f:
+        with open(os.path.join(DATA_DIR, "fair_log.txt"), "a", encoding="utf-8") as f:
             f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
     except Exception:
         pass
@@ -667,6 +688,11 @@ FONT_SUBHEADER = (FONT_FAMILY, 13, "bold")
 FONT_NORMAL = (FONT_FAMILY, 12)
 FONT_SMALL = (FONT_FAMILY, 11)
 FONT_TINY = (FONT_FAMILY, 10)
+# Редизайн 2.1: в документе — засечный шрифт (Literata, если стоит; иначе Georgia),
+# в интерфейсе — тот же гротеск, но с «мелкими капителями» для названий разделов.
+FONT_READ = ("Georgia", 15)
+FONT_DISPLAY = ("Georgia", 26)
+FONT_SECTION = (FONT_FAMILY, 9, "bold")
 
 
 def _no_wheel_slider(widget):
@@ -3027,6 +3053,52 @@ _PAIRS += [
 
 # ── Словари переводов собираются ЗДЕСЬ — ПОСЛЕ всех `_PAIRS +=` (в т.ч. поздних
 # фич): если строить раньше, пары из поздних блоков остаются «немыми».
+# Подсказка в карточке «Озвучка» собирается строкой из трёх частей — без этой пары
+# в английском интерфейсе она оставалась русской (нашёл на снимке для лендинга 15.11.26).
+_PAIRS += [("⚠ Vox — от 8 ГБ видеопамяти · Vox Turbo — от 12 ГБ",
+            "⚠ Vox needs 8 GB of VRAM · Vox Turbo needs 12 GB")]
+# ── Подписи редизайна 2.1 (рейка, инспектор, библиотека, плеер) ──
+_PAIRS += [
+    ('Длина', 'Length'),
+    ('Своя', 'Custom'),
+    ('слов', 'words'),
+    ('Источник', 'Source'),
+    ('Модель анализа', 'Analysis model'),
+    ('Поиск по текстам · Ctrl K', 'Search texts · Ctrl K'),
+    ('Статьи', 'Articles'),
+    ('Книги', 'Books'),
+    ('Заметки', 'Notes'),
+    ('Пока пусто', 'Empty for now'),
+    ('Разберите текст — он появится здесь', 'Analyse a text — it will appear here'),
+    ('текст', 'text'),
+    ('текста', 'texts'),
+    ('текстов', 'texts'),
+    ('Сегодня', 'Today'),
+    ('Вчера', 'Yesterday'),
+    ('Открыть', 'Open'),
+    ('Озвучить заново', 'Voice again'),
+    ('Удалить из библиотеки', 'Remove from library'),
+    ('Фокус: Esc — выйти, Ctrl+B — панели', 'Focus: Esc to exit, Ctrl+B for panels'),
+    ('Фокус: Ctrl+B', 'Focus: Ctrl+B'),
+    ('Новое', 'New'),
+    ('Голоса', 'Voices'),
+    ('Модели', 'Models'),
+    ('Без названия', 'Untitled'),
+    ('Ссылка на статью или видео', 'Article or video link'),
+    ('Сжатие', 'Compression'),
+    ('Текст', 'Text'),
+    ('Длина и сжатие', 'Length & compression'),
+]
+
+# Подписи 2.1, которых не было в словаре (добавлены безусловно — их не нашли
+# автоматической проверкой, т.к. слова встречались внутри длинных фраз).
+_PAIRS += [
+    ("Библиотека", "Library"),
+    ("Новый текст", "New text"),
+    ("Все", "All"),
+    ("Готов к озвучке", "Ready to voice"),
+]
+
 TR_RU_EN = dict(_PAIRS)
 _XLAT_EXTRA = {
     "🔊 Громкость эмоции": "🔊 Emotion volume",
@@ -3324,7 +3396,7 @@ except Exception:               # tkinterdnd2 нет — окно обычное
 class ModernTTSApp(*_APP_BASE):
     REF_TEXT = "Привет! Это образец голоса для синтеза речи."
     ENGINE_VALUES = ["Piper (CPU)", "Vox (GPU)", "Qwen (GPU)"]
-    SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
+    SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
     PLACEHOLDER = ("Вставьте ссылку на статью или видео, текст — или перетащите сюда файл "
                    "(pdf, docx, epub, fb2, txt...).\n\n"
                    "Ctrl+V — вставить из буфера. Всё, что есть в этом поле, считается источником:\n"
@@ -3488,14 +3560,15 @@ class ModernTTSApp(*_APP_BASE):
         self.after(120, self._apply_titlebar_icon)
         self.after(160, lambda: _dwm_titlebar(self))    # бумажная шапка Windows 11
 
-        self.BASE_DIR = BASE_DIR    # в установленной версии — %LOCALAPPDATA%\FAIR
+        self.BASE_DIR = BASE_DIR    # общие модели/голоса — %LOCALAPPDATA%\FAIR (от 1.11)
+        self.DATA_DIR = DATA_DIR    # своё состояние — %LOCALAPPDATA%\FAIR21
         self.theme = self._load_theme()
 
-        self.title("FAIR")
+        self.title(APP_TITLE)
         # 1240 — шапка текста с кнопками («Книга по голосам», «Добавить эмоции»,
         # «Ударение», «Файл», «Очистить») влезает целиком; меньше 1180 — кнопки сжимаются
-        self.geometry("1240x850")
-        self.minsize(1240, 700)   # уже 1240 шапка сжимает кнопки — не даём обрезать их
+        self.geometry("1400x880")
+        self.minsize(1320, 720)   # 2.1: рейка + инспектор + документ + библиотека
         self.configure(fg_color=COLOR_BG)
         self._init_fonts()
 
@@ -4261,8 +4334,9 @@ class ModernTTSApp(*_APP_BASE):
         gname, gvram = self._gpu_summary()
         print(f"🧭 мастер: окно, gpu={gname!r} vram={gvram}")
         dlg = ctk.CTkToplevel(self)
-        dlg.title(_tr("Настройки") if settings_mode else _tr("Первичная установка"))
-        dlg.geometry("640x430")
+        dlg.title((_tr("Настройки") if settings_mode else _tr("Первичная установка"))
+                  + f" · FAIR {APP_VERSION}")
+        dlg.geometry("700x470")
         _center_on_parent(dlg)
         dlg.resizable(False, False)
         dlg.transient(self)
@@ -4281,8 +4355,11 @@ class ModernTTSApp(*_APP_BASE):
         body = ctk.CTkFrame(dlg, fg_color=COLOR_PANEL, corner_radius=R_PANEL)
         body.pack(fill="both", expand=True, padx=12, pady=12)
         ctk.CTkLabel(body, text=_tr("Настройки моделей и движков") if settings_mode
-                     else _tr("Первичная установка FAIR"), font=FONT_SUBHEADER,
-                     text_color=COLOR_HEAD).pack(pady=(10, 3))
+                     else _tr("Первичная установка FAIR"), font=FONT_HEADER,
+                     text_color=COLOR_TEXT_MAIN).pack(pady=(12, 2))
+        ctk.CTkLabel(body, text=f"FAIR {APP_VERSION} · " +
+                     _tr("всё считается на этом компьютере"), font=FONT_TINY,
+                     text_color=COLOR_TEXT_SEC).pack(pady=(0, 4))
         if gname:
             gpu_txt = f"\U0001F5A5 {gname} \u2014 {gvram:.1f} {_tr('ГБ видеопамяти')}"
             gcol = COLOR_GOLD
@@ -4784,6 +4861,7 @@ class ModernTTSApp(*_APP_BASE):
 
     def _refresh_voices(self, select=None):
         """Пересобрать список голосов после установки нового."""
+        self.after(60, self._sync_docbar_voice)
         self.scan_models()
         try:
             if self.current_engine == "Piper":
@@ -4966,13 +5044,20 @@ class ModernTTSApp(*_APP_BASE):
 
     def _init_fonts(self):
         global FONT_FAMILY, FONT_HEADER, FONT_SUBHEADER, FONT_NORMAL, FONT_SMALL, FONT_TINY
+        global FONT_READ, FONT_DISPLAY, FONT_SECTION
         fam = FONT_FAMILY
+        serif = "Georgia"
         try:
             import tkinter.font as tkfont
             families = set(tkfont.families(self))
             for cand in ("Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI"):
                 if cand in families:
                     fam = cand
+                    break
+            # Literata — шрифт макета; если её нет, Georgia есть в любой Windows
+            for cand in ("Literata", "PT Serif", "Cambria", "Georgia"):
+                if cand in families:
+                    serif = cand
                     break
         except Exception:
             pass
@@ -4982,6 +5067,9 @@ class ModernTTSApp(*_APP_BASE):
         FONT_NORMAL = (fam, 12)
         FONT_SMALL = (fam, 11)
         FONT_TINY = (fam, 10)
+        FONT_READ = (serif, 15)
+        FONT_DISPLAY = (serif, 26)
+        FONT_SECTION = (fam, 9, "bold")
 
     def _load_theme(self):
         """Тема из настроек: «light» или «dark». Тёмная скрыта — THEMES_ENABLED."""
@@ -4993,7 +5081,7 @@ class ModernTTSApp(*_APP_BASE):
             return "light"
         mode = "light"
         try:
-            fp = os.path.join(self.BASE_DIR, "settings.json")
+            fp = os.path.join(DATA_DIR, "settings.json")
             if os.path.exists(fp):
                 with open(fp, encoding="utf-8") as f:
                     mode = (json.load(f).get("theme") or "light").strip().lower()
@@ -5063,18 +5151,17 @@ class ModernTTSApp(*_APP_BASE):
         (макет Ярослава 06.11). Подписи — прошлые, серым; значения «занято/всего»;
         полосы короткие, перед второй подписи — большой зазор. По бокам карточки
         те же «грани», что у верхних панелей."""
-        p = ctk.CTkFrame(parent, fg_color=COLOR_CARD, corner_radius=R_CARD,
-                         border_width=1, border_color=COLOR_BORDER)
-        p.pack(fill="x", padx=2, pady=(0, 8))
-        self._add_side_edges(p)          # вертикальные «грани» слева и справа
+        p = ctk.CTkFrame(parent, fg_color="transparent", corner_radius=0, border_width=0)
+        p.pack(fill="x", padx=14, pady=(0, 10))
+        ctk.CTkFrame(p, fg_color=COLOR_HAIR, height=1).pack(fill="x", pady=(0, 8))
         row = ctk.CTkFrame(p, fg_color="transparent")
-        row.pack(fill="x", padx=6, pady=8)
+        row.pack(fill="x", padx=0, pady=0)
         specs = ((_tr("Видеопамять"), "gpu", COLOR_RED, (0, 0)),
-                 (_tr("Память (ОЗУ)"), "ram", COLOR_GOLD, (20, 0)))
+                 (_tr("Память (ОЗУ)"), "ram", COLOR_GOLD, (10, 0)))
         for cap, key, col, pl in specs:
             ctk.CTkLabel(row, text=cap, font=FONT_TINY, text_color=COLOR_TEXT_SEC,
                          anchor="w").pack(side="left", padx=pl)
-            bar = ctk.CTkProgressBar(row, height=8, corner_radius=4, width=97,
+            bar = ctk.CTkProgressBar(row, height=6, corner_radius=3, width=46,
                                      fg_color=COLOR_BORDER, progress_color=col)
             bar.set(0)
             bar.pack(side="left", padx=(3, 0))
@@ -5548,55 +5635,737 @@ class ModernTTSApp(*_APP_BASE):
         except Exception as e:
             print(f"⚠️ combo hover: {e}")
 
+    # ═══════════════ Редизайн 2.1: рейка, библиотека, плеер, фокус ═══════════════
+
+    def _rail_icons(self):
+        """Линейные значки рейки — рисуем PIL-ом (в системе нет нужного набора)."""
+        try:
+            from PIL import Image, ImageDraw
+
+            def icon(what):
+                S = 96
+                im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+                d = ImageDraw.Draw(im)
+                ink = (0x6E, 0x66, 0x5A, 255)
+                w = 7
+                if what == "logo":          # эквалайзер — знак FAIR
+                    for x, h in ((26, 26), (40, 44), (54, 60), (68, 32), (82, 20)):
+                        d.rounded_rectangle([x - 4, 48 - h // 2, x + 4, 48 + h // 2],
+                                            radius=4, fill=(255, 255, 255, 255))
+                elif what == "plus":
+                    d.rounded_rectangle([43, 18, 53, 78], radius=5, fill=ink)
+                    d.rounded_rectangle([18, 43, 78, 53], radius=5, fill=ink)
+                elif what == "lib":         # две книги и наклонный том
+                    d.rounded_rectangle([16, 24, 32, 74], radius=4, outline=ink, width=w)
+                    d.rounded_rectangle([40, 18, 56, 74], radius=4, outline=ink, width=w)
+                    d.line([(66, 26), (82, 70)], fill=ink, width=w)
+                elif what == "mic":
+                    d.rounded_rectangle([36, 14, 60, 56], radius=13, outline=ink, width=w)
+                    d.arc([22, 30, 74, 74], 0, 180, fill=ink, width=w)
+                    d.line([(48, 72), (48, 84)], fill=ink, width=w)
+                elif what == "cpu":
+                    d.rounded_rectangle([26, 26, 70, 70], radius=9, outline=ink, width=w)
+                    d.rounded_rectangle([42, 42, 54, 54], radius=3, outline=ink, width=5)
+                    for p in (36, 48, 60):
+                        d.line([(p, 13), (p, 26)], fill=ink, width=5)
+                        d.line([(p, 70), (p, 83)], fill=ink, width=5)
+                        d.line([(13, p), (26, p)], fill=ink, width=5)
+                        d.line([(70, p), (83, p)], fill=ink, width=5)
+                elif what == "focus":       # рамка с «уголками»
+                    for a, b in (((20, 38), (20, 20)), ((20, 20), (38, 20)),
+                                 ((58, 20), (76, 20)), ((76, 20), (76, 38)),
+                                 ((20, 58), (20, 76)), ((20, 76), (38, 76)),
+                                 ((58, 76), (76, 76)), ((76, 76), (76, 58))):
+                        d.line([a, b], fill=ink, width=w, joint="curve")
+                elif what == "gear":
+                    import math as _m
+                    cx = cy = 48.0
+                    for i in range(8):
+                        a = _m.radians(i * 45)
+                        d.line([(cx + 24 * _m.cos(a), cy + 24 * _m.sin(a)),
+                                (cx + 34 * _m.cos(a), cy + 34 * _m.sin(a))], fill=ink, width=9)
+                    d.ellipse([26, 26, 70, 70], outline=ink, width=w)
+                    d.ellipse([40, 40, 56, 56], outline=ink, width=6)
+                return im.resize((20, 20), Image.LANCZOS)
+
+            self._rail_cache = {}
+            for k in ("logo", "plus", "lib", "mic", "cpu", "focus", "gear"):
+                im = icon(k)
+                self._rail_cache[k] = ctk.CTkImage(light_image=im, dark_image=im, size=(20, 20))
+        except Exception as e:
+            print(f"⚠️ значки рейки: {e}")
+            self._rail_cache = {}
+
+    def _rail_img(self, key):
+        return (getattr(self, "_rail_cache", {}) or {}).get(key)
+
+    def _tip(self, widget, text):
+        """Подсказка при наведении — у CTk её нет, а рейка без подписей."""
+        state = {"win": None}
+
+        def show(_e=None):
+            if state["win"] or not text:
+                return
+            try:
+                x = widget.winfo_rootx() + widget.winfo_width() + 8
+                y = widget.winfo_rooty() + 4
+                win = tk.Toplevel(self)
+                win.wm_overrideredirect(True)
+                win.wm_geometry(f"+{x}+{y}")
+                tk.Label(win, text=text, bg=_mode_color(COLOR_PANEL),
+                         fg=_mode_color(COLOR_TEXT_MAIN), font=FONT_TINY,
+                         padx=8, pady=4, bd=1, relief="solid").pack()
+                state["win"] = win
+            except Exception:
+                state["win"] = None
+
+        def hide(_e=None):
+            w = state.get("win")
+            state["win"] = None
+            if w is not None:
+                try:
+                    w.destroy()
+                except Exception:
+                    pass
+
+        widget.bind("<Enter>", show, add="+")
+        widget.bind("<Leave>", hide, add="+")
+        widget.bind("<Button-1>", hide, add="+")
+
+    def _build_rail(self):
+        """Узкая рейка значков слева — навигация версии 2.1."""
+        self.rail = ctk.CTkFrame(self, width=62, fg_color="transparent")
+        self.rail.grid(row=0, column=0, sticky="ns", padx=(10, 0), pady=10)
+        self.rail.pack_propagate(False)
+        self.rail.grid_propagate(False)
+        self._rail_icons()
+
+        self.rail_logo = ctk.CTkButton(self.rail, text="", image=self._rail_img("logo"),
+                                       width=40, height=40, corner_radius=12,
+                                       fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                                       command=self._open_donate_page)
+        self.rail_logo.pack(pady=(2, 16))
+        self._tip(self.rail_logo, "FAIR 2.1 · поблагодарить автора")
+
+        def mk(key, title, cmd):
+            b = ctk.CTkButton(self.rail, text="", image=self._rail_img(key), width=40, height=38,
+                              corner_radius=10, fg_color="transparent",
+                              hover_color=COLOR_SELECT, command=cmd)
+            b.pack(pady=2)
+            self._tip(b, title)
+            return b
+
+        self.rail_new = mk("plus", _tr("Новое"), self._rail_new_click)
+        self.rail_lib = mk("lib", _tr("Библиотека"), self._toggle_library)
+        self.rail_voices = mk("mic", _tr("Голоса"), self._rail_voices_click)
+        self.rail_models = mk("cpu", _tr("Модели"), self._open_settings)
+        self.rail_focus = mk("focus", _tr("Фокус: Ctrl+B"), self._toggle_focus)
+        ctk.CTkFrame(self.rail, fg_color="transparent").pack(fill="both", expand=True)
+        self.rail_settings = mk("gear", _tr("Настройки"), self._open_settings)
+        self._rail_mark(self.rail_new)
+
+    def _rail_mark(self, active):
+        """Подсветить активный пункт рейки (акцентная плашка + полоска слева)."""
+        for b in (getattr(self, "rail_new", None), getattr(self, "rail_lib", None),
+                  getattr(self, "rail_voices", None), getattr(self, "rail_models", None),
+                  getattr(self, "rail_focus", None)):
+            if b is None:
+                continue
+            try:
+                on = (b is active)
+                b.configure(fg_color=COLOR_ACCENT_SOFT if on else "transparent")
+            except Exception:
+                pass
+
+    def _rail_new_click(self):
+        """«Новое»: показать инспектор, поставить курсор в поле источника."""
+        self._toggle_library(force=True)
+        self._rail_mark(self.rail_new)
+        try:
+            self.url_entry.focus_set()
+        except Exception:
+            pass
+
+    def _rail_voices_click(self):
+        """«Голоса»: прокрутить инспектор к карточке озвучки."""
+        self._rail_mark(self.rail_voices)
+        try:
+            self.sidebar._parent_canvas.yview_moveto(0.55)
+        except Exception:
+            pass
+
+    # ── библиотека ────────────────────────────────────────────────────────────
+
+    def _lib_dir(self):
+        d = os.path.join(DATA_DIR, "library")
+        try:
+            os.makedirs(d, exist_ok=True)
+        except Exception:
+            pass
+        return d
+
+    def _lib_index_path(self):
+        return os.path.join(self._lib_dir(), "index.json")
+
+    def _lib_load(self):
+        try:
+            with open(self._lib_index_path(), encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, list) else []
+        except Exception:
+            return []
+
+    def _lib_save(self):
+        try:
+            with open(self._lib_index_path(), "w", encoding="utf-8") as f:
+                json.dump(self._lib_entries, f, ensure_ascii=False, indent=1)
+        except Exception as e:
+            print(f"⚠️ библиотека: {e}")
+
+    @staticmethod
+    def _lib_kind_of(source):
+        s = (source or "").lower()
+        if any(k in s for k in ("youtube", "youtu.be", "rutube", "vk.com/video", "vkvideo")):
+            return "video"
+        return "article"
+
+    @staticmethod
+    def _lib_title_of(text):
+        for line in (text or "").splitlines():
+            line = line.strip().strip("#").strip()
+            if len(line) >= 3:
+                return line[:90]
+        return _tr("Без названия")
+
+    def _lib_touch(self, text, source="", kind=None, title=None):
+        """Запомнить документ в библиотеке (после анализа или «Без изменений»)."""
+        text = (text or "").strip()
+        if len(text) < 20:
+            return
+        entries = getattr(self, "_lib_entries", None)
+        if entries is None:
+            entries = self._lib_entries = self._lib_load()
+        title = (title or self._lib_title_of(text))[:90]
+        kind = kind or self._lib_kind_of(source)
+        words = len(re.findall(r"[\wА-Яа-яЁё]+", text))
+        now = time.time()
+        # тот же текст — не плодим дубли, только освежаем дату
+        for e in entries:
+            if (e.get("text") or "") == text:
+                e.update({"title": title, "source": source or e.get("source", ""),
+                          "kind": kind, "created": now, "words": words, "chars": len(text)})
+                self._lib_current = e.get("id")
+                self._lib_save()
+                self._lib_render()
+                return e
+        entry = {"id": time.strftime("%Y%m%d-%H%M%S") + f"-{len(entries) % 97}",
+                 "title": title, "kind": kind, "source": source or "", "created": now,
+                 "words": words, "chars": len(text), "text": text,
+                 "audio": "", "duration": 0}
+        entries.insert(0, entry)
+        self._lib_entries = entries[:300]
+        self._lib_current = entry["id"]
+        self._lib_save()
+        self._lib_render()
+        return entry
+
+    def _lib_entry(self, entry_id=None):
+        eid = entry_id or getattr(self, "_lib_current", None)
+        for e in getattr(self, "_lib_entries", []) or []:
+            if e.get("id") == eid:
+                return e
+        return None
+
+    def _lib_attach_audio(self, wav_path, duration=None):
+        """Приложить готовую озвучку к записи библиотеки (копией в library/)."""
+        e = self._lib_entry()
+        if not e or not wav_path or not os.path.isfile(wav_path):
+            return
+        try:
+            if duration is None:
+                import wave as _w
+                with _w.open(wav_path, "rb") as f:
+                    duration = f.getnframes() / float(f.getframerate() or 1)
+            dst = os.path.join(self._lib_dir(), f"{e['id']}.wav")
+            if os.path.abspath(wav_path) != os.path.abspath(dst):
+                shutil.copyfile(wav_path, dst)
+            e["audio"] = dst
+            e["duration"] = round(float(duration or 0), 1)
+            self._lib_save()
+            self._lib_render()
+            self._update_docbar()
+        except Exception as ex:
+            print(f"⚠️ библиотека (аудио): {ex}")
+
+    def _lib_set_filter(self, key):
+        self._lib_filter = key
+        self._lib_style_chips()
+        self._lib_render()
+
+    def _lib_style_chips(self):
+        cur = getattr(self, "_lib_filter", "all")
+        for k, b in (getattr(self, "_lib_chips", {}) or {}).items():
+            try:
+                if k == cur:
+                    b.configure(fg_color=COLOR_TEXT_MAIN, text_color=COLOR_BG,
+                                border_color=COLOR_TEXT_MAIN, hover_color=COLOR_TEXT_MAIN)
+                else:
+                    b.configure(fg_color="transparent", text_color=COLOR_TEXT_SEC,
+                                border_color=COLOR_BORDER, hover_color=COLOR_SELECT)
+            except Exception:
+                pass
+
+    @staticmethod
+    def _lib_when(ts):
+        """«Сегодня» / «Вчера» / дата — как в макете."""
+        try:
+            d = time.localtime(ts)
+            t = time.localtime()
+            if (d.tm_year, d.tm_yday) == (t.tm_year, t.tm_yday):
+                return _tr("Сегодня")
+            y = time.localtime(time.time() - 86400)
+            if (d.tm_year, d.tm_yday) == (y.tm_year, y.tm_yday):
+                return _tr("Вчера")
+            return time.strftime("%d.%m", d)
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _plural(n, one, few, many):
+        n = abs(int(n or 0))
+        if n % 10 == 1 and n % 100 != 11:
+            return one
+        if 2 <= n % 10 <= 4 and not (12 <= n % 100 <= 14):
+            return few
+        return many
+
+    @staticmethod
+    def _lib_dur(sec):
+        try:
+            sec = int(round(float(sec or 0)))
+        except Exception:
+            sec = 0
+        return f"{sec // 60}:{sec % 60:02d}"
+
+    def _lib_render(self):
+        """Перерисовать список библиотеки (поиск, фильтр, группы по датам)."""
+        try:
+            lst = self.lib_list
+        except Exception:
+            return
+        for w in lst.winfo_children():
+            try:
+                w.destroy()
+            except Exception:
+                pass
+        q = ""
+        try:
+            q = (self.lib_search.get() or "").strip().lower()
+        except Exception:
+            pass
+        kind = getattr(self, "_lib_filter", "all")
+        entries = getattr(self, "_lib_entries", []) or []
+        shown = []
+        for e in entries:
+            if kind != "all" and (e.get("kind") or "article") != kind:
+                continue
+            if q and q not in (e.get("title") or "").lower() and q not in (e.get("text") or "").lower():
+                continue
+            shown.append(e)
+
+        glyph = {"article": "≡", "book": "▭", "video": "▶", "note": "✎"}
+        group = None
+        for e in shown:
+            g = self._lib_when(e.get("created") or 0)
+            if g != group:
+                group = g
+                ctk.CTkLabel(lst, text=(g or "").upper(), font=(FONT_FAMILY, 8, "bold"),
+                             text_color=COLOR_TEXT_SEC, anchor="w").pack(
+                    fill="x", padx=8, pady=(8, 4))
+            active = (e.get("id") == getattr(self, "_lib_current", None))
+            row = ctk.CTkFrame(lst, fg_color=COLOR_PANEL if active else "transparent",
+                               corner_radius=R_SOFT)
+            row.pack(fill="x", padx=4, pady=1)
+            ic = ctk.CTkLabel(row, text=glyph.get(e.get("kind") or "article", "≡"),
+                              width=28, height=28, corner_radius=7, font=(FONT_FAMILY, 11),
+                              fg_color=COLOR_ACCENT_SOFT if active else COLOR_CARD,
+                              text_color=COLOR_ACCENT if active else COLOR_TEXT_SEC)
+            ic.pack(side="left", padx=(6, 8), pady=7)
+            body = ctk.CTkFrame(row, fg_color="transparent")
+            body.pack(side="left", fill="x", expand=True, pady=6)
+            title = ctk.CTkLabel(body, text=e.get("title") or "", font=(FONT_FAMILY, 11, "bold"),
+                                 text_color=COLOR_TEXT_MAIN, anchor="w", justify="left",
+                                 wraplength=168)
+            title.pack(fill="x")
+            dur = self._lib_dur(e.get("duration") or 0)
+            meta_bits = [f"{e.get('words') or 0} сл."]
+            if e.get("duration"):
+                meta_bits.append(dur)
+            elif e.get("chars"):
+                meta_bits.append(self._lib_dur((e.get("chars") or 0) / 14.0))
+            meta = ctk.CTkLabel(body, text=" · ".join(meta_bits), font=FONT_TINY,
+                                text_color=COLOR_GREEN if e.get("audio") else COLOR_TEXT_SEC,
+                                anchor="w")
+            meta.pack(fill="x")
+            for w in (row, ic, body, title, meta):
+                w.bind("<Button-1>", lambda _e, i=e.get("id"): self._lib_open(i), add="+")
+                w.bind("<Button-3>", lambda _e, i=e.get("id"): self._lib_menu(_e, i), add="+")
+                if not active:
+                    w.bind("<Enter>", lambda _e, r=row: r.configure(fg_color=COLOR_SELECT), add="+")
+                    w.bind("<Leave>", lambda _e, r=row: r.configure(fg_color="transparent"), add="+")
+
+        if not shown:
+            ctk.CTkLabel(lst, text=_tr("Пока пусто") + "\n" + _tr("Разберите текст — он появится здесь"),
+                         font=FONT_SMALL, text_color=COLOR_TEXT_SEC, justify="left",
+                         anchor="w").pack(fill="x", padx=10, pady=14)
+        try:
+            total = len(entries)
+            self.lib_count_lbl.configure(text=str(total))
+            mb = 0.0
+            for e in entries:
+                p = e.get("audio") or ""
+                if p and os.path.isfile(p):
+                    mb += os.path.getsize(p) / 1e6
+            word = self._plural(total, _tr("текст"), _tr("текста"), _tr("текстов"))
+            self.lib_foot_lbl.configure(text=f"{total} {word} · {mb:.0f} МБ")
+        except Exception:
+            pass
+
+    def _lib_menu(self, event, entry_id):
+        e = self._lib_entry(entry_id)
+        if not e:
+            return
+        m = tk.Menu(self, tearoff=0)
+        m.add_command(label=_tr("Открыть"), command=lambda: self._lib_open(entry_id))
+        m.add_command(label=_tr("Озвучить заново"), command=lambda: self._lib_open(entry_id, play=True))
+        m.add_separator()
+        m.add_command(label=_tr("Удалить из библиотеки"),
+                      command=lambda: self._lib_delete(entry_id))
+        try:
+            _style_tk_menu(m)
+            m.tk_popup(event.x_root, event.y_root)
+        except Exception:
+            pass
+
+    def _lib_delete(self, entry_id):
+        e = self._lib_entry(entry_id)
+        self._lib_entries = [x for x in getattr(self, "_lib_entries", [])
+                             if x.get("id") != entry_id]
+        if e and e.get("audio"):
+            try:
+                os.remove(e["audio"])
+            except Exception:
+                pass
+        if getattr(self, "_lib_current", None) == entry_id:
+            self._lib_current = None
+        self._lib_save()
+        self._lib_render()
+
+    def _lib_open(self, entry_id, play=False):
+        e = self._lib_entry(entry_id)
+        if not e:
+            return
+        self._lib_current = entry_id
+        self._set_box_text(e.get("text") or "", generated=False)
+        self.box_is_source = False
+        self._last_source = e.get("source") or ""
+        try:
+            self.crumb_cur.configure(text=e.get("title") or _tr("Текст"))
+        except Exception:
+            pass
+        if e.get("audio") and os.path.isfile(e["audio"]):
+            self._last_audio = (e.get("text") or "", self.current_engine,
+                                self.tts_combo.get(), self.speech_rate, e["audio"])
+        self._update_docbar()
+        self._lib_render()
+        self._rail_mark(self.rail_lib)
+        if play:
+            self.after(150, self.play_result)
+
+    def _build_library(self):
+        """Правая панель «Библиотека»: поиск, фильтры, список, счётчик."""
+        self.library = ctk.CTkFrame(self, width=272, fg_color=COLOR_INSPECTOR,
+                                    corner_radius=R_PANEL, border_width=1,
+                                    border_color=COLOR_BORDER)
+        self.library.grid(row=0, column=3, sticky="nsew", padx=(0, 10), pady=10)
+        self.library.grid_propagate(False)
+        self.library.grid_rowconfigure(3, weight=1)
+        self.library.grid_columnconfigure(0, weight=1)
+
+        head = ctk.CTkFrame(self.library, fg_color="transparent")
+        head.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 8))
+        self.lib_title_lbl = ctk.CTkLabel(head, text=_tr("Библиотека"),
+                                          font=(FONT_FAMILY, 14, "bold"),
+                                          text_color=COLOR_TEXT_MAIN)
+        self.lib_title_lbl.pack(side="left")
+        self.lib_count_lbl = ctk.CTkLabel(head, text="", font=(FONT_FAMILY, 9, "bold"),
+                                          text_color=COLOR_TEXT_SEC, fg_color=COLOR_CARD,
+                                          corner_radius=R_PILL, width=26, height=18)
+        self.lib_count_lbl.pack(side="right")
+
+        self.lib_search = ctk.CTkEntry(self.library,
+                                       placeholder_text=_tr("Поиск по текстам · Ctrl K"),
+                                       font=FONT_SMALL, height=30, corner_radius=8,
+                                       fg_color=COLOR_PANEL, border_width=1,
+                                       border_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN)
+        self.lib_search.grid(row=1, column=0, sticky="ew", padx=14)
+        self.lib_search.bind("<KeyRelease>", lambda e: self._lib_render())
+        try:
+            self._bind_clipboard_keys(self.lib_search._entry)
+            self._attach_text_menu(self.lib_search._entry)
+        except Exception:
+            pass
+
+        chips = ctk.CTkFrame(self.library, fg_color="transparent")
+        chips.grid(row=2, column=0, sticky="ew", padx=12, pady=(8, 6))
+        self._lib_filter = "all"
+        self._lib_chips = {}
+        self._lib_chip_labels = {"all": "Все", "article": "Статьи", "book": "Книги",
+                                 "video": "Видео", "note": "Заметки"}
+        for key, label in (("all", _tr("Все")), ("article", _tr("Статьи")),
+                           ("book", _tr("Книги")), ("video", _tr("Видео")),
+                           ("note", _tr("Заметки"))):
+            b = ctk.CTkButton(chips, text=label, height=24, corner_radius=R_PILL,
+                              font=FONT_TINY, fg_color="transparent", hover_color=COLOR_SELECT,
+                              border_width=1, border_color=COLOR_BORDER,
+                              text_color=COLOR_TEXT_SEC, width=40,
+                              command=lambda k=key: self._lib_set_filter(k))
+            b.pack(side="left", padx=(0, 4))
+            self._lib_chips[key] = b
+        self._lib_style_chips()
+
+        self.lib_list = ctk.CTkScrollableFrame(self.library, fg_color="transparent",
+                                               scrollbar_button_color=COLOR_BORDER,
+                                               scrollbar_button_hover_color=COLOR_TEXT_SEC)
+        self.lib_list.grid(row=3, column=0, sticky="nsew", padx=(6, 4), pady=(0, 4))
+
+        foot = ctk.CTkFrame(self.library, fg_color="transparent")
+        foot.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 12))
+        self.lib_foot_lbl = ctk.CTkLabel(foot, text="", font=FONT_TINY,
+                                         text_color=COLOR_TEXT_SEC)
+        self.lib_foot_lbl.pack(side="left")
+
+        self._lib_entries = self._lib_load()
+        self._lib_render()
+
+    def _focus_lib_search(self):
+        """Ctrl+K: курсор в поиск библиотеки (панель при этом показывается)."""
+        self._toggle_library(force=True)
+        try:
+            self.lib_search.focus_set()
+            self.lib_search._entry.select_range(0, "end")
+        except Exception:
+            pass
+
+    def _retr_v21(self):
+        """Подписи редизайна 2.1 — заново под текущий язык (собраны из частей)."""
+        try:
+            self.btn_len_custom.configure(text=_tr("Своя"))
+            self.btn_play.configure(text="▶  " + _tr("Озвучить"))
+            self.btn_book.configure(text="📖  " + _tr("Книга по голосам"))
+            self.btn_book_emo.configure(text="🎭  " + _tr("Эмоции"))
+            self.crumb_root.configure(text=_tr("Библиотека"))
+            self.lib_title_lbl.configure(text=_tr("Библиотека"))
+            self.lib_search.configure(placeholder_text=_tr("Поиск по текстам · Ctrl K"))
+            for k, b in (getattr(self, "_lib_chips", {}) or {}).items():
+                raw = self._lib_chip_labels.get(k)
+                if raw:
+                    b.configure(text=_tr(raw))
+            if not getattr(self, "_lib_current", None):
+                self.crumb_cur.configure(text=_tr("Новый текст"))
+            self._lib_style_chips()
+            self._lib_render()
+            self._update_docbar()
+            self._sync_docbar_voice()
+            self._sync_vox_voice_field()      # описание голоса — на новом языке
+        except Exception as e:
+            print(f"⚠️ подписи 2.1: {e}")
+
+    def _toggle_library(self, force=None):
+        """Скрыть/показать правую панель. force=True — показать, False — скрыть."""
+        if not hasattr(self, "library"):
+            return
+        cur = bool(getattr(self, "_lib_shown", True))
+        show = (not cur) if force is None else bool(force)
+        self._lib_shown = show
+        try:
+            if show:
+                self.library.grid()
+                self._rail_mark(self.rail_lib)
+            else:
+                self.library.grid_remove()
+                self._rail_mark(self.rail_new)
+        except Exception:
+            pass
+
+    # ── строка «Длина · голос · счётчик» ─────────────────────────────────────
+
+    LEN_PRESETS = {"10%": "Только суть (10%)", "30%": "Очень кратко (30%)",
+                   "50%": "Кратко (50%)", "100%": "Речь для озвучки (100%)"}
+
+    def _on_len_segment(self, label):
+        preset = self.LEN_PRESETS.get(label)
+        if not preset:
+            return
+        try:
+            self.preset_menu.set(preset)
+        except Exception:
+            pass
+        try:
+            self.on_preset_select(preset)
+        except Exception as e:
+            print(f"⚠️ длина: {e}")
+
+    def _sync_len_segment(self, preset=None):
+        """Подсветить сегмент длины, если пресет — один из четырёх основных."""
+        try:
+            name = preset or self.preset_menu.get()
+        except Exception:
+            return
+        for label, value in self.LEN_PRESETS.items():
+            if value == name:
+                try:
+                    self.len_seg.set(label)
+                except Exception:
+                    pass
+                return
+
+    def _sync_docbar_voice(self):
+        """Чип голоса в строке документа: «Алсу · VOX»."""
+        try:
+            voice = self.tts_combo.get() or "—"
+            eng = (self.current_engine or "").upper()
+            self.doc_voice_chip.configure(text=f"{voice} · {eng}" if eng else voice)
+        except Exception:
+            pass
+
+    def _docbar_voice_click(self):
+        """Быстрый выбор голоса из строки документа — тем же списком, что в инспекторе."""
+        try:
+            values = list(self.tts_combo.cget("values") or [])
+        except Exception:
+            values = []
+        if not values:
+            return
+        m = tk.Menu(self, tearoff=0)
+        cur = self.tts_combo.get()
+        for v in values:
+            m.add_command(label=("● " if v == cur else "   ") + v,
+                          command=lambda val=v: self._docbar_pick_voice(val))
+        try:
+            x = self.doc_voice_chip.winfo_rootx()
+            y = self.doc_voice_chip.winfo_rooty() + self.doc_voice_chip.winfo_height()
+            _style_tk_menu(m)
+            m.tk_popup(x, y)
+        except Exception:
+            pass
+
+    def _docbar_pick_voice(self, name):
+        try:
+            self.tts_combo.set(name)
+            self.on_tts_change(name)
+        except Exception as e:
+            print(f"⚠️ голос: {e}")
+
+    def _update_docbar(self):
+        """Счётчик слов и оценка длительности озвучки в строке документа."""
+        try:
+            text = self.result_box.get("1.0", "end-1c")
+        except Exception:
+            return
+        words = len(re.findall(r"[\wА-Яа-яЁё]+", text or ""))
+        sec = (len(text or "") / 14.0) if text else 0
+        audio = getattr(self, "_last_audio", None)
+        if audio and audio[4] and os.path.isfile(audio[4]) and audio[0] == text:
+            try:
+                import wave as _w
+                with _w.open(audio[4], "rb") as f:
+                    sec = f.getnframes() / float(f.getframerate() or 1)
+            except Exception:
+                pass
+        try:
+            self.doc_words_label.configure(text=f"{words} " + _tr("слов") +
+                                                (f" · {self._lib_dur(sec)}" if words else ""))
+        except Exception:
+            pass
+        # подпись в плеере: что и каким голосом будет звучать
+        try:
+            e = self._lib_entry()
+            title = (e or {}).get("title") or (self.crumb_cur.cget("text") if hasattr(self, "crumb_cur") else "")
+            self.player_title.configure(text=title or _tr("Готов к озвучке"))
+            voice = self.tts_combo.get() if hasattr(self, "tts_combo") else ""
+            bits = [b for b in (voice, (self.current_engine or "").upper()) if b]
+            self.player_sub.configure(text=" · ".join(bits) + (f" · {self._lib_dur(sec)}" if words else ""))
+        except Exception:
+            pass
+
+    # ── режим фокуса ─────────────────────────────────────────────────────────
+
+    def _toggle_focus(self, force=None):
+        """Скрыть панели и оставить только текст (Ctrl+B; Esc — выйти)."""
+        cur = bool(getattr(self, "_focus_on", False))
+        on = (not cur) if force is None else bool(force)
+        self._focus_on = on
+        for w in (getattr(self, "rail", None), getattr(self, "sidebar", None),
+                  getattr(self, "library", None)):
+            if w is None:
+                continue
+            try:
+                if on:
+                    w.grid_remove()
+                else:
+                    w.grid()
+            except Exception:
+                pass
+        try:
+            self.update_status(_tr("Фокус: Esc — выйти, Ctrl+B — панели"))
+        except Exception:
+            pass
+
     def setup_ui(self):
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        # ── каркас 2.1: рейка · инспектор · документ · библиотека ────────────
+        self.grid_columnconfigure(2, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        self._build_rail()          # узкая рейка иконок слева
+        self._build_library()       # правая панель «Библиотека»
+
+        # главная область создаётся ДО шапки: шапка живёт внутри неё
+        self.main_area = ctk.CTkFrame(self, fg_color=COLOR_DOC, corner_radius=R_PANEL,
+                                      border_width=1, border_color=COLOR_BORDER)
+        self.main_area.grid(row=0, column=2, sticky="nsew", pady=10)
+        self.main_area.grid_rowconfigure(3, weight=1)      # лист документа тянется
+        self.main_area.grid_columnconfigure(0, weight=0)   # панель «Книга по голосам»
+        self.main_area.grid_columnconfigure(1, weight=1)   # поле текста
 
         # ---------------- верхняя панель ----------------
-        topbar = ctk.CTkFrame(self, fg_color="transparent", height=48)
-        topbar.grid(row=0, column=0, columnspan=2, sticky="ew", padx=20, pady=(8, 0))
-        topbar.grid_columnconfigure(1, weight=1)
+        topbar = ctk.CTkFrame(self.main_area, fg_color="transparent", height=46)
+        topbar.grid(row=0, column=0, columnspan=2, sticky="ew", padx=18, pady=(10, 0))
+        topbar.grid_columnconfigure(0, weight=1)
 
-        brand = ctk.CTkFrame(topbar, fg_color="transparent")
-        brand.grid(row=0, column=0, sticky="w")
-        # значок перед названием (просил вернуть 24.10.26)
-        try:
-            from PIL import Image
-            logo_path = self._asset_path("logo.png")
-            if os.path.isfile(logo_path):
-                self._logo_img = ctk.CTkImage(Image.open(logo_path).convert("RGBA"), size=(38, 38))
-                self._logo_lbl = ctk.CTkLabel(brand, text="", image=self._logo_img)
-                self._logo_lbl.pack(side="left", padx=(0, 10))
-                self._logo_lbl.configure(cursor="hand2")
-                self._logo_lbl.bind("<Button-1>", self._open_donate_page)
-        except Exception as e:
-            print(f"⚠️ логотип: {e}")
-        # название в двух цветах значка: «AI» — темнее (медь), остальное — светлее (янтарь)
-        _trow = ctk.CTkFrame(brand, fg_color="transparent")
-        _trow.pack(side="left")
-        _f = (FONT_FAMILY, 22, "bold")
-        self._brand_lbls = [
-            ctk.CTkLabel(_trow, text="Free", font=_f, text_color="#e0ac42"),
-            ctk.CTkLabel(_trow, text="", width=7),
-            ctk.CTkLabel(_trow, text="AI", font=_f, text_color="#c6763a"),
-            ctk.CTkLabel(_trow, text="", width=7),
-            ctk.CTkLabel(_trow, text="Reader", font=_f, text_color="#e0ac42"),
-        ]
-        for _lbl in self._brand_lbls:
-            _lbl._no_auto_tr = True    # «Free AI Reader» — фирменное имя, на всех языках одинаково
-            _lbl.pack(side="left")
-            _lbl.configure(cursor="hand2")
-            _lbl.bind("<Button-1>", self._open_donate_page)   # клик по названию — донаты
+        # слева — «хлебные крошки»: где мы и что открыто (макет 2.1)
+        crumbs = ctk.CTkFrame(topbar, fg_color="transparent")
+        crumbs.grid(row=0, column=0, sticky="w")
+        self.crumb_root = ctk.CTkLabel(crumbs, text=_tr("Библиотека"), font=FONT_TINY,
+                                       text_color=COLOR_TEXT_SEC)
+        self.crumb_root.pack(side="left")
+        ctk.CTkLabel(crumbs, text="/", font=FONT_TINY,
+                     text_color=COLOR_TEXT_SEC).pack(side="left", padx=6)
+        self.crumb_cur = ctk.CTkLabel(crumbs, text=_tr("Новый текст"),
+                                      font=(FONT_FAMILY, 12, "bold"),
+                                      text_color=COLOR_TEXT_MAIN)
+        self.crumb_cur.pack(side="left")
 
-        # кнопка благодарности справа от названия; исчезает после перехода к оплате
+        # кнопка благодарности; исчезает после перехода к оплате
         self.donate_btn = None
         if not getattr(self, "donate_done", False):
-            self.donate_btn = ctk.CTkButton(brand, text="Благодарить", width=104, height=26,
-                                            corner_radius=8, font=(FONT_FAMILY, 12, "bold"),
-                                            fg_color="#c6763a", hover_color="#b0652f",
-                                            text_color=COLOR_ON_ACCENT,
+            self.donate_btn = ctk.CTkButton(topbar, text=_tr("Благодарить"), width=104, height=26,
+                                            corner_radius=R_PILL, font=FONT_SMALL,
+                                            fg_color="transparent", hover_color=COLOR_SELECT,
+                                            border_width=1, border_color=COLOR_BORDER,
+                                            text_color=COLOR_ACCENT,
                                             command=self._open_donate_dialog)
-            self.donate_btn.pack(side="left", padx=(16, 0))
+            self.donate_btn.grid(row=0, column=4, sticky="e", padx=(10, 0))
 
         self.status_frame = ctk.CTkFrame(topbar, fg_color="transparent")
         self.status_frame.grid(row=0, column=1, sticky="e", padx=(24, 14))
@@ -5721,18 +6490,25 @@ class ModernTTSApp(*_APP_BASE):
             self.btn_settings.grid(row=0, column=(4 if THEMES_ENABLED else 3),
                                    sticky="e", padx=(6, 0))
 
-        # ---------------- левая панель ----------------
-        # карточки лежат прямо на фоне окна — без внешней панели и прокрутки
-        self.sidebar = ctk.CTkFrame(self, width=330, fg_color="transparent")
-        self.sidebar.grid(row=1, column=0, sticky="nsew", padx=(20, 8), pady=(8, 16))
+        # ---------------- инспектор (левая панель) ----------------
+        # Одна плоская панель с прокруткой: разделы разделены «волосяными» линиями,
+        # без карточек с рамками и глянцем (макет 2.1).
+        self.sidebar = ctk.CTkScrollableFrame(self, width=348, fg_color=COLOR_INSPECTOR,
+                                              corner_radius=R_PANEL, border_width=1,
+                                              border_color=COLOR_BORDER,
+                                              scrollbar_button_color=COLOR_BORDER,
+                                              scrollbar_button_hover_color=COLOR_TEXT_SEC)
+        self.sidebar.grid(row=0, column=1, sticky="nsew", padx=(10, 8), pady=10)
 
         def make_card(title):
-            card = ctk.CTkFrame(self.sidebar, fg_color=COLOR_CARD, corner_radius=R_CARD,
-                                border_width=1, border_color=COLOR_BORDER)
-            card.pack(fill="x", padx=2, pady=(0, 8))
-            self._card_head(card, title)
-            self._add_side_edges(card)      # вертикальные «грани» слева и справа
-            return card
+            sec = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+            sec.pack(fill="x", padx=12, pady=(2, 0))
+            head = ctk.CTkFrame(sec, fg_color="transparent")
+            head.pack(fill="x", pady=(12, 6))
+            ctk.CTkLabel(head, text=_tr(title), font=FONT_SECTION,
+                         text_color=COLOR_TEXT_SEC).pack(side="left")
+            ctk.CTkFrame(sec, fg_color=COLOR_HAIR, height=1).pack(fill="x", pady=(0, 10))
+            return sec
 
         # ----- Источник -----
         src = make_card("ИСТОЧНИК")
@@ -5741,7 +6517,7 @@ class ModernTTSApp(*_APP_BASE):
         url_row.pack(fill="x", padx=12, pady=(0, 7))
         url_row.grid_columnconfigure(0, weight=1)
 
-        self.url_entry = ctk.CTkEntry(url_row, placeholder_text="Ссылка на статью или видео (YouTube, Rutube, VK)",
+        self.url_entry = ctk.CTkEntry(url_row, placeholder_text=_tr("Ссылка на статью или видео"),
                                       font=FONT_NORMAL, height=32, corner_radius=3,
                                       fg_color=COLOR_CARD2, border_width=1, border_color=COLOR_BORDER,
                                       text_color=COLOR_TEXT_MAIN)
@@ -5766,24 +6542,25 @@ class ModernTTSApp(*_APP_BASE):
 
         preset_row = ctk.CTkFrame(src, fg_color="transparent")
         preset_row.pack(fill="x", padx=12, pady=(0, 7))
-        preset_row.grid_columnconfigure(1, weight=1)
+        preset_row.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(preset_row, text="Сжатие", font=FONT_SMALL,
-                     text_color=COLOR_TEXT_SEC).grid(row=0, column=0, sticky="w")
+        preset_head = ctk.CTkFrame(preset_row, fg_color="transparent")
+        preset_head.grid(row=0, column=0, sticky="ew")
+        ctk.CTkLabel(preset_head, text=_tr("Сжатие"), font=FONT_SMALL,
+                     text_color=COLOR_TEXT_SEC).pack(side="left")
+        ctk.CTkButton(preset_head, text="＋", width=26, height=22, corner_radius=6,
+                      font=FONT_NORMAL, fg_color="transparent", hover_color=COLOR_SELECT,
+                      text_color=COLOR_TEXT_MAIN, border_width=1, border_color=COLOR_BORDER,
+                      command=self.edit_selected_preset).pack(side="right")
 
         self.preset_menu = ctk.CTkOptionMenu(preset_row, values=self.preset_values(),
                                              command=self.on_preset_select,
-                                             font=FONT_SMALL, height=30, corner_radius=3, width=150,
+                                             font=FONT_SMALL, height=30, corner_radius=8,
                                              fg_color=COLOR_CARD2, button_color=COLOR_FILL_SOFT,
                                              button_hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
                                              dropdown_fg_color=COLOR_CARD2, dropdown_text_color=COLOR_TEXT_MAIN,
                                              dropdown_hover_color=COLOR_SELECT)
-        self.preset_menu.grid(row=0, column=1, sticky="ew", padx=(8, 0))
-
-        ctk.CTkButton(preset_row, text="＋", width=30, height=30, corner_radius=3, font=FONT_NORMAL,
-                      fg_color=COLOR_CARD2, hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
-                      border_width=1, border_color=COLOR_BORDER,
-                      command=self.edit_selected_preset).grid(row=0, column=2, sticky="e", padx=(6, 0))
+        self.preset_menu.grid(row=1, column=0, sticky="ew", pady=(4, 0))
 
         self.instruction_entry = ctk.CTkTextbox(src, height=74, corner_radius=3, font=FONT_SMALL, wrap="word",
                                                 fg_color=COLOR_CARD, border_width=1, border_color=COLOR_BORDER,
@@ -5851,8 +6628,8 @@ class ModernTTSApp(*_APP_BASE):
                                            dropdown_hover_color=COLOR_SELECT)
         self.llm_combo.grid(row=0, column=0, sticky="ew")
 
-        self.btn_llm_browse = ctk.CTkButton(llm_row, text="Другая модель", width=110, height=30,
-                                            corner_radius=3, font=FONT_TINY,
+        self.btn_llm_browse = ctk.CTkButton(llm_row, text="…", width=30, height=30,
+                                            corner_radius=8, font=FONT_NORMAL,
                                             fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                                             text_color=COLOR_TEXT_MAIN,
                                             command=self.pick_llm_file)
@@ -5887,7 +6664,7 @@ class ModernTTSApp(*_APP_BASE):
         # ограничение снято совсем: можно 28, 30, 100 — сколько наберёшь.
         chunk_box = ctk.CTkFrame(gpu_row, fg_color="transparent")
         chunk_box.pack(side="right")
-        self.lbl_chunks = ctk.CTkLabel(chunk_box, text="Разбить на чанки", font=FONT_SMALL,
+        self.lbl_chunks = ctk.CTkLabel(chunk_box, text="Чанки", font=FONT_SMALL,
                                        text_color=COLOR_TEXT_SEC, anchor="e")
         self.lbl_chunks.pack(side="left")
         self.chunk_cb = ctk.CTkSwitch(chunk_box, text="", variable=self.chunk_var, width=36,
@@ -5926,9 +6703,10 @@ class ModernTTSApp(*_APP_BASE):
         # строка с токенами/знаками/VRAM переехала сюда же: слева она, галочка
         # «по главам» справа — отдельной строкой вислового текста больше нет
         # (просьба Ярослава 10.11.26)
-        self.llm_limit_label = ctk.CTkLabel(chap_row, text="…", font=FONT_TINY,
-                                            text_color=COLOR_TEXT_SEC, anchor="w")
-        self.llm_limit_label.pack(side="left", fill="x", expand=True)
+        self.llm_limit_label = ctk.CTkLabel(ai, text="…", font=FONT_TINY,
+                                            text_color=COLOR_TEXT_SEC, anchor="w",
+                                            justify="left", wraplength=272)
+        self.llm_limit_label.pack(fill="x", padx=12, pady=(0, 6))
         self._sync_chunk_menu()
 
         ctx_row = ctk.CTkFrame(ai, fg_color="transparent")
@@ -5939,7 +6717,7 @@ class ModernTTSApp(*_APP_BASE):
                      text_color=COLOR_TEXT_SEC).grid(row=0, column=0, sticky="w")
 
         self.ctx_slider = ctk.CTkSlider(ctx_row, from_=MIN_CTX, to=8192, number_of_steps=8192 - MIN_CTX,
-                                        command=self._on_ctx_slider, height=16,
+                                        command=self._on_ctx_slider, height=16, width=110,
                                         progress_color=COLOR_BRAND, button_color=COLOR_BRAND,
                                         button_hover_color=COLOR_BRAND_HOVER, fg_color=COLOR_BORDER)
         self.ctx_slider.grid(row=0, column=1, sticky="ew", padx=7)
@@ -5956,12 +6734,12 @@ class ModernTTSApp(*_APP_BASE):
         tts = make_card("ОЗВУЧКА")
 
         self.engine_menu = SegmentToggle(tts, values=self.ENGINE_VALUES,
-                                         command=self.on_engine_change, height=30)
+                                         command=self.on_engine_change, height=30, btn_width=86)
         self.engine_menu.pack(fill="x", padx=12, pady=(0, 3))
 
         # Пояснение к выбранному движку (для Vox — требование к видеопамяти)
         self.engine_hint = ctk.CTkLabel(tts, text="", font=FONT_SMALL, text_color=COLOR_TEXT_MAIN,
-                                        anchor="w", justify="left", wraplength=336)
+                                        anchor="w", justify="left", wraplength=272)
         self.engine_hint.pack(fill="x", padx=12, pady=(0, 7))
 
         # дополнение Vox не стоит — рядом с движком кнопка, чтобы можно было поставить вручную
@@ -6085,21 +6863,42 @@ class ModernTTSApp(*_APP_BASE):
         # ---- карточка памяти: последней в левом столбце, под «ОЗВУЧКОЙ» (макет Ярослава) ----
         self.mem_panel = self._build_mem_panel(self.sidebar)
 
-        # ---------------- правая область ----------------
-        self.main_area = ctk.CTkFrame(self, fg_color=COLOR_PANEL, corner_radius=R_PANEL,
-                                      border_width=1, border_color=COLOR_BORDER)
-        self.main_area.grid(row=1, column=1, sticky="nsew", padx=(8, 20), pady=(8, 16))
-        self._add_gloss(self.main_area, height=60)
-        self.main_area.grid_rowconfigure(1, weight=1)
-        self.main_area.grid_columnconfigure(0, weight=0)   # панель «Книга по голосам»
-        self.main_area.grid_columnconfigure(1, weight=1)   # поле текста
+        # ---------------- документ ----------------
+        # Строка «Длина · голос · счётчик» (макет 2.1): пресеты сжатия под рукой,
+        # справа — живой счётчик слов и оценка длительности озвучки.
+        docbar = ctk.CTkFrame(self.main_area, fg_color="transparent")
+        docbar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=18, pady=(12, 0))
+        docbar.grid_columnconfigure(5, weight=1)
+        ctk.CTkLabel(docbar, text=_tr("Длина"), font=FONT_SECTION,
+                     text_color=COLOR_TEXT_SEC).grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.len_seg = SegmentToggle(docbar, values=["10%", "30%", "50%", "100%"],
+                                     command=self._on_len_segment, height=26, btn_width=44)
+        self.len_seg.grid(row=0, column=1, sticky="w")
+        self.btn_len_custom = ctk.CTkButton(docbar, text=_tr("Своя"), width=56, height=26,
+                                            corner_radius=R_PILL, font=FONT_TINY,
+                                            fg_color="transparent", hover_color=COLOR_SELECT,
+                                            border_width=1, border_color=COLOR_BORDER,
+                                            text_color=COLOR_TEXT_SEC,
+                                            command=self.edit_selected_preset)
+        self.btn_len_custom.grid(row=0, column=2, padx=(6, 10))
+
+        self.doc_voice_chip = ctk.CTkButton(docbar, text="", height=26, corner_radius=R_PILL,
+                                            font=FONT_TINY, fg_color=COLOR_CARD,
+                                            hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
+                                            border_width=1, border_color=COLOR_BORDER,
+                                            width=118, command=self._docbar_voice_click)
+        self.doc_voice_chip.grid(row=0, column=3, sticky="w")
+
+        self.doc_words_label = ctk.CTkLabel(docbar, text="", font=FONT_TINY,
+                                            text_color=COLOR_TEXT_SEC)
+        self.doc_words_label.grid(row=0, column=5, sticky="e", padx=(10, 2))
 
         header = ctk.CTkFrame(self.main_area, fg_color="transparent")
-        header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=18, pady=(12, 6))
+        header.grid(row=2, column=0, columnspan=2, sticky="ew", padx=18, pady=(10, 6))
         header.grid_columnconfigure(2, weight=1)
 
-        ctk.CTkLabel(header, text="ТЕКСТ", font=(FONT_FAMILY, 10, "bold"),
-                     text_color=COLOR_TEXT_SEC).grid(row=0, column=0, sticky="w", padx=(8, 0))
+        ctk.CTkLabel(header, text="", font=(FONT_FAMILY, 10, "bold"),
+                     text_color=COLOR_TEXT_SEC).grid(row=0, column=0, sticky="w", padx=(0, 0))
 
         self.char_count_label = ctk.CTkLabel(header, text="", font=FONT_TINY, text_color=COLOR_TEXT_SEC)
         self.char_count_label.grid(row=0, column=1, padx=(10, 0), sticky="w")
@@ -6108,34 +6907,35 @@ class ModernTTSApp(*_APP_BASE):
         # «Ударение», своим цветом (тёмная зелень). Кнопка «Вставить» убрана.
         self.btn_book = ctk.CTkButton(header, text=_tr("📖  Книга по голосам"),
                                       command=self._book_toggle,
-                                      width=156, height=28, corner_radius=3, font=FONT_SMALL,
-                                      fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
-                                      text_color=COLOR_ON_ACCENT)
+                                      width=146, height=26, corner_radius=R_PILL, font=FONT_SMALL,
+                                      fg_color="transparent", hover_color=COLOR_SELECT,
+                                      border_width=1, border_color=COLOR_BOOK,
+                                      text_color=COLOR_BOOK)
         self.btn_book.grid(row=0, column=2, sticky="e", padx=(6, 0))
 
         # 🎭 быстрая разметка эмоций: как анализ «Без изменений» с «Добавить эмоции»
-        self.btn_book_emo = ctk.CTkButton(header, text=_tr("🎭  Добавить эмоции"),
+        self.btn_book_emo = ctk.CTkButton(header, text=_tr("🎭  Эмоции"),
                                           command=self._emo_quick,
-                                          width=158, height=28, corner_radius=3, font=FONT_SMALL,
+                                          width=104, height=26, corner_radius=3, font=FONT_SMALL,
                                           fg_color="transparent", hover_color=COLOR_SELECT,
                                           text_color=COLOR_BRAND, border_width=1,
                                           border_color=COLOR_BRAND)
         self.btn_book_emo.grid(row=0, column=3, padx=(6, 0))
 
         self.btn_stress = ctk.CTkButton(header, text=_tr("Ударение"), command=self._open_stress_dialog,
-                                        width=96, height=28, corner_radius=3, font=FONT_SMALL,
+                                        width=84, height=26, corner_radius=3, font=FONT_SMALL,
                                         fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                                         text_color=COLOR_TEXT_MAIN)
         self.btn_stress.grid(row=0, column=4, padx=(6, 0))
 
         self.btn_file = ctk.CTkButton(header, text="Файл", command=self.insert_file,
-                                      width=80, height=28, corner_radius=3, font=FONT_SMALL,
+                                      width=62, height=26, corner_radius=3, font=FONT_SMALL,
                                       fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                                       text_color=COLOR_TEXT_MAIN)
         self.btn_file.grid(row=0, column=5, padx=(6, 0))
 
         self.btn_clear = ctk.CTkButton(header, text="Очистить", command=self._clear_box,
-                                       width=90, height=28, corner_radius=3, font=FONT_SMALL,
+                                       width=74, height=26, corner_radius=3, font=FONT_SMALL,
                                        fg_color="transparent", hover_color=COLOR_FILL_SOFT,
                                        text_color=COLOR_TEXT_SEC)
         self.btn_clear.grid(row=0, column=6, padx=(6, 0))
@@ -6144,7 +6944,7 @@ class ModernTTSApp(*_APP_BASE):
         # Видна только в режиме книги: список персонажей, у каждого свой голос.
         self.book_panel = ctk.CTkFrame(self.main_area, fg_color=COLOR_CARD, corner_radius=R_CARD,
                                        border_width=1, border_color=COLOR_BORDER, width=232)
-        self.book_panel.grid(row=1, column=0, sticky="nsw", padx=(18, 6), pady=(0, 4))
+        self.book_panel.grid(row=3, column=0, sticky="nsw", padx=(18, 6), pady=(0, 4))
         self.book_panel.grid_propagate(False)   # длинное имя персонажа не должно её раздувать
         self.book_panel.grid_remove()
 
@@ -6200,19 +7000,25 @@ class ModernTTSApp(*_APP_BASE):
                                           command=self._book_add_character)
         self.btn_book_add.pack(fill="x", pady=(6, 0))
 
-        self.result_box = ctk.CTkTextbox(self.main_area, wrap="word", font=(FONT_FAMILY, 13),
-                                         corner_radius=R_CARD, fg_color=COLOR_CARD,
+        self.result_box = ctk.CTkTextbox(self.main_area, wrap="word", font=FONT_READ,
+                                         corner_radius=0, fg_color=COLOR_DOC,
                                          text_color=COLOR_TEXT_MAIN,
-                                         border_width=1, border_color=COLOR_BORDER)
-        self.result_box.grid(row=1, column=1, sticky="nsew", padx=(6, 18), pady=(0, 4))
+                                         border_width=0)
+        self.result_box.grid(row=3, column=1, sticky="nsew", padx=(6, 18), pady=(0, 4))
         self._style_text_selection(self.result_box)
+        # поля и интерлиньяж «как в книге»: мера строки 62–68 знаков, воздух по краям
+        try:
+            self.result_box._textbox.configure(padx=54, pady=28, spacing1=3,
+                                               spacing2=4, spacing3=9)
+        except Exception:
+            pass
 
         # -------- список фрагментов «Книги по голосам» (та же ячейка, вместо поля) --------
-        self.book_view = ctk.CTkTextbox(self.main_area, wrap="word", font=(FONT_FAMILY, 13),
-                                        corner_radius=R_CARD, fg_color=COLOR_CARD,
+        self.book_view = ctk.CTkTextbox(self.main_area, wrap="word", font=(FONT_FAMILY, 12),
+                                        corner_radius=0, fg_color=COLOR_DOC,
                                         text_color=COLOR_TEXT_MAIN,
-                                        border_width=1, border_color=COLOR_BORDER)
-        self.book_view.grid(row=1, column=1, sticky="nsew", padx=(6, 18), pady=(0, 4))
+                                        border_width=0)
+        self.book_view.grid(row=3, column=1, sticky="nsew", padx=(6, 18), pady=(0, 4))
         self.book_view.grid_remove()
         try:
             _btb = self.book_view._textbox
@@ -6242,7 +7048,7 @@ class ModernTTSApp(*_APP_BASE):
             print(f"⚠️ Привязки result: {e}")
 
         stats_row = ctk.CTkFrame(self.main_area, fg_color="transparent")
-        stats_row.grid(row=2, column=0, columnspan=2, sticky="ew", padx=20, pady=(0, 4))
+        stats_row.grid(row=4, column=0, columnspan=2, sticky="ew", padx=20, pady=(0, 4))
         stats_row.grid_columnconfigure(0, weight=1)
 
         self.stats_label = ctk.CTkLabel(stats_row, text="", font=FONT_TINY,
@@ -6256,64 +7062,78 @@ class ModernTTSApp(*_APP_BASE):
         self.btn_restore.grid(row=0, column=1, sticky="e")
         self.btn_restore.grid_remove()
 
-        self.audio_control_frame = ctk.CTkFrame(self.main_area, height=60, corner_radius=R_CARD,
-                                                fg_color=COLOR_CARD2, border_width=1,
+        # ── плеер 2.1: «стеклянная» плашка внизу, круглая акцентная кнопка,
+        #    название и голос над тонкой полосой прогресса ─────────────────────
+        self.audio_control_frame = ctk.CTkFrame(self.main_area, height=78, corner_radius=14,
+                                                fg_color=COLOR_PLAYER, border_width=1,
                                                 border_color=COLOR_BORDER)
-        self.audio_control_frame.grid(row=3, column=0, columnspan=2, sticky="ew", padx=18, pady=(0, 14))
-        self.audio_control_frame.grid_columnconfigure(3, weight=1)
+        self.audio_control_frame.grid(row=5, column=0, columnspan=2, sticky="ew", padx=18, pady=(0, 14))
+        self.audio_control_frame.grid_columnconfigure(1, weight=1)
 
-        self.btn_play = ctk.CTkButton(self.audio_control_frame, text="Озвучить", command=self.play_result,
-                                      width=140, height=36, corner_radius=3, font=(FONT_FAMILY, 12, "bold"),
+        self.btn_play = ctk.CTkButton(self.audio_control_frame, text="▶  " + _tr("Озвучить"),
+                                      command=self.play_result,
+                                      width=118, height=44, corner_radius=22,
+                                      font=(FONT_FAMILY, 12, "bold"),
                                       fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
                                       text_color=COLOR_ON_ACCENT)
-        self.btn_play.grid(row=0, column=0, padx=(14, 6), pady=12)
+        self.btn_play.grid(row=0, column=0, padx=(14, 12), pady=16)
 
-        # Стоп — в том же стиле, что Play/Pause: рисованный квадратик-иконка
+        pcenter = ctk.CTkFrame(self.audio_control_frame, fg_color="transparent")
+        pcenter.grid(row=0, column=1, sticky="ew", pady=(12, 12))
+        pcenter.grid_columnconfigure(0, weight=1)
+        self.player_title = ctk.CTkLabel(pcenter, text=_tr("Готов к озвучке"),
+                                         font=(FONT_FAMILY, 11, "bold"),
+                                         text_color=COLOR_TEXT_MAIN, anchor="w")
+        self.player_title.grid(row=0, column=0, sticky="w")
+        self.player_sub = ctk.CTkLabel(pcenter, text="", font=FONT_TINY,
+                                       text_color=COLOR_TEXT_SEC, anchor="e")
+        self.player_sub.grid(row=0, column=1, sticky="e", padx=(8, 0))
+        self.progress_bar = ctk.CTkProgressBar(pcenter, height=4, corner_radius=2,
+                                               progress_color=COLOR_BRAND, fg_color=COLOR_BORDER)
+        self.progress_bar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(7, 0))
+        self.progress_bar.set(0)
+
+        pacts = ctk.CTkFrame(self.audio_control_frame, fg_color="transparent")
+        pacts.grid(row=0, column=2, sticky="e", padx=(10, 12))
         self._make_pp_icons()
-        self.btn_stop = ctk.CTkButton(self.audio_control_frame, text="",
-                                      image=self._stop_icon,
-                                      width=44, height=36, corner_radius=3,
-                                      fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+        self.btn_stop = ctk.CTkButton(pacts, text="", image=self._stop_icon,
+                                      width=38, height=38, corner_radius=10,
+                                      fg_color="transparent", hover_color=COLOR_SELECT,
                                       text_color=COLOR_TEXT_MAIN,
                                       command=self.stop_playback)
-        self.btn_stop.grid(row=0, column=1, padx=(0, 4), pady=12)
-
-        # Play/Pause — комбинированный значок ⏯ (треугольник + две полосы, как клавиша ноутбука).
-        # Значок статичный; когда играет — кнопка тёмная, на паузе — светлая.
-        self.btn_pp = ctk.CTkButton(self.audio_control_frame, text="",
-                                    image=self._pp_light,
-                                    width=44, height=36, corner_radius=3,
+        self.btn_stop.pack(side="left", padx=2)
+        # Play/Pause — комбинированный значок ⏯; когда играет — кнопка тёмная
+        self.btn_pp = ctk.CTkButton(pacts, text="", image=self._pp_light,
+                                    width=38, height=38, corner_radius=10,
                                     fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                                     text_color=COLOR_TEXT_MAIN,
                                     command=self._toggle_play_pause)
-        self.btn_pp.grid(row=0, column=2, padx=(0, 8), pady=12)
-
-        self.progress_bar = ctk.CTkProgressBar(self.audio_control_frame, height=6, corner_radius=3,
-                                               progress_color=COLOR_BRAND, fg_color=COLOR_BORDER)
-        self.progress_bar.grid(row=0, column=3, padx=14, pady=12, sticky="ew")
-        self.progress_bar.set(0)
-
-        # «Сохранить озвучку» — значок ⬇: сохраняет WAV последней озвучки в файл.
-        # Заменил собой строку состояния справа (её убрали по просьбе Ярослава).
-        self.btn_save_audio = ctk.CTkButton(self.audio_control_frame, text="",
-                                            image=self._save_icon,
-                                            width=44, height=36, corner_radius=3,
-                                            fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
+        self.btn_pp.pack(side="left", padx=2)
+        self.btn_save_audio = ctk.CTkButton(pacts, text="", image=self._save_icon,
+                                            width=38, height=38, corner_radius=10,
+                                            fg_color="transparent", hover_color=COLOR_SELECT,
                                             text_color=COLOR_TEXT_MAIN,
                                             command=self._save_last_audio)
-        self.btn_save_audio.grid(row=0, column=4, padx=(6, 14), pady=12)
+        self.btn_save_audio.pack(side="left", padx=2)
 
         self._mem_tick()
 
         self.bind("<Control-Return>", lambda e: self.start_full_process())
         self.bind("<F5>", lambda e: self.play_result())
+        # горячие клавиши 2.1 (макет): панели, поиск по библиотеке, выход из фокуса
+        self.bind("<Control-b>", lambda e: (self._toggle_focus(), "break")[1])
+        self.bind("<Control-B>", lambda e: (self._toggle_focus(), "break")[1])
+        self.bind("<Control-k>", lambda e: (self._focus_lib_search(), "break")[1])
+        self.bind("<Control-K>", lambda e: (self._focus_lib_search(), "break")[1])
+        self.bind("<Escape>", lambda e: (self._toggle_focus(False), "break")[1]
+                  if getattr(self, "_focus_on", False) else None)
         self.after(40, self._place_window)
 
     def _place_window(self):
         """Ставит окно по центру экрана и не даёт содержимому его раздуть."""
         try:
             self.update_idletasks()
-            w, h = 1140, 850
+            w, h = 1400, 880
             sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
             x = max(20, (sw - w) // 2)
             y = max(20, (sh - h) // 3)
@@ -6404,6 +7224,24 @@ class ModernTTSApp(*_APP_BASE):
             out.append(rest)
         return "\n".join(out)
 
+    def _style_doc_title(self):
+        """Первая строка документа — засечный заголовок (тег; сам текст не меняется)."""
+        try:
+            tb = self.result_box._textbox
+            tb.tag_configure("doctitle", font=(FONT_READ[0], 21, "bold"),
+                             spacing1=4, spacing3=12,
+                             foreground=_mode_color(COLOR_TEXT_MAIN))
+            tb.tag_remove("doctitle", "1.0", "end")
+            first = tb.get("1.0", "1.end").strip()
+            rest = tb.get("2.0", "end-1c").strip()
+            if not first or not rest or len(first) > 90:
+                return
+            if first[-1] in ".,;:!?":
+                return
+            tb.tag_add("doctitle", "1.0", "1.end")
+        except Exception:
+            pass
+
     def _set_box_text(self, text, generated=False):
         text = self._break_long_lines(text)
         self._suppress_box_events = True
@@ -6416,6 +7254,7 @@ class ModernTTSApp(*_APP_BASE):
         if text:
             self.result_box.insert("1.0", text)
         self._suppress_box_events = False
+        self._style_doc_title()
         self._result_is_generated = bool(generated and text)
         self.box_is_source = bool(text) and not generated
         try:
@@ -6425,6 +7264,7 @@ class ModernTTSApp(*_APP_BASE):
         except Exception:
             pass
         self._update_char_count()
+        self._update_docbar()
         self._refresh_chapters_count()   # «по главам»: показать число глав (13.11.26)
         try:
             if self._last_source and generated:
@@ -6433,6 +7273,14 @@ class ModernTTSApp(*_APP_BASE):
                 self.btn_restore.grid_remove()
         except Exception:
             pass
+        # новый результат анализа — сразу в библиотеку (2.1)
+        if generated and text:
+            try:
+                entry = self._lib_touch(text, source=getattr(self, "_last_source", "") or "")
+                self.crumb_cur.configure(text=(entry or {}).get("title") or _tr("Новый текст"))
+                self._update_docbar()      # подпись плеера — уже с новым заголовком
+            except Exception as e:
+                print(f"⚠️ библиотека: {e}")
 
     def _on_box_modified(self, event=None):
         try:
@@ -6451,6 +7299,7 @@ class ModernTTSApp(*_APP_BASE):
         self._result_is_generated = False
         self.box_is_source = bool(self.result_box.get("1.0", "end-1c").strip())
         self._update_char_count()
+        self._update_docbar()
 
     def _update_char_count(self):
         try:
@@ -7931,7 +8780,7 @@ class ModernTTSApp(*_APP_BASE):
         try:
             if on:
                 self.result_box.grid_remove()
-                self.book_view.grid(row=1, column=1, sticky="nsew", padx=(6, 18), pady=(0, 4))
+                self.book_view.grid(row=3, column=1, sticky="nsew", padx=(6, 18), pady=(0, 4))
             else:
                 self.book_view.grid_remove()
                 self.result_box.grid()
@@ -12657,6 +13506,7 @@ class ModernTTSApp(*_APP_BASE):
                 self._show_placeholder()
             except Exception:
                 pass
+        self._retr_v21()
 
     def _set_theme(self, choice):
         """Светлая / тёмная тема из макета fair-redesign: CTk сам перекрашивает
@@ -13021,6 +13871,7 @@ class ModernTTSApp(*_APP_BASE):
 
     def _apply_engine(self, value):
         self.current_engine = value
+        self.after(30, self._sync_docbar_voice)
         self._unload_tts_models(keep=value)   # в памяти остаётся только выбранный движок
         if value == "Piper":
             self.engine_menu.set("Piper (CPU)")
@@ -13670,6 +14521,7 @@ class ModernTTSApp(*_APP_BASE):
             self.after(0, lambda: self.update_status(f"❌ {_nm} {_d}"))
 
     def on_tts_change(self, value):
+        self.after(30, self._sync_docbar_voice)
         if self.current_engine == "Piper":
             self.load_tts_on_select()
         elif self.current_engine == "Qwen":
@@ -14493,6 +15345,7 @@ class ModernTTSApp(*_APP_BASE):
             self.add_custom_preset()
             return
         self._last_preset = choice
+        self._sync_len_segment(choice)
         if choice in self.custom_presets:
             self.instruction_entry.delete("1.0", "end")
             self.instruction_entry.insert("1.0", self.custom_presets[choice].get("prompt", ""))
@@ -16391,6 +17244,7 @@ class ModernTTSApp(*_APP_BASE):
             self._last_audio = (orig_text, self.current_engine,
                                 getattr(self, "_synth_voice_key", self.tts_combo.get()),
                                 rate, temp_file)
+            self._safe_ui(lambda p=temp_file: self._lib_attach_audio(p))
             # «Озвучить этот фрагмент»: звук уже в кэше — пересобираем книгу целиком
             _single = getattr(self, "_synth_book_single", None)
             if _single is not None and getattr(self, "book_mode", False):
@@ -16437,7 +17291,7 @@ def _activate_existing_window():
                 return True
             title = ctypes.create_unicode_buffer(128)
             user32.GetWindowTextW(h, title, 128)
-            if title.value == "FAIR":
+            if title.value in ("FAIR", APP_TITLE):
                 found.append(h)
             return True
 
@@ -16485,7 +17339,7 @@ def ensure_single_instance(quiet=False):
         kernel32 = ctypes.windll.kernel32
         kernel32.CreateMutexW.restype = wintypes.HANDLE
         kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
-        handle = kernel32.CreateMutexW(None, True, "Local\\FAIR_FreeAIReader_single")
+        handle = kernel32.CreateMutexW(None, True, "Local\\FAIR21_FreeAIReader_single")
         if not handle:
             return True
         if kernel32.GetLastError() != 183:        # ERROR_ALREADY_EXISTS

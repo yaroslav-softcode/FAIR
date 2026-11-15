@@ -99,7 +99,10 @@ def start(app, log=print):
             "port": srv.server_address[1], "token": token,
             "pid": os.getpid(), "started": time.strftime("%Y-%m-%d %H:%M:%S")}
     try:
-        with open(endpoint_path(app.BASE_DIR), "w", encoding="utf-8") as f:
+        # 2.1: свой файл эндпоинта в своей папке данных — иначе он перетирал бы
+        # эндпоинт 1.11 и MCP-мост ходил бы не в то приложение
+        _data_dir = getattr(app, "DATA_DIR", app.BASE_DIR)
+        with open(endpoint_path(_data_dir), "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2, ensure_ascii=False)
     except Exception as e:
         log(f"⚠️ FAIR API: не удалось записать {ENDPOINT_NAME}: {e}")
