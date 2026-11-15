@@ -64,3 +64,6 @@ models_qwen/
 _*.log
 _*.txt
 NUL
+
+# библиотека 2.1 — состояние, не код
+library/

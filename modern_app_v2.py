@@ -63,6 +63,7 @@ COLOR_TEXT_MAIN = ("#211D18", "#F2ECE2")     # --ink
 COLOR_TEXT_SEC = ("#6E665A", "#A69C8D")      # --ink2
 COLOR_ON_ACCENT = ("#FFFFFF", "#150F0A")     # текст на акцентной кнопке
 COLOR_GREEN = ("#4E7A54", "#7FBF8B")         # --ok
+COLOR_GREEN_SOFT = ("#EAF1E8", "#1E2A20")    # подложка статуса «Готово»
 COLOR_RED = ("#C4432B", "#E98B6A")           # ошибка — тёплый кирпич
 COLOR_FILL_SOFT = ("#F0E9DD", "#211E1A")     # вторичные кнопки — --surface-2
 COLOR_SWITCH_OFF = ("#D5CEC0", "#2E2B26")
@@ -6368,12 +6369,16 @@ class ModernTTSApp(*_APP_BASE):
             self.donate_btn.grid(row=0, column=4, sticky="e", padx=(10, 0))
 
         self.status_frame = ctk.CTkFrame(topbar, fg_color="transparent")
-        self.status_frame.grid(row=0, column=1, sticky="e", padx=(24, 14))
-        # шрифт строки статуса на 20% крупнее прежнего FONT_TINY=10 (просьба Ярослава 13.11.26)
-        self.status_label_main = ctk.CTkLabel(self.status_frame, text="Готово",
-                                              font=(FONT_FAMILY, 12),
-                                              text_color=COLOR_TEXT_SEC, anchor="e", justify="right")
-        self.status_label_main.pack(side="right")
+        self.status_frame.grid(row=0, column=1, sticky="e", padx=(18, 10))
+        # статус — «пилюлей» (макет 2.1): подложка меняет цвет по состоянию
+        self.status_pill = ctk.CTkFrame(self.status_frame, fg_color=COLOR_GREEN_SOFT,
+                                        corner_radius=R_PILL)
+        self.status_pill.pack(side="right")
+        self.status_label_main = ctk.CTkLabel(self.status_pill, text=_tr("Готово"),
+                                              font=FONT_SMALL,
+                                              text_color=COLOR_TEXT_SEC, anchor="e",
+                                              justify="right")
+        self.status_label_main.pack(side="right", padx=10, pady=3)
 
         # кнопки языка — узкие, чтобы не растягивали шапку
         # язык — компактный выпадающий список: в шапке видно только текущий язык,
@@ -7135,8 +7140,11 @@ class ModernTTSApp(*_APP_BASE):
             self.update_idletasks()
             w, h = 1400, 880
             sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
-            x = max(20, (sw - w) // 2)
-            y = max(20, (sh - h) // 3)
+            # на маленьком экране окно не должно вылезать за края
+            w = min(w, max(1100, sw - 60))
+            h = min(h, max(680, sh - 90))
+            x = max(10, (sw - w) // 2)
+            y = max(10, (sh - h) // 3)
             self.geometry(f"{w}x{h}+{x}+{y}")
         except Exception:
             pass
@@ -15490,6 +15498,17 @@ class ModernTTSApp(*_APP_BASE):
             text = text[:107] + "…"
         try:
             self.status_label_main.configure(text=text, text_color=COLOR_TEXT_SEC)
+        except Exception:
+            pass
+        # цвет подложки: успех — зелёный, предупреждение — терракота, работа — нейтраль
+        try:
+            if text.startswith("✅"):
+                col = COLOR_GREEN_SOFT
+            elif text.startswith("⚠"):
+                col = COLOR_ACCENT_SOFT
+            else:
+                col = COLOR_CARD
+            self.status_pill.configure(fg_color=col)
         except Exception:
             pass
 
