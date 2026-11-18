@@ -138,6 +138,9 @@ BOOK_AFTER_TITLE_RE = re.compile(
 BOOK_TITLE_NAME_RE = re.compile(r"\b(%s)\s+([А-ЯЁ][а-яё\-]{1,20})\b" % BOOK_TITLE, re.I)
 # не имена, хоть и с большой буквы
 BOOK_STOP = {"Он", "Она", "Они", "Бог", "Боже", "Господи", "Все", "Всё", "Это", "Так",
+             # плейсхолдеры из промпта: модель иногда возвращает их буквально
+             # («Имя: (радостный) фраза») — это не персонаж (18.11.26)
+             "Имя", "Персонаж", "Герой", "Реплика", "Голос",
              "Тогда", "Потом", "Вдруг", "Но", "И", "А", "Нет", "Да", "Однако", "Впрочем",
              "Конечно", "Может", "Разве", "Неужели", "Хорошо", "Ладно",
              # первые слова реплик, которые нейросеть принимает за имя (14.11.26):
@@ -805,10 +808,10 @@ EN_RU_GLOSSARY = [
 
 VOX_CANDIDATES = ["openbmb/VoxCPM2"]
 
-# Дополнительный вариант Vox (вкладка «⚙ Настройки Vox»): тот же классический
+# Дополнительные варианты Vox (вкладка «⚙ Настройки Vox»): тот же классический
 # движок, другой чекпоинт. Tiny — маленькая русская VoxCPM-0.5B (ALEKAS) со своим
-# обученным голосом (16 кГц). Вариант Shtorm (ArtShtorm/Shtorm-VoxCPM2-RU) убран
-# из программы по просьбе Ярослава 13.11.26 — не возвращать.
+# обученным голосом (16 кГц). Shtorm — русская VoxCPM2 (ArtShtorm: ударения,
+# омографы, 24 кГц), её убирали 13.11.26, Ярослав вернул 17.11.26 («Вокс Шторм»).
 VOX_EXTRA_VARIANTS = {
     "tiny": {
         "repo": "ALEKAS/VoxCPM-0.5B-Russian-5600",
@@ -819,6 +822,16 @@ VOX_EXTRA_VARIANTS = {
         "hint": "маленькая русская модель (0.5B, 16 кГц) · говорит своим голосом",
         "dl": "Скачиваю Vox Tiny, ≈3 ГБ…",
         "done": "Vox Tiny установлен ✅",
+    },
+    "shtorm": {
+        "repo": "ArtShtorm/Shtorm-VoxCPM2-RU",
+        "cache": "models--ArtShtorm--Shtorm-VoxCPM2-RU",
+        "local": "models_vox_shtorm",
+        "title": "🌪 Vox Shtorm (RU)",
+        "short": " · Vox Shtorm",
+        "hint": "русская VoxCPM2: ударения и омографы · 24 кГц",
+        "dl": "Скачиваю Vox Shtorm…",
+        "done": "Vox Shtorm установлен ✅",
     },
 }
 VOX_TINY_SPEED = 16000.0 / 24000.0   # родной поток ALEKAS 16 кГц → эталонные 24 кГц FAIR
@@ -2263,16 +2276,18 @@ class PdfArticlesDialog(ctk.CTkToplevel):
 class SegmentToggle(ctk.CTkFrame):
     """Переключатель из 2+ пунктов: активный — тёмная заливка и белый текст."""
 
-    def __init__(self, master, values, command=None, height=32, btn_width=None, **kwargs):
+    def __init__(self, master, values, command=None, height=32, btn_width=None,
+                 labels=None, **kwargs):
         super().__init__(master, fg_color=COLOR_CARD2, corner_radius=3, border_width=1,
                          border_color=COLOR_BORDER, **kwargs)
         self._values = list(values)
+        self._labels = list(labels) if labels else list(values)
         self._command = command
         self._buttons = {}
         self._current = self._values[0] if self._values else None
         self._height = max(20, height - 4)
         for i, val in enumerate(self._values):
-            btn = ctk.CTkButton(self, text=val, height=self._height, corner_radius=2,
+            btn = ctk.CTkButton(self, text=self._labels[i], height=self._height, corner_radius=2,
                                 font=FONT_TINY, border_width=0,
                                 width=140 if btn_width is None else btn_width,
                                 fg_color="transparent", hover_color=COLOR_SELECT,
@@ -2301,8 +2316,16 @@ class SegmentToggle(ctk.CTkFrame):
                               hover_color=COLOR_SELECT)
 
     def set(self, value):
-        if value in self._buttons:
-            self._current = value
+        """Принять и полное значение («Vox (GPU)»), и короткое («Vox»)."""
+        target = value if value in self._buttons else None
+        if target is None:
+            head = str(value).split(" ")[0].lower()
+            for v in self._values:
+                if v.split(" ")[0].lower() == head:
+                    target = v
+                    break
+        if target is not None:
+            self._current = target
             self._refresh()
 
     def get(self):
@@ -2995,6 +3018,26 @@ _PAIRS += [
      "8,192 tok. (≈13,305 chars) · VRAM ≈ 3.2 · RAM ≈ 3.2 GB"),
     ("8,192 ток. (≈13,305 знаков) · ОЗУ ≈ 3.2 ГБ",
      "8,192 tok. (≈13,305 chars) · RAM ≈ 3.2 GB"),
+    # короткий формат 17.11.26 («зн.» вместо «знаков») — чтобы строка влезала
+    # в одну линию карточки 324 px; каркас `_shape` должен узнаваться и в EN
+    ("8,192 ток. (≈13,305 зн.) · VRAM ≈ 3.2 · ОЗУ ≈ 3.2 ГБ",
+     "8,192 tok. (≈13,305 ch.) · VRAM ≈ 3.2 · RAM ≈ 3.2 GB"),
+    ("8,192 ток. (≈13,305 зн.) · ОЗУ ≈ 3.2 ГБ",
+     "8,192 tok. (≈13,305 ch.) · RAM ≈ 3.2 GB"),
+    # 17.11.26: лимиты при включённых «Чанках» — контекст × число частей
+    ("8,192 ток. ×4 · ≈59,000 зн. · VRAM ≈ 3.2 · ОЗУ ≈ 3.2 ГБ",
+     "8,192 tok. ×4 · ≈59,000 ch. · VRAM ≈ 3.2 · RAM ≈ 3.2 GB"),
+    ("8,192 ток. ×4 · ≈59,000 зн. · ОЗУ ≈ 3.2 ГБ",
+     "8,192 tok. ×4 · ≈59,000 ch. · RAM ≈ 3.2 GB"),
+    # Vox Shtorm вернули в программу 17.11.26
+    ("русская VoxCPM2: ударения и омографы · 24 кГц",
+     "Russian VoxCPM2: stress marks and homographs · 24 kHz"),
+    ("Скачиваю Vox Shtorm…", "Downloading Vox Shtorm…"),
+    ("Vox Shtorm установлен ✅", "Vox Shtorm installed ✅"),
+    ("Не хватает памяти видеокарты. Включите «Чанки» в карточке «МОДЕЛЬ ИИ» "
+     "и разделите текст на части — так нужно меньше памяти. Или уменьшите «Контекст» ползунком.",
+     "Not enough video memory. Turn on “Chunks” in the “AI MODEL” card and split the text "
+     "into parts — that needs less memory. Or lower the “Context” slider."),
     ("Анализ нейросетью… чанк 2 из 4", "Neural analysis… chunk 2 of 4"),
 ]
 
@@ -3098,6 +3141,133 @@ _PAIRS += [
     ("Новый текст", "New text"),
     ("Все", "All"),
     ("Готов к озвучке", "Ready to voice"),
+]
+
+# ── Мастер настройки в дизайне макета 2.1 (Ярослав, 16.11.26): шаг 1 — модели
+# анализа, шаг 2 — модели озвучки; подписи строк-опций, шагов и подвала.
+_PAIRS += [
+    ("Модели для анализа", "Analysis models"),
+    ("Локальная ИИ-модель", "Local AI model"),
+    ("Модели для озвучки", "Voice models"),
+    ("Движки голоса", "Voice engines"),
+    ("Без модели анализа не работают пересказ, перевод и разметка эмоций. "
+     "Можно поставить несколько — рабочую выберете в главном окне.",
+     "Without an analysis model there is no summarising, translation or emotion "
+     "marking. You can install several — pick the working one in the main window."),
+    ("Движки синтеза речи и их требования к видеопамяти. Можно поставить "
+     "несколько и переключаться в главном окне.",
+     "Speech engines and their VRAM requirements. You can install several and "
+     "switch between them in the main window."),
+    ("пересказ, перевод, разметка эмоций", "summaries, translation, emotion markers"),
+    ("CPU или GPU", "CPU or GPU"),
+    ("Piper — быстрый голос", "Piper — fast voice"),
+    ("Ирина и Руслан, работает на процессоре", "Irina and Ruslan, runs on the CPU"),
+    ("≈126 МБ", "≈126 MB"),
+    ("Vox — качественный голос (рекомендуется)", "Vox — quality voice (recommended)"),
+    ("Клон голоса по образцу 5–15 секунд, 26 эмоций",
+     "Voice clone from a 5–15 second sample, 26 emotions"),
+    ("≈4,5 ГБ", "≈4.5 GB"),
+    ("8 ГБ VRAM", "8 GB VRAM"),
+    ("Vox Turbo — быстрее", "Vox Turbo — faster"),
+    ("Те же веса, быстрый движок: примерно на 50% быстрее",
+     "Same weights, fast engine: about 50% faster"),
+    ("те же веса", "same weights"),
+    ("12 ГБ VRAM", "12 GB VRAM"),
+    ("Vox Tiny — лёгкий (только один голос)", "Vox Tiny — light (single voice)"),
+    ("Маленькая русская модель (0.5B)",
+     "Small Russian model (0.5B)"),
+    ("≈3 ГБ", "≈3 GB"),
+    ("4 ГБ VRAM", "4 GB VRAM"),
+    ("Qwen3-TTS 1.7B — выразительный", "Qwen3-TTS 1.7B — expressive"),
+    ("Клон голоса по образцу и дизайн голоса по описанию",
+     "Voice clone from a sample and voice design from a description"),
+    ("≈13,5 ГБ", "≈13.5 GB"),
+    ("6–8 ГБ VRAM", "6–8 GB VRAM"),
+    ("Qwen3-TTS 0.6B — лёгкий", "Qwen3-TTS 0.6B — light"),
+    ("Лёгкая модель: клон голоса по образцу", "Light model: voice clone from a sample"),
+    ("≈5 ГБ", "≈5 GB"),
+    ("УЖЕ ЕСТЬ", "INSTALLED"),
+    ("ГБ видеопамяти", "GB of video memory"),
+    ("ВЫБРАНО", "SELECTED"),
+    ("Обновление программы", "Program update"),
+    ("Версия и обновления", "Version and updates"),
+    ("Проверить обновления", "Check for updates"),
+    ("Проверяю…", "Checking…"),
+    ("Смотрю GitHub…", "Looking at GitHub…"),
+    ("Скачать обновление", "Download update"),
+    ("Поблагодарить автора", "Thank the author"),
+    ("Поблагодарить", "Say thanks"),
+    ("Сборка", "Build"),
+    ("Папка", "Folder"),
+    ("У вас последняя версия", "You have the latest version"),
+    ("Доступна версия", "Version available"),
+    ("открыть страницу загрузки", "open the download page"),
+    ("Обновления ставятся с GitHub: ", "Updates come from GitHub: "),
+    ("Релизов на GitHub пока нет", "No GitHub releases yet"),
+    ("Нет связи с GitHub: ", "No connection to GitHub: "),
+    ("ШАГ 1 ИЗ 3", "STEP 1 OF 3"),
+    ("ШАГ 2 ИЗ 3", "STEP 2 OF 3"),
+    ("ШАГ 3 ИЗ 3", "STEP 3 OF 3"),
+    ("ШАГ 1 ИЗ 2", "STEP 1 OF 2"),
+    ("ШАГ 2 ИЗ 2", "STEP 2 OF 2"),
+    ("Всё можно изменить позже.", "Everything can be changed later."),
+    ("Настройки → Модели и голоса.", "Settings → Models and voices."),
+    ("Всё считается на этом компьютере. Ни одна строка не уходит в сеть.",
+     "Everything runs on this computer. Not a single line goes online."),
+    ("можно свернуть — докачается", "you can minimise — it keeps downloading"),
+    ("Загрузка", "Downloading"),
+    ("Установка…", "Installing…"),
+    ("Пропустить", "Skip"),
+    ("Назад", "Back"),
+    ("Далее", "Next"),
+    ("Установить выбранное", "Install selected"),
+    ("Видеокарта не найдена", "Graphics card not found"),
+    ("нет видеокарты — Vox и Qwen недоступны",
+     "no graphics card — Vox and Qwen are unavailable"),
+    ("Отметьте минимум одну модель для анализа", "Tick at least one analysis model"),
+    ("Модель анализа не докачалась — попробуйте ещё раз",
+     "The analysis model did not finish downloading — try again"),
+    ("Установка завершена — можно работать", "Installation complete — you can work"),
+    ("Установка прервана — продолжите позже", "Installation stopped — continue later"),
+    ("GPU-среда не установлена: ", "GPU runtime not installed: "),
+    # ---- панель «Голоса» (16.11.26) ----
+    ("голосов", "voices"),
+    ("встроенный", "built-in"),
+    ("свой", "custom"),
+    # ---- панель «Модель ИИ» (16.11.26) ----
+    ("Выбрать", "Select"),
+    ("✓ Выбрана", "✓ Selected"),
+    ("Папка", "Folder"),
+    ("Установлено", "Installed"),
+    ("не скачана", "not downloaded"),
+    ("Своя модель", "Own model"),
+    ("Модели на Hugging Face", "Models on Hugging Face"),
+    ("на диске", "on disk"),
+    ("Подготовка…", "Preparing…"),
+    ("Уже идёт загрузка", "A download is already running"),
+    ("Открыть папку с моделями", "Open the models folder"),
+    ("Страница модели на Hugging Face", "Model page on Hugging Face"),
+    ("Модель ИИ: выберите модель для анализа", "AI model: pick a model for the analysis"),
+    ("Добавить .gguf с диска", "Add a .gguf from disk"),
+    ("папка", "folder"),
+    ("в папке models_llm", "in models_llm"),
+    ("вне папки", "outside the folder"),
+    ("Озвучивать сразу", "Speak right after"),
+    ("Ссылка или текст", "Link or text"),
+    ("свой образец", "custom sample"),
+    ("эмоц.", "emot."),
+    ("зн. образца", "chars in sample"),
+    ("громкость", "volume"),
+    ("Записать свой голос", "Record your voice"),
+    ("Изменить", "Edit"),
+    ("Прослушать голос", "Listen to the voice"),
+    ("промпт", "prompt"),
+    ("промпт описания голоса", "voice description prompt"),
+    ("образца нет — запишите голос", "no sample — record a voice"),
+    ("Стоп", "Stop"),
+    ("Полный вид", "Full view"),
+    ("Выйти из фокуса", "Exit focus"),
+    ("Голоса: выберите голос для движка", "Voices: pick a voice for the engine"),
 ]
 
 TR_RU_EN = dict(_PAIRS)
@@ -3517,12 +3687,11 @@ class ModernTTSApp(*_APP_BASE):
             pass
 
     def _apply_titlebar_icon(self):
-        """В шапке окна значка нет, в панели задач остаётся FAIR.
+        """Значок FAIR — и в шапке окна, и в панели задач (16.11.26).
 
-        В ICON_SMALL ставим картинку цвета заголовка Windows: она сливается с полосой,
-        и значка перед надписью «FAIR» не видно. ICON_BIG оставляем настоящим — иначе
-        пропадёт значок на панели задач и в Alt+Tab. Полностью прозрачную иконку
-        ставить нельзя: Windows подставляет тогда запасной значок Tk.
+        Раньше в ICON_SMALL подставлялась картинка цвета заголовка Windows, чтобы
+        скрыть старую тёмную иконку. Новая иконка (ярлык загрузки) прозрачная, без
+        тёмной плашки — её видно и в шапке, и в Alt+Tab, и в панели задач.
         """
         try:
             self.update_idletasks()
@@ -3535,9 +3704,11 @@ class ModernTTSApp(*_APP_BASE):
                                             ctypes.c_void_p, ctypes.c_void_p]
             hwnd = user32.GetParent(self.winfo_id()) or self.winfo_id()
             LR_LOADFROMFILE, IMAGE_ICON, WM_SETICON = 0x0010, 1, 0x0080
-            clear = self._asset_path("titlebar_clear.ico")
-            ico = self._asset_path("app.ico")
-            small = user32.LoadImageW(None, clear if os.path.isfile(clear) else ico,
+            ico = self._asset_path("app.ico")            # значок приложения (как в 1.10)
+            arrow = self._asset_path("titlebar_arrow.ico")  # маленькая стрелка в шапке
+            if not os.path.isfile(ico):
+                return
+            small = user32.LoadImageW(None, arrow if os.path.isfile(arrow) else ico,
                                       IMAGE_ICON, 16, 16, LR_LOADFROMFILE)
             big = user32.LoadImageW(None, ico, IMAGE_ICON, 32, 32, LR_LOADFROMFILE)
             if small:
@@ -4275,16 +4446,50 @@ class ModernTTSApp(*_APP_BASE):
         cb.place(relx=1.0, rely=0.5, x=5, anchor="e")  # квадрат в 2 px от края строки
 
     def _apply_setup_preset(self, preset):
-        """Заранее отметить нужную галочку мастера, если она активна."""
+        """Заранее отметить нужную галочку мастера, если она активна; пресеты движков
+        озвучки заодно открывают второй шаг (Ярослав, 16.11.26)."""
         boxes = getattr(self, "_setup_boxes", {}).get(preset) if preset else None
-        if boxes is None:
-            return
-        for box in (boxes if isinstance(boxes, (tuple, list)) else (boxes,)):
+        for box in ((boxes if isinstance(boxes, (tuple, list)) else (boxes,))
+                    if boxes is not None else ()):
             try:
                 if str(box.cget("state")) != "disabled":
                     box.select()
             except Exception:
                 pass
+        if preset in ("vox", "vox_classic", "0.6B", "1.7B"):
+            try:
+                self._setup_goto(1)
+            except Exception:
+                pass
+
+    UPDATE_REPO = "yaroslav-softcode/FAIR"
+
+    @staticmethod
+    def _version_tuple(v):
+        nums = re.findall(r"\d+", str(v or ""))
+        return tuple(int(x) for x in nums[:3]) or (0,)
+
+    def _latest_release(self):
+        """Последняя версия на GitHub: (версия, ссылка на релиз, текст ошибки)."""
+        base = f"https://api.github.com/repos/{self.UPDATE_REPO}"
+        try:
+            r = requests.get(base + "/releases/latest", timeout=12,
+                             headers={"Accept": "application/vnd.github+json"})
+            if r.status_code == 200:
+                d = r.json()
+                return (str(d.get("tag_name") or "").lstrip("vV"),
+                        d.get("html_url") or f"https://github.com/{self.UPDATE_REPO}/releases",
+                        "")
+            if r.status_code == 404:
+                r2 = requests.get(base + "/tags", timeout=12)
+                if r2.status_code == 200 and r2.json():
+                    t = r2.json()[0]
+                    return (str(t.get("name") or "").lstrip("vV"),
+                            f"https://github.com/{self.UPDATE_REPO}/releases", "")
+                return ("", "", _tr("Релизов на GitHub пока нет"))
+            return ("", "", f"GitHub: HTTP {r.status_code}")
+        except Exception as e:
+            return ("", "", _tr("Нет связи с GitHub: ") + str(e)[:80])
 
     def _open_settings(self):
         """Шестерёнка справа от переключателя языка: первичные настройки (модели
@@ -4317,12 +4522,18 @@ class ModernTTSApp(*_APP_BASE):
                 break
 
     def _first_run_setup(self, preset=None, settings_mode=False):
-        """Первичная установка: одно окно на три строки — модель анализа (обязательно),
-        Vox (галочка), Qwen3-TTS (выбор размера движка). Видеокарта показана сразу.
-        preset: "vox"/"0.6B"/"1.7B" — заранее отметить нужную галочку.
-        settings_mode: то же окно открыто шестерёнкой из шапки (13.11.26): чекбоксы
-        отмечают уже скачанное, «Применить и докачать» довозит недостающее, а цепочка
-        первого запуска после закрытия НЕ запускается."""
+        """Мастер настройки в дизайне макета 2.1 (Ярослав, 16.11.26).
+
+        Окно-«доска» как в макете fair-redesign/index.html: шапка с маркой и
+        номером шага, слева — шаги (вкладки), справа — опции моделей. Шаг 1 —
+        модели анализа текста, шаг 2 — модели озвучки. То же окно открывает
+        шестерёнка в шапке (settings_mode=True): тогда галочки стоят на уже
+        скачанном, кнопка «Применить и докачать», а цепочка первого запуска
+        после закрытия НЕ запускается.
+
+        preset: "vox"/"vox_classic"/"0.6B"/"1.7B" — заранее отметить нужную
+        опцию и открыть шаг озвучки.
+        """
         old = getattr(self, "_setup_dialog", None)
         try:
             if old is not None and old.winfo_exists():
@@ -4334,10 +4545,15 @@ class ModernTTSApp(*_APP_BASE):
             pass
         gname, gvram = self._gpu_summary()
         print(f"🧭 мастер: окно, gpu={gname!r} vram={gvram}")
+
         dlg = ctk.CTkToplevel(self)
         dlg.title((_tr("Настройки") if settings_mode else _tr("Первичная установка"))
                   + f" · FAIR {APP_VERSION}")
-        dlg.geometry("700x470")
+        try:
+            _screen_h = int(self.winfo_screenheight())
+        except Exception:
+            _screen_h = 900
+        dlg.geometry(f"884x{min(706, max(560, _screen_h - 140))}")
         _center_on_parent(dlg)
         dlg.resizable(False, False)
         dlg.transient(self)
@@ -4346,275 +4562,691 @@ class ModernTTSApp(*_APP_BASE):
         dlg.after(150, lambda: _apply_dialog_icon(dlg))
         self._setup_dialog = dlg
         self._setup_cancel = threading.Event()
+        _state = {"step": 1 if preset in ("vox", "vox_classic", "0.6B", "1.7B") else 0,
+                  "busy": False}
+        self._setup_step = _state["step"]
 
         def _after_close(event=None):
             if event is None or getattr(event, "widget", None) is dlg:
+                try:
+                    self._setup_cancel.set()      # закрыли — фоновые докачки останавливаем
+                except Exception:
+                    pass
                 if not settings_mode:            # из настроек цепочку не зовём
                     self.after(400, self._first_run_chain)
         dlg.bind("<Destroy>", _after_close)
+        dlg.bind("<Escape>", lambda e: (self._setup_cancel.set(), dlg.destroy()))
 
-        body = ctk.CTkFrame(dlg, fg_color=COLOR_PANEL, corner_radius=R_PANEL)
-        body.pack(fill="both", expand=True, padx=12, pady=12)
-        ctk.CTkLabel(body, text=_tr("Настройки моделей и движков") if settings_mode
-                     else _tr("Первичная установка FAIR"), font=FONT_HEADER,
-                     text_color=COLOR_TEXT_MAIN).pack(pady=(12, 2))
-        ctk.CTkLabel(body, text=f"FAIR {APP_VERSION} · " +
-                     _tr("всё считается на этом компьютере"), font=FONT_TINY,
-                     text_color=COLOR_TEXT_SEC).pack(pady=(0, 4))
-        if gname:
-            gpu_txt = f"\U0001F5A5 {gname} \u2014 {gvram:.1f} {_tr('ГБ видеопамяти')}"
-            gcol = COLOR_GOLD
-        else:
-            gpu_txt = _tr("Видеокарта не найдена: анализ пойдёт на процессоре, "
-                          "голосовые движки Vox и Qwen требуют видеокарту.")
-            gcol = COLOR_RED
-        ctk.CTkLabel(body, text=gpu_txt, font=FONT_SMALL, text_color=gcol,
-                     wraplength=580, justify="left").pack(padx=16, anchor="w", pady=(0, 3))
+        board = ctk.CTkFrame(dlg, fg_color=COLOR_PANEL, corner_radius=R_PANEL)
+        board.pack(fill="both", expand=True, padx=10, pady=10)
 
-        r1 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
-        r1.pack(fill="x", padx=12, pady=(4, 3))
-        done1 = " \u2705" if self.llm_models else ""
-        # 09.11.26 (вечер): заголовок — полной строкой, как в пунктах 2 и 3.
-        # Было side="left" — из-за него три подписи моделей уезжали в узкую
-        # правую колонку и обрезались. Серый чекбокс («обязательный пункт»)
-        # убран за ненадобностью; при необходимости вернуть, раскомментировав:
-        # cb1 = ctk.CTkCheckBox(r1, text="", checkbox_width=18, checkbox_height=18,
-        #                       fg_color="#9e9e9e", hover_color="#9e9e9e",
-        #                       border_color="#8a8a8a")
-        # self._edge_check(cb1, r1, y_off=6)
-        # cb1.select()
-        # cb1.configure(state="disabled")
-        ctk.CTkLabel(r1, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
-                     justify="left", wraplength=520,
-                     text=_tr("1. Модель для анализа — можно поставить все три или "
-                              "минимум одну; сборка для видеокарты \u2014 обязательная "
-                              "часть программы") + done1
-                     ).pack(fill="x", padx=(10, 30), pady=3)
+        # ── шапка доски: марка, название, номер шага (как в макете) ──────
+        head = ctk.CTkFrame(board, fg_color=COLOR_CARD, corner_radius=0, height=54)
+        head.pack(fill="x")
+        head.pack_propagate(False)
+        brand = ctk.CTkFrame(head, fg_color="transparent")
+        brand.pack(side="left", padx=18)
+        try:
+            _logo = self._rail_img("logo")
+        except Exception:
+            _logo = None
+        ctk.CTkLabel(brand, text="", image=_logo, width=27, height=27,
+                     corner_radius=8, fg_color=COLOR_BRAND).pack(side="left")
+        ctk.CTkLabel(brand, text="FAIR", font=(FONT_FAMILY, 13, "bold"),
+                     text_color=COLOR_TEXT_MAIN).pack(side="left", padx=(9, 9))
+        ctk.CTkFrame(brand, fg_color=COLOR_BORDER, width=1, height=15).pack(side="left")
+        ctk.CTkLabel(brand, text="Free AI Reader", font=FONT_TINY,
+                     text_color=COLOR_TEXT_SEC).pack(side="left", padx=(9, 0))
+        step_lbl = ctk.CTkLabel(head, text=_tr("ШАГ 1 ИЗ 2"), font=(FONT_FAMILY, 9, "bold"),
+                                text_color=COLOR_TEXT_SEC)
+        step_lbl.pack(side="right", padx=18)
+        ctk.CTkFrame(board, fg_color=COLOR_BORDER, height=1).pack(fill="x")
 
-        # выбор LLM-моделей (09.11.26): чекбоксы — можно поставить все три или минимум
-        # одну; по умолчанию отмечен QVikhr (вихрь); уже скачанные не перекачиваются;
-        # снять последнюю галочку нельзя (минимум одна модель всегда активна)
+        bodyw = ctk.CTkFrame(board, fg_color="transparent")
+        bodyw.pack(fill="both", expand=True)
+        side = ctk.CTkFrame(bodyw, fg_color=COLOR_CARD, corner_radius=0, width=250)
+        side.pack(side="left", fill="y")
+        side.pack_propagate(False)
+        right = ctk.CTkFrame(bodyw, fg_color=COLOR_PANEL, corner_radius=0)
+        right.pack(side="left", fill="both", expand=True)
+
+        # ── левая колонка: шаги, видеокарта, подсказка ───────────────────
+        _gpu_txt = (f"{_tr('Видеокарта')}: {gname}\n{gvram:.1f} {_tr('ГБ видеопамяти')}"
+                    if gname else _tr("Видеокарта не найдена"))
+        # снизу вверх: подсказка (в самом низу), линия, видеокарта — как в макете
+        ctk.CTkLabel(side, text=_tr("Всё можно изменить позже.") + "\n"
+                          + _tr("Настройки → Модели и голоса."), font=FONT_TINY,
+                     text_color=COLOR_TEXT_SEC, anchor="w", justify="left",
+                     wraplength=208).pack(side="bottom", fill="x", padx=18, pady=(0, 14))
+        ctk.CTkFrame(side, fg_color=COLOR_BORDER, height=1).pack(side="bottom", fill="x",
+                                                                 padx=18, pady=(0, 12))
+        ctk.CTkLabel(side, text=_gpu_txt, font=FONT_TINY,
+                     text_color=(COLOR_GOLD if gname else COLOR_RED), anchor="w",
+                     justify="left", wraplength=208).pack(side="bottom", fill="x",
+                                                          padx=18, pady=(0, 10))
+
+        step_items = []
+        steps_box = ctk.CTkFrame(side, fg_color="transparent")
+        steps_box.pack(side="top", fill="x", padx=18, pady=(22, 0))
+
+        def _mk_step(idx, title, sub):
+            fr = ctk.CTkFrame(steps_box, fg_color="transparent")
+            fr.pack(fill="x", pady=(0, 10))
+            cv = tk.Canvas(fr, width=26, height=26, highlightthickness=0, bd=0,
+                           bg=_mode_color(COLOR_CARD))
+            cv.pack(side="left")
+            tx = ctk.CTkFrame(fr, fg_color="transparent")
+            tx.pack(side="left", fill="x", expand=True, padx=(10, 0))
+            b = ctk.CTkLabel(tx, text=_tr(title), font=(FONT_FAMILY, 12, "bold"),
+                             text_color=COLOR_TEXT_SEC, anchor="w", justify="left")
+            b.pack(fill="x")
+            s = ctk.CTkLabel(tx, text=_tr(sub), font=FONT_TINY, text_color=COLOR_TEXT_SEC,
+                             anchor="w", justify="left", wraplength=176)
+            s.pack(fill="x")
+            for w in (fr, cv, tx, b, s):
+                try:
+                    w.bind("<Button-1>", lambda e, i=idx: _goto(i))
+                except Exception:
+                    pass
+            step_items.append((cv, b))
+
+        _mk_step(0, "Модели для анализа", "Локальная ИИ-модель")
+        _mk_step(1, "Модели для озвучки", "Движки голоса")
+        _mk_step(2, "Обновление программы", "Версия и обновления")
+
+        # ── страницы шагов ───────────────────────────────────────────────
+        pages = []
+
+        def _page(title, subtitle):
+            pg = ctk.CTkFrame(right, fg_color="transparent")
+            ctk.CTkLabel(pg, text=_tr(title), font=("Georgia", 19, "bold"),
+                         text_color=COLOR_TEXT_MAIN, anchor="w", justify="left"
+                         ).pack(fill="x", padx=30, pady=(22, 3))
+            ctk.CTkLabel(pg, text=_tr(subtitle), font=FONT_SMALL, text_color=COLOR_TEXT_SEC,
+                         anchor="w", justify="left", wraplength=524
+                         ).pack(fill="x", padx=30, pady=(0, 14))
+            pages.append(pg)
+            return pg
+
+        def _opt_row(parent, name, desc, size, need, var, locked=False, avail=True,
+                     guard=None):
+            """Строка-опция в стиле макета: кружок, название с бейджем, описание,
+            справа размер и требования. Клик по строке = выбор (мультивыбор)."""
+            row = ctk.CTkFrame(parent, fg_color=COLOR_PANEL, corner_radius=10,
+                               border_width=1, border_color=COLOR_BORDER, height=54)
+            row.pack(fill="x", padx=30, pady=(0, 6))
+            row.pack_propagate(False)
+            ind = tk.Canvas(row, width=26, height=26, highlightthickness=0, bd=0,
+                            bg=_mode_color(COLOR_PANEL))
+            ind.pack(side="left", padx=(14, 0))
+            txt = ctk.CTkFrame(row, fg_color="transparent")
+            txt.pack(side="left", fill="both", expand=True, padx=(12, 8), pady=7)
+            nmrow = ctk.CTkFrame(txt, fg_color="transparent")
+            nmrow.pack(fill="x")
+            nm = ctk.CTkLabel(nmrow, text=_tr(name), font=(FONT_FAMILY, 12, "bold"),
+                              text_color=(COLOR_TEXT_MAIN if (avail or locked)
+                                          else COLOR_TEXT_SEC), anchor="w")
+            nm.pack(side="left")
+            bd = ctk.CTkLabel(nmrow, text="", font=(FONT_FAMILY, 8, "bold"),
+                              corner_radius=4, height=15, fg_color="transparent",
+                              text_color=COLOR_TEXT_SEC)
+            ds = ctk.CTkLabel(txt, text=_tr(desc), font=FONT_TINY,
+                              text_color=COLOR_TEXT_SEC, anchor="w", justify="left")
+            ds.pack(fill="x", pady=(1, 0))
+            rg = ctk.CTkFrame(row, fg_color="transparent")
+            rg.pack(side="right", padx=(0, 16))
+            # Высоты заданы явно: у CTkLabel по умолчанию 28 px, и правый блок из
+            # двух таких подписей вырастал до 54 px — ровно высота карточки. Он
+            # непрозрачно перекрывал верхнюю и нижнюю линии рамки в правой части
+            # (жалоба Ярослава 17.11.26 «рамка прерывается справа»).
+            sz = ctk.CTkLabel(rg, text=_tr(size), font=(FONT_FAMILY, 10, "bold"),
+                              height=18, text_color=COLOR_TEXT_SEC, anchor="e",
+                              justify="right")
+            sz.pack(anchor="e")
+            nd = ctk.CTkLabel(rg, text=_tr(need), font=(FONT_FAMILY, 9), height=16,
+                              text_color=COLOR_TEXT_SEC, anchor="e", justify="right")
+            nd.pack(anchor="e")
+            # Прогресс скачивания — прямо в строке модели (просьба Ярослава 17.11.26:
+            # «полоска должна быть в самой строчке с моделью, а не отдельно сверху»).
+            # По умолчанию скрыт; показывается на время загрузки, вместо требования
+            # «8 ГБ VRAM», чтобы карточка не выросла выше 54 px.
+            ptxt = ctk.CTkLabel(rg, text="", font=(FONT_FAMILY, 8), height=14,
+                                text_color=COLOR_TEXT_SEC, anchor="e", justify="right")
+            pbar = ctk.CTkProgressBar(rg, height=4, width=118, corner_radius=2,
+                                      progress_color=COLOR_ACCENT, fg_color=COLOR_CARD2)
+            pbar.set(0)
+
+            class _Row:
+                """Совместимость с _apply_setup_preset: cget("state") / select()."""
+                __slots__ = ("var", "_state", "_pbar", "_ptxt", "_nd")
+
+                def __init__(self, _var, _state, _pbar=None, _ptxt=None, _nd=None):
+                    self.var = _var
+                    self._state = _state
+                    self._pbar = _pbar
+                    self._ptxt = _ptxt
+                    self._nd = _nd
+
+                def cget(self, key):
+                    return self._state if str(key) == "state" else ""
+
+                def select(self):
+                    if self._state != "disabled":
+                        self.var.set(True)
+
+                def progress_show(self):
+                    """Показать полосу прогресса внутри этой строки."""
+                    try:
+                        if self._nd is not None:
+                            self._nd.pack_forget()
+                        self._ptxt.configure(text="")
+                        self._ptxt.pack(anchor="e")
+                        self._pbar.set(0)
+                        self._pbar.pack(anchor="e", pady=(2, 0))
+                    except Exception:
+                        pass
+
+                def progress(self, pct=None, text=None):
+                    try:
+                        if text is not None:
+                            self._ptxt.configure(text=str(text))
+                        if pct is not None:
+                            self._pbar.set(max(0.0, min(float(pct), 1.0)))
+                    except Exception:
+                        pass
+
+                def progress_hide(self):
+                    try:
+                        self._pbar.pack_forget()
+                        self._ptxt.pack_forget()
+                        if self._nd is not None:
+                            self._nd.pack(anchor="e")
+                    except Exception:
+                        pass
+
+            obj = _Row(var, "disabled" if (locked or not avail) else "normal",
+                       pbar, ptxt, nd)
+
+            def _sync(*_a):
+                on = bool(var.get())
+                bg = COLOR_ACCENT_SOFT if on else COLOR_PANEL
+                try:
+                    row.configure(fg_color=bg,
+                                  border_color=(COLOR_ACCENT if on else COLOR_BORDER))
+                    ind.configure(bg=_mode_color(bg))
+                    ind.delete("all")
+                    # Галочка «как на картинке» (Ярослав 17.11.26): крупная птичка
+                    # с длинным хвостом. Хвост уходит выше квадратика, левый кончик
+                    # остаётся внутри. Цвет — прежний акцентный.
+                    _bx0, _by0, _bx1, _by1, _br = 3, 8, 19, 24, 4
+                    _acc = _mode_color(COLOR_ACCENT)
+                    ind.create_polygon(
+                        _bx0 + _br, _by0, _bx1 - _br, _by0, _bx1, _by0, _bx1, _by0 + _br,
+                        _bx1, _by1 - _br, _bx1, _by1, _bx1 - _br, _by1, _bx0 + _br, _by1,
+                        _bx0, _by1, _bx0, _by1 - _br, _bx0, _by0 + _br, _bx0, _by0,
+                        smooth=True, splinesteps=18,
+                        fill=(_mode_color(COLOR_ACCENT_SOFT) if on else ""),
+                        outline=_mode_color(COLOR_ACCENT if on else COLOR_BORDER),
+                        width=1.3)
+                    if on:
+                        ind.create_line(7.5, 13.0, 11.0, 20.5, 22.5, 3.5,
+                                        fill=_acc, width=3.2,
+                                        capstyle="round", joinstyle="round")
+                    if locked:
+                        btxt, bcol, bbg = _tr("УЖЕ ЕСТЬ"), COLOR_GREEN, COLOR_GREEN_SOFT
+                    elif on and avail:
+                        btxt, bcol, bbg = _tr("ВЫБРАНО"), COLOR_ACCENT, COLOR_ACCENT_SOFT
+                    else:
+                        btxt, bcol, bbg = "", COLOR_TEXT_SEC, "transparent"
+                    bd.configure(text=btxt, text_color=bcol, fg_color=bbg)
+                    if btxt:
+                        bd.pack(side="left", padx=(7, 0))
+                    else:
+                        bd.pack_forget()
+                except Exception:
+                    pass
+
+            def _toggle(_e=None):
+                if _state["busy"] or locked or not avail:
+                    return
+                var.set(not var.get())
+                if guard is not None:
+                    guard()
+
+            for w in (row, ind, txt, nmrow, nm, ds, rg, sz, nd, bd):
+                try:
+                    w.bind("<Button-1>", _toggle)
+                except Exception:
+                    pass
+            try:
+                if avail and not locked:
+                    row.configure(cursor="hand2")
+            except Exception:
+                pass
+            var.trace_add("write", _sync)
+            _sync()
+            return obj
+
+        # ── шаг 1: модели анализа ────────────────────────────────────────
+        pg1 = _page("Модели для анализа",
+                    "Без модели анализа не работают пересказ, перевод и разметка "
+                    "эмоций. Можно поставить несколько — рабочую выберете в главном окне.")
         self._setup_llm_vars = {}
+        self._setup_rows_llm = {}
+
+        def _llm_guard(clicked):
+            if not any(v.get() for v in self._setup_llm_vars.values()):
+                clicked.set(True)      # последнюю модель не отдаём: без неё нет анализа
+
         for _p in self.MODEL_PACKS:
             _note = (_p.get("note_en") if UI_LANG == "en" else _p.get("note")) or ""
             _size = (_p.get("size_text_en") if UI_LANG == "en"
                      else _p.get("size_text")) or ""
-            _txt = _p["label"] + (f" ({_note})" if _note else "") \
-                + (f" — {_size}" if _size else "")
-            _fr = ctk.CTkFrame(r1, fg_color="transparent")
-            _fr.pack(fill="x", padx=(10, 2), pady=2)
             _inst = str(_p.get("name") or "") in (getattr(self, "llm_models", None) or {})
             _var = ctk.BooleanVar(value=_inst if settings_mode
                                   else (_p is self.MODEL_PACKS[0]))
-            _cb = ctk.CTkCheckBox(_fr, text="", checkbox_width=18, checkbox_height=18,
-                                  fg_color="#c6763a", hover_color="#a95f2c", variable=_var)
-            self._edge_check(_cb, _fr, y_off=2)
-            _lb = ctk.CTkLabel(_fr, font=FONT_TINY, text_color=COLOR_TEXT_MAIN, anchor="w",
-                               justify="left", wraplength=520, text=_txt)
-            _lb.pack(side="left", fill="x", expand=True, padx=(4, 30))
-
-            # 09.11.26 (вечер): нельзя снять все три — минимум одна модель
-            def _guard_llm(v=_var):
-                if not v.get() and not any(x.get()
-                                           for x in self._setup_llm_vars.values()):
-                    v.set(True)   # последнюю не отдаём: анализ без модели невозможен
-
-            def _click_llm(v=_var):
-                v.set(not v.get())
-                _guard_llm(v)
-
-            _cb.configure(command=lambda v=_var: _guard_llm(v))
-            _lb.bind("<Button-1>", lambda e, f=_click_llm: f())
             self._setup_llm_vars[_p["name"]] = _var
-
+            _row_llm = _opt_row(pg1, _p["label"], _note or _tr("пересказ, перевод, разметка эмоций"),
+                                _size, _tr("CPU или GPU"), _var, locked=_inst,
+                                guard=lambda v=_var: _llm_guard(v))
+            self._setup_rows_llm[_p["name"]] = _row_llm
         if settings_mode and not any(v.get() for v in self._setup_llm_vars.values()):
             _first = next(iter(self._setup_llm_vars.values()), None)
             if _first is not None:
                 _first.set(True)      # без модели анализ не запустится
 
-        r2 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
-        r2.pack(fill="x", padx=12, pady=3)
-        # Vox — два варианта одного движка: Turbo (быстрый) и Classic (обычный); веса общие
-        ctk.CTkLabel(r2, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
-                     justify="left", wraplength=540,
-                     text=_tr("2. Голосовой движок VoxCPM2 — три варианта: обычный, "
-                              "Turbo и Tiny; можно поставить любой набор "
-                              "(классические веса ≈4,5 ГБ, Tiny — свои ≈3 ГБ)")
-                     ).pack(fill="x", padx=10, pady=(5, 1))
-        # Turbo требует 12 ГБ (пул-резерв 55% должен накрыть веса ≈4,7 ГБ);
-        # Classic достаточно 8 ГБ.
-        # 09.11.26: Vox — сверху и отмечен по умолчанию («рекомендуется»),
-        # Vox Turbo — ниже и без галочки.
-        self._setup_vox_turbo = ctk.BooleanVar(value=False)
-        self._setup_vox_classic = ctk.BooleanVar(value=bool(gvram and gvram >= 8.0))
-        # 13.11.26: третий вариант — русская Vox Tiny (0.5B); в мастере его не было
-        self._setup_vox_tiny = ctk.BooleanVar(value=False)
-        vcb = {}
-        for _kind, _var, _txt in (
-                ("classic", self._setup_vox_classic,
-                 _tr("Vox (рекомендуется) — обычный вариант; достаточно 8 ГБ "
-                     "видеопамяти")),
-                ("turbo", self._setup_vox_turbo,
-                 _tr("Vox Turbo — быстрее на ~50%; нужно 12 ГБ видеопамяти")),
-                ("tiny", self._setup_vox_tiny,
-                 _tr("Vox Tiny — маленькая русская модель (0.5B, ≈3 ГБ), говорит "
-                     "своим голосом; нужно 4 ГБ видеопамяти"))):
-            fr = ctk.CTkFrame(r2, fg_color="transparent")
-            fr.pack(fill="x", padx=(10, 2), pady=2)
-            cb = ctk.CTkCheckBox(fr, text="", checkbox_width=18, checkbox_height=18,
-                                 fg_color="#c6763a", hover_color="#a95f2c", variable=_var)
-            self._edge_check(cb, fr, y_off=2)
-            lb = ctk.CTkLabel(fr, font=FONT_TINY, text_color=COLOR_TEXT_MAIN, anchor="w",
-                              justify="left", wraplength=520, text=_txt)
-            lb.pack(side="left", fill="x", expand=True, padx=(4, 30))
-            lb.bind("<Button-1>", lambda e, v=_var: v.set(not v.get()))
-            vcb[_kind] = cb
-        if self._vox_installed():
-            vcb["classic"].select()
-            vcb["classic"].configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
-                                     border_color="#8a8a8a", state="disabled")
-            # 09.11.26 (вечер): строка «Vox уже установлен» убрана — дублировала
-            # серую галочку «уже стоит»; вернуть при необходимости:
-            # ctk.CTkLabel(r2, text="   ✅ " + _tr("Vox уже установлен"), font=FONT_TINY,
-            #              text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x",
-            #              padx=10, pady=(0, 2))
-        if self._vox_extra_weights("tiny"):
-            vcb["tiny"].select()
-            vcb["tiny"].configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
-                                  border_color="#8a8a8a", state="disabled")
-        if self._nano_installed():
-            vcb["turbo"].select()
-            vcb["turbo"].configure(fg_color="#9e9e9e", hover_color="#9e9e9e",
-                                   border_color="#8a8a8a", state="disabled")
-            # 09.11.26 (вечер): строка «Vox Turbo уже установлен» убрана — дублировала
-            # серую галочку «уже стоит»; вернуть при необходимости:
-            # ctk.CTkLabel(r2, text="   ✅ " + _tr("Vox Turbo уже установлен"), font=FONT_TINY,
-            #              text_color=COLOR_TEXT_SEC, anchor="w").pack(fill="x",
-            #              padx=10, pady=(0, 2))
-        if gvram and gvram < 8.0:
-            for _kind, _cb in vcb.items():
-                if _kind == "tiny" and gvram >= 4.0 and not self._vox_extra_weights("tiny"):
-                    _cb.configure(state="normal")   # 0.5B — ей хватает 4 ГБ
-                    self._setup_vox_tiny.set(True)
-                    continue
-                if str(_cb.cget("state")) != "disabled":
-                    _cb.configure(state="disabled")
-            self._setup_vox_turbo.set(False)
-            self._setup_vox_classic.set(False)
-            ctk.CTkLabel(r2, text="   ⚠ " + _tr("видеопамяти меньше 8 ГБ — "
-                                                     "Vox не запустится: ему нужно 8 ГБ, Turbo — 12 ГБ, "
-                                                     "Tiny хватает 4 ГБ"),
-                         font=FONT_TINY, text_color=COLOR_RED, anchor="w",
-                         wraplength=560, justify="left").pack(fill="x", padx=10, pady=(0, 4))
-        elif not gvram:
-            for _cb in vcb.values():
-                _cb.configure(state="disabled")
-            self._setup_vox_turbo.set(False)
-            self._setup_vox_classic.set(False)
-            ctk.CTkLabel(r2, text="   ⚠ " + _tr("нет видеокарты — Vox недоступен"),
-                         font=FONT_TINY, text_color=COLOR_RED, anchor="w"
-                         ).pack(fill="x", padx=10, pady=(0, 4))
+        # ── шаг 2: модели озвучки ────────────────────────────────────────
+        pg2 = _page("Модели для озвучки",
+                    "Движки синтеза речи и их требования к видеопамяти. Можно "
+                    "поставить несколько и переключаться в главном окне.")
 
-        r3 = ctk.CTkFrame(body, fg_color=COLOR_CARD, corner_radius=R_CARD)
-        r3.pack(fill="x", padx=12, pady=(3, 4))
-        ctk.CTkLabel(r3, font=FONT_SMALL, text_color=COLOR_TEXT_MAIN, anchor="w",
-                     justify="left", wraplength=560,
-                     text=_tr("3. Голосовой движок Qwen3-TTS \u2014 клон голоса по "
-                              "образцу и дизайн голоса по описанию, обе версии можно "
-                              "поставить вместе")
-                     ).pack(fill="x", padx=10, pady=(4, 0))
-        # две независимые галочки у правого края: 0.6B и/или 1.7B
-        self._setup_q06 = ctk.BooleanVar(value=bool(gvram and 3.5 <= gvram < 5.5))
-        self._setup_q17 = ctk.BooleanVar(value=bool(gvram and gvram >= 5.5))
-        qcb = {}
-        for size, var, txt in (
-                ("0.6B", self._setup_q06,
-                 _tr("0.6B \u2014 лёгкий (≈5 ГБ), клон голоса по образцу; "
-                     "нужно 4 ГБ видеопамяти")),
-                ("1.7B", self._setup_q17,
-                 _tr("1.7B \u2014 качество выше (≈13,5 ГБ), клон голоса и "
-                     "«Дизайн голоса» (моделирование по описанию); нужно 6\u20138 ГБ"))):
-            fr = ctk.CTkFrame(r3, fg_color="transparent")
-            fr.pack(fill="x", padx=(10, 2), pady=2)
-            cb = ctk.CTkCheckBox(fr, text="", checkbox_width=18, checkbox_height=18,
-                                 fg_color="#c6763a", hover_color="#a95f2c", variable=var)
-            self._edge_check(cb, fr, y_off=2)
-            lb = ctk.CTkLabel(fr, font=FONT_TINY, text_color=COLOR_TEXT_MAIN, anchor="w",
-                              justify="left", wraplength=520, text=txt)
-            lb.pack(side="left", fill="x", expand=True, padx=(4, 30))
-            lb.bind("<Button-1>", lambda e, v=var: v.set(not v.get()))
-            qcb[size] = cb
-        if not gvram or gvram < 3.5:
-            for cb in qcb.values():
-                cb.configure(state="disabled")
-            self._setup_q06.set(False)
-            self._setup_q17.set(False)
-        elif gvram < 5.5:
-            qcb["1.7B"].configure(state="disabled")
-        # 09.11.26: пресет «vox» отмечает Vox (рекомендуется), а не Turbo
-        self._setup_boxes = {"vox": (vcb["classic"],), "vox_classic": (vcb["classic"],),
-                             "0.6B": qcb["0.6B"], "1.7B": qcb["1.7B"]}
-        self._apply_setup_preset(preset)
-
-        bar = ctk.CTkProgressBar(body, height=10, corner_radius=6, progress_color="#c6763a",
-                                 fg_color=COLOR_CARD2)
-        bar.set(0)
-        bar.pack(fill="x", padx=16, pady=(8, 2))
-        info = ctk.CTkLabel(body, text="", font=FONT_TINY, text_color=COLOR_TEXT_SEC,
-                            anchor="w", justify="left", wraplength=590)
-        info.pack(fill="x", padx=16)
-
-        rowb = ctk.CTkFrame(body, fg_color="transparent")
-        rowb.pack(fill="x", padx=16, pady=(6, 8))
-        btn_go = ctk.CTkButton(rowb, text=_tr("Применить и докачать") if settings_mode
-                               else _tr("Установить выбранное"), width=200, height=34,
-                               corner_radius=R_PANEL, font=FONT_SUBHEADER,
-                               fg_color="#c6763a", hover_color="#a95f2c",
-                               text_color=COLOR_ON_ACCENT)
-        btn_go.pack(side="left")
-        ctk.CTkButton(rowb, text=_tr("Закрыть"), width=110, height=34, corner_radius=R_PANEL,
-                      font=FONT_NORMAL, fg_color="transparent", border_width=1,
-                      border_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN,
-                      hover_color=COLOR_CARD,
-                      command=lambda: (self._setup_cancel.set(), dlg.destroy())
-                      ).pack(side="left", padx=8)
-
-        def set_info(t):
+        def _qwen_size_installed(sz):
+            old_sz = getattr(self, "qwen_size", "1.7B")
             try:
-                if dlg.winfo_exists():
+                self.qwen_size = sz
+                return bool(self._qwen_ready("base"))
+            except Exception:
+                return False
+            finally:
+                try:
+                    self.qwen_size = old_sz
+                except Exception:
+                    pass
+
+        _vox_ok = bool(gvram and gvram >= 8.0)
+        _small_ok = bool(gvram and gvram >= 4.0)
+        _q06_ok = bool(gvram and gvram >= 3.5)
+        _q17_ok = bool(gvram and gvram >= 5.5)
+        _classic_l = bool(self._vox_installed())
+        _turbo_l = bool(self._nano_installed())
+        _tiny_l = bool(self._vox_extra_weights("tiny"))
+        _shtorm_l = bool(self._vox_extra_weights("shtorm"))
+        _q06_l = _qwen_size_installed("0.6B")
+        _q17_l = _qwen_size_installed("1.7B")
+
+        self._setup_vox_classic = ctk.BooleanVar(value=_classic_l or _vox_ok)
+        self._setup_vox_turbo = ctk.BooleanVar(value=_turbo_l)
+        self._setup_vox_tiny = ctk.BooleanVar(value=_tiny_l or (not _vox_ok and _small_ok))
+        self._setup_vox_shtorm = ctk.BooleanVar(value=_shtorm_l)
+        self._setup_q06 = ctk.BooleanVar(value=_q06_l or (_q06_ok and not _q17_ok))
+        self._setup_q17 = ctk.BooleanVar(value=_q17_l or _q17_ok)
+        self._setup_piper_var = ctk.BooleanVar(value=True)   # в комплекте — только для вида
+
+        _opt_row(pg2, "Piper — быстрый голос",
+                 _tr("Ирина и Руслан, работает на процессоре"),
+                 _tr("≈126 МБ"), "CPU", self._setup_piper_var, locked=True)
+        obj_classic = _opt_row(
+            pg2, "Vox — качественный голос (рекомендуется)",
+            _tr("Клон голоса по образцу 5–15 секунд, 26 эмоций"),
+            _tr("≈4,5 ГБ"), _tr("8 ГБ VRAM"), self._setup_vox_classic,
+            locked=_classic_l, avail=_vox_ok or _classic_l)
+        obj_turbo = _opt_row(pg2, "Vox Turbo — быстрее",
+                             _tr("Те же веса, быстрый движок: примерно на 50% быстрее"),
+                             _tr("те же веса"), _tr("12 ГБ VRAM"), self._setup_vox_turbo,
+                             locked=_turbo_l, avail=(_turbo_l or bool(gvram and gvram >= 12.0)))
+        obj_tiny = _opt_row(pg2, "Vox Tiny — лёгкий (только один голос)",
+                            _tr("Маленькая русская модель (0.5B)"),
+                            _tr("≈3 ГБ"), _tr("4 ГБ VRAM"), self._setup_vox_tiny,
+                            locked=_tiny_l, avail=_tiny_l or _small_ok)
+        obj_shtorm = _opt_row(pg2, "Vox Shtorm — русский голос",
+                              _tr("Русская сборка VoxCPM2: ударения и омографы"),
+                              _tr("≈5 ГБ"), _tr("8 ГБ VRAM"), self._setup_vox_shtorm,
+                              locked=_shtorm_l, avail=_shtorm_l or _vox_ok)
+        self._setup_row_tiny = obj_tiny       # прогресс рисуем в самой строке
+        self._setup_row_shtorm = obj_shtorm
+        obj_q17 = _opt_row(pg2, "Qwen3-TTS 1.7B — выразительный",
+                           _tr("Клон голоса по образцу и дизайн голоса по описанию"),
+                           _tr("≈13,5 ГБ"), _tr("6–8 ГБ VRAM"), self._setup_q17,
+                           locked=_q17_l, avail=_q17_l or _q17_ok)
+        obj_q06 = _opt_row(pg2, "Qwen3-TTS 0.6B — лёгкий",
+                           _tr("Лёгкая модель: клон голоса по образцу"),
+                           _tr("≈5 ГБ"), _tr("4 ГБ VRAM"), self._setup_q06,
+                           locked=_q06_l, avail=_q06_l or _q06_ok)
+
+        if not gvram:
+            ctk.CTkLabel(pg2, text="⚠ " + _tr("нет видеокарты — Vox и Qwen недоступны"),
+                         font=FONT_TINY, text_color=COLOR_RED, anchor="w",
+                         justify="left", wraplength=524).pack(fill="x", padx=30,
+                                                             pady=(2, 0))
+        elif gvram < 8.0:
+            ctk.CTkLabel(pg2, text="⚠ " + _tr("видеопамяти меньше 8 ГБ — Vox не "
+                                              "запустится: ему нужно 8 ГБ, Turbo — 12 ГБ, "
+                                              "Tiny хватает 4 ГБ"),
+                         font=FONT_TINY, text_color=COLOR_RED, anchor="w",
+                         justify="left", wraplength=524).pack(fill="x", padx=30,
+                                                             pady=(2, 0))
+
+        # ── шаг 3: обновление программы (просьба Ярослава 18.11.26) ──────
+        pg3 = _page("Обновление программы",
+                    "Версия и проверка обновлений на GitHub.")
+        vcard = ctk.CTkFrame(pg3, fg_color=COLOR_CARD, corner_radius=10,
+                             border_width=1, border_color=COLOR_BORDER)
+        vcard.pack(fill="x", padx=30, pady=(2, 8))
+        vin = ctk.CTkFrame(vcard, fg_color="transparent")
+        vin.pack(fill="x", padx=16, pady=12)
+        ctk.CTkLabel(vin, text=f"FAIR {APP_VERSION}", font=(FONT_FAMILY, 16, "bold"),
+                     text_color=COLOR_TEXT_MAIN, anchor="w").pack(fill="x")
+        try:
+            _bdate = time.strftime("%d.%m.%Y", time.localtime(os.path.getmtime(__file__)))
+        except Exception:
+            _bdate = "—"
+        ctk.CTkLabel(vin, text=_tr("Сборка") + f": {_bdate} · Python {sys.version.split()[0]}",
+                     font=FONT_TINY, text_color=COLOR_TEXT_SEC, anchor="w",
+                     justify="left").pack(fill="x", pady=(2, 0))
+        ctk.CTkLabel(vin, text=_tr("Папка") + f": {BASE_DIR}", font=FONT_TINY,
+                     text_color=COLOR_TEXT_SEC, anchor="w", justify="left",
+                     wraplength=470).pack(fill="x", pady=(1, 0))
+        upd_lbl = ctk.CTkLabel(pg3, text=_tr("Обновления ставятся с GitHub: ")
+                               + self.UPDATE_REPO, font=FONT_TINY,
+                               text_color=COLOR_TEXT_SEC, anchor="w", justify="left",
+                               wraplength=524)
+        upd_lbl.pack(fill="x", padx=30, pady=(0, 9))
+        row3 = ctk.CTkFrame(pg3, fg_color="transparent")
+        row3.pack(fill="x", padx=30)
+        upd_state = {"url": f"https://github.com/{self.UPDATE_REPO}/releases"}
+
+        def _open_release():
+            try:
+                import webbrowser
+                webbrowser.open(upd_state["url"])
+            except Exception as e:
+                print(f"⚠️ обновление: {e}")
+
+        btn_dl = ctk.CTkButton(row3, text=_tr("Скачать обновление"), height=34,
+                               corner_radius=8, font=FONT_SMALL, fg_color=COLOR_BRAND,
+                               hover_color=COLOR_BRAND_HOVER, text_color=COLOR_ON_ACCENT,
+                               command=_open_release)
+
+        def _check_upd():
+            btn_check.configure(state="disabled", text=_tr("Проверяю…"))
+            upd_lbl.configure(text=_tr("Смотрю GitHub…"))
+
+            def work_upd():
+                latest, url, err = self._latest_release()
+
+                def apply():
+                    try:
+                        btn_check.configure(state="normal",
+                                            text=_tr("Проверить обновления"))
+                    except Exception:
+                        pass
+                    if err:
+                        upd_lbl.configure(text="⚠ " + err)
+                        return
+                    if latest and self._version_tuple(latest) > self._version_tuple(APP_VERSION):
+                        upd_state["url"] = url
+                        upd_lbl.configure(text="🎉 " + _tr("Доступна версия") + f" {latest}"
+                                          + " · " + _tr("открыть страницу загрузки"))
+                        btn_dl.pack(side="left", padx=(0, 8))
+                    else:
+                        upd_lbl.configure(text="✅ " + _tr("У вас последняя версия")
+                                          + f" ({APP_VERSION})")
+                        btn_dl.pack_forget()
+                self._ui(apply)
+            threading.Thread(target=work_upd, daemon=True).start()
+
+        btn_check = ctk.CTkButton(row3, text=_tr("Проверить обновления"), height=34,
+                                  corner_radius=8, font=FONT_SMALL, fg_color="transparent",
+                                  border_width=1, border_color=COLOR_BORDER,
+                                  text_color=COLOR_TEXT_MAIN, hover_color=COLOR_CARD,
+                                  command=_check_upd)
+        btn_check.pack(side="left", padx=(0, 8))
+        ctk.CTkButton(row3, text="❤ " + _tr("Поблагодарить автора"), height=34,
+                      corner_radius=8, font=FONT_SMALL, fg_color="transparent",
+                      border_width=1, border_color=COLOR_BORDER,
+                      text_color=COLOR_ACCENT, hover_color=COLOR_CARD,
+                      command=self._open_donate_page).pack(side="left")
+
+        # ── подвал: приватность и кнопки (как в макете) ─────────────────
+        def _primary_text(i):
+            if i == 2:
+                return _tr("Готово")
+            if settings_mode:
+                return _tr("Применить и докачать")
+            return _tr("Далее") if i == 0 else _tr("Установить выбранное")
+
+        def _on_primary():
+            if _state["busy"]:
+                return
+            if _state["step"] == 2:      # третий шаг — только «Готово»
+                try:
+                    dlg.destroy()
+                except Exception:
+                    pass
+                return
+            if not settings_mode and _state["step"] == 0:
+                _goto(1)
+                return
+            _state["busy"] = True
+            try:
+                btn_primary.configure(state="disabled", text=_tr("Установка…"))
+                btn_back.configure(state="disabled")
+                btn_skip.configure(state="disabled")
+                # отдельной карточки «Загрузка» больше нет: прогресс идёт в строке
+                # той модели, которая качается (просьба Ярослава 17.11.26)
+            except Exception:
+                pass
+            threading.Thread(target=work, daemon=True).start()
+
+        foot = ctk.CTkFrame(right, fg_color="transparent")
+        foot.pack(side="bottom", fill="x")
+        ctk.CTkFrame(foot, fg_color=COLOR_BORDER, height=1).pack(fill="x", padx=30)
+        frow = ctk.CTkFrame(foot, fg_color="transparent")
+        frow.pack(fill="x", padx=30, pady=12)
+        ctk.CTkLabel(frow, text="🔒 " + _tr("Всё считается на этом компьютере. "
+                                            "Ни одна строка не уходит в сеть."),
+                     font=(FONT_FAMILY, 9), text_color=COLOR_TEXT_SEC, anchor="w",
+                     justify="left", wraplength=190).pack(side="left")
+        btn_primary = ctk.CTkButton(frow, text=_primary_text(_state["step"]),
+                                    width=(176 if settings_mode else 150),
+                                    height=36, corner_radius=8, font=FONT_SUBHEADER,
+                                    fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                                    text_color=COLOR_ON_ACCENT, command=_on_primary)
+        btn_primary.pack(side="right")
+        self._setup_primary = btn_primary      # для проб/смоуков (кнопка «Далее/Готово»)
+        btn_skip = ctk.CTkButton(frow, text=(_tr("Закрыть") if settings_mode
+                                             else _tr("Пропустить")),
+                                 width=92, height=36, corner_radius=8, font=FONT_NORMAL,
+                                 fg_color="transparent", border_width=1,
+                                 border_color=COLOR_BORDER, text_color=COLOR_TEXT_MAIN,
+                                 hover_color=COLOR_CARD,
+                                 command=lambda: (self._setup_cancel.set(), dlg.destroy()))
+        btn_skip.pack(side="right", padx=(8, 0))
+        btn_back = ctk.CTkButton(frow, text=_tr("Назад"), width=86, height=36,
+                                 corner_radius=8, font=FONT_NORMAL, fg_color="transparent",
+                                 border_width=1, border_color=COLOR_BORDER,
+                                 text_color=COLOR_TEXT_MAIN, hover_color=COLOR_CARD,
+                                 command=lambda: _goto(0))
+
+        # ── карточка загрузки: появляется при установке ─────────────────
+        dlcard = ctk.CTkFrame(right, fg_color=COLOR_CARD, corner_radius=8,
+                              border_width=1, border_color=COLOR_BORDER)
+        dltop = ctk.CTkFrame(dlcard, fg_color="transparent")
+        dltop.pack(fill="x", padx=14, pady=(9, 0))
+        ctk.CTkLabel(dltop, text=_tr("Загрузка"), font=(FONT_FAMILY, 10, "bold"),
+                     text_color=COLOR_TEXT_MAIN).pack(side="left")
+        ctk.CTkLabel(dltop, text=_tr("можно свернуть — докачается"),
+                     font=(FONT_FAMILY, 9), text_color=COLOR_TEXT_SEC
+                     ).pack(side="right")
+        bar = ctk.CTkProgressBar(dlcard, height=6, corner_radius=3,
+                                 progress_color=COLOR_ACCENT, fg_color=COLOR_CARD2)
+        bar.set(0)
+        bar.pack(fill="x", padx=14, pady=(7, 5))
+        info = ctk.CTkLabel(dlcard, text="", font=FONT_TINY, text_color=COLOR_TEXT_SEC,
+                            anchor="w", justify="left", wraplength=520)
+        info.pack(fill="x", padx=14, pady=(0, 9))
+
+        # ── переключение шагов ───────────────────────────────────────────
+        def _goto(i):
+            if _state["busy"] and i != _state["step"]:
+                return
+            _state["step"] = i
+            self._setup_step = i
+            for j, pg in enumerate(pages):
+                try:
+                    if j == i:
+                        pg.pack(fill="both", expand=True)
+                    else:
+                        pg.pack_forget()
+                except Exception:
+                    pass
+            for j, (cv, t_lbl) in enumerate(step_items):
+                try:
+                    cv.delete("all")
+                    if j == i:
+                        cv.create_oval(1, 1, 25, 25, fill=_mode_color(COLOR_ACCENT),
+                                       outline="")
+                        cv.create_text(13, 13, text=str(j + 1),
+                                       fill=_mode_color(COLOR_ON_ACCENT),
+                                       font=(FONT_FAMILY, 9, "bold"))
+                        t_lbl.configure(text_color=COLOR_ACCENT)
+                    elif j < i:
+                        cv.create_oval(1, 1, 25, 25, fill=_mode_color(COLOR_GREEN_SOFT),
+                                       outline="")
+                        cv.create_text(13, 13, text="✓",
+                                       fill=_mode_color(COLOR_GREEN),
+                                       font=(FONT_FAMILY, 11, "bold"))
+                        t_lbl.configure(text_color=COLOR_TEXT_MAIN)
+                    else:
+                        cv.create_oval(2, 2, 24, 24, outline=_mode_color(COLOR_BORDER))
+                        cv.create_text(13, 13, text=str(j + 1),
+                                       fill=_mode_color(COLOR_TEXT_SEC),
+                                       font=(FONT_FAMILY, 9, "bold"))
+                        t_lbl.configure(text_color=COLOR_TEXT_SEC)
+                except Exception:
+                    pass
+            try:
+                step_lbl.configure(text=_tr(f"ШАГ {min(i + 1, 3)} ИЗ 3"))
+                if i == 0:
+                    btn_back.pack_forget()
+                else:
+                    btn_back.pack(side="right", padx=(8, 0), before=btn_skip)
+                if not _state["busy"]:
+                    btn_primary.configure(text=_primary_text(i))
+            except Exception:
+                pass
+
+        self._setup_boxes = {"vox": (obj_classic,), "vox_classic": (obj_classic,),
+                             "0.6B": obj_q06, "1.7B": obj_q17}
+        self._setup_goto = _goto
+        self._apply_setup_preset(preset)
+        _goto(_state["step"])
+
+        # ── загрузка выбранного: прежняя логика, прогресс в карточке ─────
+        def set_info(t, row=None):
+            """Текст прогресса — в строку той модели, которая качается.
+            Отдельная карточка «Загрузка» больше не показывается (17.11.26)."""
+            r = row if row is not None else _state.get("row")
+            try:
+                if r is not None:
+                    r.progress(None, str(t))
+                elif dlg.winfo_exists():
                     info.configure(text=str(t))
             except Exception:
                 pass
 
-        def set_bar(v):
+        def set_bar(v, row=None):
+            r = row if row is not None else _state.get("row")
             try:
-                if dlg.winfo_exists():
+                if r is not None:
+                    r.progress(max(0.0, min(float(v), 1.0)))
+                elif dlg.winfo_exists():
                     bar.set(max(0.0, min(float(v), 1.0)))
             except Exception:
                 pass
 
+        class _RowProxy:
+            """Адаптер под _download_model: bar.set(v) / info.configure(text=...)."""
+            __slots__ = ("_r",)
+
+            def __init__(self, row):
+                self._r = row
+
+            def set(self, v):
+                self._r.progress(v)
+
+            def configure(self, **kw):
+                if "text" in kw:
+                    self._r.progress(None, kw["text"])
+
+        def _idle_again(msg=None):
+            _state["busy"] = False
+            try:
+                if msg:
+                    info.configure(text=str(msg))
+                btn_primary.configure(state="normal", text=_tr("Повторить"))
+                btn_back.configure(state="normal")
+                btn_skip.configure(state="normal")
+            except Exception:
+                pass
+
+        def _done_state():
+            _state["busy"] = False
+            try:
+                btn_primary.configure(state="normal", text=_tr("Готово"),
+                                      command=lambda: (self._setup_cancel.set(),
+                                                       dlg.destroy()))
+                btn_back.pack_forget()
+                btn_skip.configure(state="normal")
+            except Exception:
+                pass
+
         def work():
+            _flog("установка: старт")
+            failed = {"v": False}
             try:
                 # 09.11.26: моделей может быть отмечено несколько (все три или минимум
                 # одну) — качаем выбранные по очереди, уже скачанные пропускаем
                 _llm_packs = self._setup_llm_chosen()
                 if not _llm_packs and not self._setup_cancel.is_set():
-                    set_info(_tr("Отметьте минимум одну модель для анализа"))
+                    self._ui(_idle_again, _tr("Отметьте минимум одну модель для анализа"))
                     return
                 for pack in _llm_packs:
                     if self._setup_cancel.is_set():
                         break
                     self._dl_pack = pack   # качаем выбранные модели по очереди
                     gguf_final = os.path.join(self.BASE_DIR, "models_llm", pack["name"])
-                    if os.path.isfile(gguf_final):
+                    # модель может лежать вне models_llm (добавлена вручную) — тогда
+                    # повторно её НЕ качаем: в списке она уже есть и работает
+                    _have = (getattr(self, "llm_models", None) or {}).get(pack["name"])
+                    if os.path.isfile(gguf_final) or (_have and os.path.isfile(_have)):
                         continue
                     set_info(_tr(f"1 · {pack['label']} ({pack['size_text']}) "
                                  "+ сборка для видеокарты…"))
+                    _row = self._setup_rows_llm.get(pack.get("name"))
+                    _state["row"] = _row
+                    if _row is not None:
+                        self._ui(_row.progress_show)
                     holder = ctk.CTkToplevel(self)
                     holder.withdraw()
                     btnfake = ctk.CTkButton(holder, text="")
                     self._dl_cancel = self._setup_cancel
-                    self._download_model(holder, bar, info, btnfake)
+                    self._download_model(holder,
+                                         _RowProxy(_row) if _row is not None else bar,
+                                         _RowProxy(_row) if _row is not None else info,
+                                         btnfake)
+                    if _row is not None:
+                        self._ui(_row.progress_hide)
 
                     def _kill_holder(h=holder):
                         try:
@@ -4624,14 +5256,17 @@ class ModernTTSApp(*_APP_BASE):
                             pass
                     self._ui(_kill_holder)
                     if self._setup_cancel.is_set():
-                        set_info(_tr("Установка прервана — продолжите позже"))
+                        self._ui(_idle_again, _tr("Установка прервана — продолжите позже"))
                         return
                     if not os.path.isfile(gguf_final):
-                        set_info(_tr("Модель анализа не докачалась — попробуйте ещё раз"))
+                        self._ui(_idle_again, _tr("Модель анализа не докачалась — "
+                                                  "попробуйте ещё раз"))
                         return
                 if (self._setup_vox_turbo.get() or self._setup_vox_classic.get()
                         or self._setup_vox_tiny.get()) \
                         and not self._vox_installed() and not self._setup_cancel.is_set():
+                    _state["row"] = obj_classic
+                    self._ui(obj_classic.progress_show)
                     set_info(_tr("2 · Голосовой движок Vox: GPU-среда…"))
                     self._vox_cancelled = False
 
@@ -4656,8 +5291,11 @@ class ModernTTSApp(*_APP_BASE):
                         self._ui(self._vox_ready)
                     elif not self._setup_cancel.is_set():
                         set_info(_tr("Vox не установлен: ") + str(detail)[-160:])
+                    self._ui(obj_classic.progress_hide)
                 if self._setup_vox_turbo.get() and not self._nano_installed() \
                         and self._vox_installed() and not self._setup_cancel.is_set():
+                    _state["row"] = obj_turbo
+                    self._ui(obj_turbo.progress_show)
                     set_info(_tr("2 · Vox Turbo: установка быстрого варианта…"))
                     self._vox_cancelled = False
 
@@ -4679,13 +5317,39 @@ class ModernTTSApp(*_APP_BASE):
                         set_info(_tr("Vox Turbo не установлен: ") + str(detail_n)[-160:])
                 if self._setup_vox_tiny.get() and not self._vox_extra_weights("tiny") \
                         and not self._setup_cancel.is_set():
-                    set_info(_tr("2 · Vox Tiny: веса ≈3 ГБ…"))
+                    _ti = self.VOX_EXTRA_VARIANTS["tiny"]
+                    self._ui(obj_tiny.progress_show)
                     try:
-                        from huggingface_hub import snapshot_download
-                        snapshot_download(self.VOX_EXTRA_VARIANTS["tiny"]["repo"])
+                        self._hf_download_progress(
+                            _ti["repo"], os.path.join(self.BASE_DIR, _ti["local"]),
+                            _tr("Vox Tiny"),
+                            lambda t: obj_tiny.progress(None, t),
+                            lambda v: obj_tiny.progress(v))
                     except Exception as e:
+                        failed["v"] = True
+                        _flog(f"Vox Tiny: ошибка — {e}")
                         if not self._setup_cancel.is_set():
                             set_info(_tr("Vox Tiny не установлен: ") + str(e)[-160:])
+                    self._ui(obj_tiny.progress_hide)
+                if self._setup_vox_shtorm.get() and not self._vox_extra_weights("shtorm") \
+                        and not self._setup_cancel.is_set():
+                    _si = self.VOX_EXTRA_VARIANTS["shtorm"]
+                    self._ui(obj_shtorm.progress_show)
+                    try:
+                        self._hf_download_progress(
+                            _si["repo"], os.path.join(self.BASE_DIR, _si["local"]),
+                            _tr("Vox Shtorm"),
+                            lambda t: obj_shtorm.progress(None, t),
+                            lambda v: obj_shtorm.progress(v))
+                        if self._vox_extra_weights("shtorm") and not self._setup_cancel.is_set():
+                            self.vox_variant = "shtorm"     # выбран — на нём и работаем
+                            self.save_settings()
+                    except Exception as e:
+                        failed["v"] = True
+                        _flog(f"Vox Shtorm: ошибка — {e}")
+                        if not self._setup_cancel.is_set():
+                            set_info(_tr("Vox Shtorm не установлен: ") + str(e)[-160:])
+                    self._ui(obj_shtorm.progress_hide)
                 _q_sizes = [s for s, on in (("0.6B", self._setup_q06.get()),
                                             ("1.7B", self._setup_q17.get())) if on]
                 if _q_sizes and not self._setup_cancel.is_set():
@@ -4716,7 +5380,8 @@ class ModernTTSApp(*_APP_BASE):
                             if ok_env:
                                 self._ui(self._vox_ready)
                             elif not self._setup_cancel.is_set():
-                                set_info(_tr("GPU-среда не установлена: ")
+                                self._ui(_idle_again,
+                                         _tr("GPU-среда не установлена: ")
                                          + str(detail_env)[-160:])
                                 return
                         if not self._setup_cancel.is_set():
@@ -4728,7 +5393,8 @@ class ModernTTSApp(*_APP_BASE):
                                 m = re.search(r"Progress (\d+) of (\d+)", line)
                                 if m:
                                     cur, tot = int(m.group(1)), max(1, int(m.group(2)))
-                                    set_info(_tr("Пакет Qwen3-TTS") + f" {int(100 * cur / tot)}%")
+                                    set_info(_tr("Пакет Qwen3-TTS")
+                                             + f" {int(100 * cur / tot)}%")
                                 else:
                                     set_info("Qwen · " + str(line)[:120])
 
@@ -4749,35 +5415,37 @@ class ModernTTSApp(*_APP_BASE):
                         self._qwen_fetch(list(self._qwen_repos().keys()),
                                          on_progress=qprog, cancel=self._setup_cancel)
                     if "1.7B" in _q_sizes:
-                        self.qwen_size = "1.7B"   # обе — движком по умолчанию ставим старшую
+                        self.qwen_size = "1.7B"   # обе — движком по умолчанию старшая
                     elif "0.6B" in _q_sizes:
                         self.qwen_size = "0.6B"
                     self.save_settings()
                 if self._setup_cancel.is_set():
+                    self._ui(_idle_again, _tr("Установка прервана — продолжите позже"))
+                    return
+                if failed["v"]:
+                    # ничего не «Готово», если что-то не скачалось: пусть можно
+                    # нажать «Повторить» и докачать с места (18.11.26)
+                    self._ui(_idle_again, _tr("Не всё скачалось — нажмите «Повторить»"))
                     return
                 self._ui(self._refresh_voices)
                 self._ui(self._mark_setup_done)
                 if settings_mode:
                     self._ui(self._after_settings_apply)
                 set_info("\u2705 " + _tr("Установка завершена — можно работать"))
+                self._ui(_done_state)
+            except Cancelled:
+                _flog("установка: отменена")
+                self._ui(_idle_again, _tr("Установка прервана — продолжите позже"))
+            except Exception as e:
+                print(f"❌ Первичная установка: {e}")
                 try:
-                    if dlg.winfo_exists():
-                        btn_go.configure(state="disabled")
+                    import traceback as _tb
+                    _flog("установка: ОШИБКА " + _tb.format_exc()[-1600:])
                 except Exception:
                     pass
-            except Cancelled:
-                set_info(_tr("Установка прервана — продолжите позже"))
-            except Exception as e:
-                print(f"\u274c Первичная установка: {e}")
-                set_info(f"\u274c {e}")
+                self._ui(_idle_again, f"❌ {e}")
 
-        btn_go.configure(command=lambda: threading.Thread(target=work, daemon=True).start())
-        dlg.update_idletasks()
-        try:
-            dlg.geometry(f"640x{max(330, dlg.winfo_reqheight())}")
-        except Exception:
-            pass
-        _center_on_parent(dlg)
+        btn_primary.configure(command=_on_primary)
 
     def _auto_install_voices(self):
         """Первый запуск: докачиваем русские голоса Ирина и Руслан (≈126 МБ)."""
@@ -4879,6 +5547,11 @@ class ModernTTSApp(*_APP_BASE):
             except Exception:
                 pass
         self.save_settings()
+        if getattr(self, "_voices_on", False):
+            try:
+                self._voices_fill()
+            except Exception:
+                pass
 
     def _open_piper_voices(self):
         """Окно «Голоса Piper»: скачать готовый голос или импортировать файл."""
@@ -5148,27 +5821,25 @@ class ModernTTSApp(*_APP_BASE):
         return ram_total, ram_avail
 
     def _build_mem_panel(self, parent):
-        """Карточка памяти внизу левого столбца: видеопамять и ОЗУ в одну строку
-        (макет Ярослава 06.11). Подписи — прошлые, серым; значения «занято/всего»;
-        полосы короткие, перед второй подписи — большой зазор. По бокам карточки
-        те же «грани», что у верхних панелей."""
+        """Карточка памяти внизу левого столбца. В узкой панели 2.1 (200 px)
+        каждая шкала — ДВЕ строки: подпись + значение, под ними полоса на всю
+        ширину (16.11.26): в одну строку с полосой не влезало."""
         p = ctk.CTkFrame(parent, fg_color="transparent", corner_radius=0, border_width=0)
         p.pack(fill="x", padx=14, pady=(0, 10))
-        ctk.CTkFrame(p, fg_color=COLOR_HAIR, height=1).pack(fill="x", pady=(0, 8))
-        row = ctk.CTkFrame(p, fg_color="transparent")
-        row.pack(fill="x", padx=0, pady=0)
-        specs = ((_tr("Видеопамять"), "gpu", COLOR_RED, (0, 0)),
-                 (_tr("Память (ОЗУ)"), "ram", COLOR_GOLD, (10, 0)))
-        for cap, key, col, pl in specs:
+        ctk.CTkFrame(p, width=1, fg_color=COLOR_HAIR, height=1).pack(fill="x", pady=(0, 8))
+        for cap, key, col in ((_tr("Видеопамять"), "gpu", COLOR_RED),
+                              (_tr("Память (ОЗУ)"), "ram", COLOR_GOLD)):
+            row = ctk.CTkFrame(p, width=1, fg_color="transparent")
+            row.pack(fill="x", pady=(0, 6))
             ctk.CTkLabel(row, text=cap, font=FONT_TINY, text_color=COLOR_TEXT_SEC,
-                         anchor="w").pack(side="left", padx=pl)
-            bar = ctk.CTkProgressBar(row, height=6, corner_radius=3, width=46,
+                         anchor="w", width=86).pack(side="left")
+            bar = ctk.CTkProgressBar(row, height=6, corner_radius=3, width=76,
                                      fg_color=COLOR_BORDER, progress_color=col)
             bar.set(0)
-            bar.pack(side="left", padx=(3, 0))
+            bar.pack(side="left", padx=(0, 8))
             val = ctk.CTkLabel(row, text="…", font=FONT_TINY,
-                               text_color=COLOR_TEXT_MAIN, anchor="e")
-            val.pack(side="left", padx=(4, 0))
+                               text_color=COLOR_TEXT_MAIN, anchor="w")
+            val.pack(side="left")
             setattr(self, f"{key}_val", val)
             setattr(self, f"{key}_bar", bar)
         return p
@@ -5610,7 +6281,7 @@ class ModernTTSApp(*_APP_BASE):
         """Кнопка «📂 Свой голос Piper…» — только для движка Piper."""
         try:
             if show:
-                self.btn_import_piper.pack(fill="x", padx=12, pady=(0, 10), before=self.rate_row)
+                self.btn_import_piper.pack(fill="x", padx=12, pady=(0, 6), before=self.rate_row)
             else:
                 self.btn_import_piper.pack_forget()
         except Exception:
@@ -5649,10 +6320,23 @@ class ModernTTSApp(*_APP_BASE):
                 d = ImageDraw.Draw(im)
                 ink = (0x6E, 0x66, 0x5A, 255)
                 w = 7
-                if what == "logo":          # эквалайзер — знак FAIR
-                    for x, h in ((26, 26), (40, 44), (54, 60), (68, 32), (82, 20)):
-                        d.rounded_rectangle([x - 4, 48 - h // 2, x + 4, 48 + h // 2],
-                                            radius=4, fill=(255, 255, 255, 255))
+                if what == "logo":          # НАШ стандартный значок из 1.10, но без тёмной
+                    # плашки: rail_logo.png собран из app_wave.ico (16.11.26)
+                    _p = getattr(self, "_asset_path")("rail_logo.png")
+                    try:
+                        if os.path.isfile(_p):
+                            _lg = Image.open(_p).convert("RGBA")
+                            _lg.thumbnail((88, 88), Image.LANCZOS)
+                            im.alpha_composite(_lg, ((S - _lg.width) // 2, (S - _lg.height) // 2))
+                        else:
+                            raise FileNotFoundError(_p)
+                    except Exception:
+                        # запасной вариант — полосы в меди и золоте
+                        gold = (0xC8, 0x89, 0x2F, 255)
+                        copper = (0x9C, 0x47, 0x23, 255)
+                        for i, (x, h) in enumerate(((20, 30), (38, 48), (56, 62), (74, 42), (90, 26))):
+                            d.rounded_rectangle([x - 5, 48 - h // 2, x + 5, 48 + h // 2],
+                                                radius=5, fill=(gold if i % 2 == 0 else copper))
                 elif what == "plus":
                     d.rounded_rectangle([43, 18, 53, 78], radius=5, fill=ink)
                     d.rounded_rectangle([18, 43, 78, 53], radius=5, fill=ink)
@@ -5735,39 +6419,43 @@ class ModernTTSApp(*_APP_BASE):
 
     def _build_rail(self):
         """Узкая рейка значков слева — навигация версии 2.1."""
-        self.rail = ctk.CTkFrame(self, width=62, fg_color="transparent")
-        self.rail.grid(row=0, column=0, sticky="ns", padx=(10, 0), pady=10)
+        # 16.11.26: Ярослав просил «в полтора раза уже» — рейка 62 → 42 px
+        self.rail = ctk.CTkFrame(self, width=42, fg_color="transparent")
+        self.rail.grid(row=0, column=0, sticky="ns", padx=(8, 0), pady=8)
         self.rail.pack_propagate(False)
         self.rail.grid_propagate(False)
         self._rail_icons()
 
         self.rail_logo = ctk.CTkButton(self.rail, text="", image=self._rail_img("logo"),
-                                       width=40, height=40, corner_radius=12,
-                                       fg_color=COLOR_BRAND, hover_color=COLOR_BRAND_HOVER,
+                                       width=32, height=32, corner_radius=10,
+                                       fg_color="transparent", hover_color=COLOR_SELECT,
                                        command=self._open_donate_page)
-        self.rail_logo.pack(pady=(2, 16))
+        self.rail_logo.pack(pady=(2, 12))
         self._tip(self.rail_logo, "FAIR 2.1 · поблагодарить автора")
 
         def mk(key, title, cmd):
-            b = ctk.CTkButton(self.rail, text="", image=self._rail_img(key), width=40, height=38,
-                              corner_radius=10, fg_color="transparent",
+            b = ctk.CTkButton(self.rail, text="", image=self._rail_img(key), width=32, height=32,
+                              corner_radius=8, fg_color="transparent",
                               hover_color=COLOR_SELECT, command=cmd)
-            b.pack(pady=2)
+            b.pack(pady=1)
             self._tip(b, title)
             return b
 
-        self.rail_new = mk("plus", _tr("Новое"), self._rail_new_click)
+        # Кнопки «Новое» больше нет (просьба Ярослава 17.11.26): повторное
+        # нажатие на «Библиотеку» и так возвращает инспектор.
         self.rail_lib = mk("lib", _tr("Библиотека"), self._toggle_library)
+        # «Модели» стоит ВЫШЕ «Голосов» (просьба Ярослава 16.11.26): сверху то, что
+        # выбирают чаще. Кнопка открывает выбор модели ИИ прямо в левой панели.
+        self.rail_models = mk("cpu", _tr("Модели"), self._models_show)
         self.rail_voices = mk("mic", _tr("Голоса"), self._rail_voices_click)
-        self.rail_models = mk("cpu", _tr("Модели"), self._open_settings)
         self.rail_focus = mk("focus", _tr("Фокус: Ctrl+B"), self._toggle_focus)
         ctk.CTkFrame(self.rail, fg_color="transparent").pack(fill="both", expand=True)
         self.rail_settings = mk("gear", _tr("Настройки"), self._open_settings)
-        self._rail_mark(self.rail_new)
+        self._rail_mark(None)
 
     def _rail_mark(self, active):
         """Подсветить активный пункт рейки (акцентная плашка + полоска слева)."""
-        for b in (getattr(self, "rail_new", None), getattr(self, "rail_lib", None),
+        for b in (getattr(self, "rail_lib", None),
                   getattr(self, "rail_voices", None), getattr(self, "rail_models", None),
                   getattr(self, "rail_focus", None)):
             if b is None:
@@ -5778,22 +6466,731 @@ class ModernTTSApp(*_APP_BASE):
             except Exception:
                 pass
 
-    def _rail_new_click(self):
-        """«Новое»: показать инспектор, поставить курсор в поле источника."""
-        self._toggle_library(force=True)
-        self._rail_mark(self.rail_new)
-        try:
-            self.url_entry.focus_set()
-        except Exception:
-            pass
-
     def _rail_voices_click(self):
-        """«Голоса»: прокрутить инспектор к карточке озвучки."""
-        self._rail_mark(self.rail_voices)
+        """«Голоса»: в левой панели открыть список голосов текущего движка
+        (16.11.26) — повторное нажатие возвращает инспектор."""
+        self._voices_show()
+
+    # ── панель «Голоса» — вторая страница левой панели (16.11.26) ────────────
+    # Ярослав: по кнопке «Голоса» в рейке панель показывает ВСЕ голоса текущего
+    # движка — с типом, числом эмоций и громкостью, и с управлением
+    # (выбрать, изменить образец, удалить). Повторное нажатие — назад.
+
+    def _build_voices_panel(self):
+        """Собрать панель голосов (в той же ячейке сетки, что инспектор)."""
+        self._voices_on = False
+        self.voices_panel = ctk.CTkFrame(self, width=348, fg_color=COLOR_INSPECTOR,
+                                         corner_radius=R_PANEL, border_width=1,
+                                         border_color=COLOR_BORDER)
+        self.voices_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 8), pady=10)
+        self.voices_panel.grid_propagate(False)
+        self.voices_panel.grid_columnconfigure(0, weight=1)
+        self.voices_panel.grid_rowconfigure(2, weight=1)
+
+        head = ctk.CTkFrame(self.voices_panel, width=1, fg_color="transparent")
+        head.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 4))
+        self.voices_title = ctk.CTkLabel(head, text=_tr("Голоса"),
+                                         font=(FONT_FAMILY, 15, "bold"),
+                                         text_color=COLOR_TEXT_MAIN)
+        self.voices_title.pack(side="left")
+        self.btn_voices_back = ctk.CTkButton(head, text="✕", width=26, height=26,
+                                             corner_radius=8, font=FONT_SMALL,
+                                             fg_color="transparent", hover_color=COLOR_SELECT,
+                                             text_color=COLOR_TEXT_SEC,
+                                             command=lambda: self._voices_show(False))
+        self.btn_voices_back.pack(side="right")
+        self._tip(self.btn_voices_back, _tr("Назад"))
+
+        self.voices_sub = ctk.CTkLabel(self.voices_panel, text="", font=FONT_TINY,
+                                       text_color=COLOR_TEXT_SEC, anchor="w",
+                                       justify="left", wraplength=252)
+        self.voices_sub.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 8))
+
+        self.voices_list = ctk.CTkScrollableFrame(self.voices_panel, width=1, fg_color="transparent",
+                                                  scrollbar_button_color=COLOR_BORDER,
+                                                  scrollbar_button_hover_color=COLOR_TEXT_SEC)
+        self.voices_list.grid(row=2, column=0, sticky="nsew", padx=(10, 2), pady=(0, 4))
+        self.voices_list.grid_columnconfigure(0, weight=1)
+
+        self.btn_voices_add = ctk.CTkButton(self.voices_panel, text="", height=32,
+                                            corner_radius=8, font=FONT_SMALL,
+                                            fg_color=COLOR_FILL_SOFT,
+                                            hover_color=COLOR_SELECT,
+                                            text_color=COLOR_TEXT_MAIN,
+                                            border_width=1, border_color=COLOR_BORDER)
+        self.btn_voices_add.grid(row=3, column=0, sticky="ew", padx=14, pady=(4, 14))
+
+        self.voices_panel.grid_remove()
+
+    def _voice_is_builtin(self, name):
+        """Встроенный голос из дистрибутива (Алсу, Джон…)."""
         try:
-            self.sidebar._parent_canvas.yview_moveto(0.55)
+            return name in {v.get("name") for v in (self.BUILTIN_VOX_VOICES or [])}
+        except Exception:
+            return False
+
+    def _voice_entry_custom(self, name, vid, info):
+        """Строка панели для своего/клонированного голоса (Vox или Qwen)."""
+        emos = 0
+        try:
+            emos = len(self._emotion_samples(name))
+        except Exception:
+            emos = 0
+        try:
+            gain = int(self._voice_gain(name) or 0)
+        except Exception:
+            gain = 0
+        # голос, созданный по текстовому описанию («✨ Дизайн голоса»), — «промпт»,
+        # а не «свой» (просьба Ярослава 16.11.26). Само описание — в подсказке.
+        prompt = str((info or {}).get("desc") or (info or {}).get("instruct") or "").strip()
+        if self._voice_is_builtin(name):
+            kind = _tr("встроенный")
+        elif prompt:
+            kind = _tr("промпт")
+        else:
+            kind = _tr("свой")
+        bits = [kind]
+        if emos:
+            bits.append(f"{emos} " + _tr("эмоц."))
+        if gain:
+            bits.append(f"{gain * 10:+d}%")
+        return {"name": name, "kind": self._voice_engine(info), "sub": " · ".join(bits),
+                "vid": vid, "custom": True, "prompt": prompt}
+
+    def _voices_entries(self):
+        """Все голоса ТЕКУЩЕГО движка: Piper — файлы, Vox/Qwen — свои + встроенные."""
+        eng = self.current_engine or "Vox"
+        out = []
+        if eng == "Piper":
+            for name in sorted(getattr(self, "tts_models", {}) or {}):
+                path = (self.tts_models or {}).get(name) or ""
+                try:
+                    mb = os.path.getsize(path) / 1048576.0
+                except Exception:
+                    mb = 0
+                sub = (f"{mb:.0f} МБ · " + _tr("в комплекте")) if mb else _tr("в комплекте")
+                out.append({"name": name, "kind": "Piper", "sub": sub,
+                            "vid": None, "custom": False})
+        elif eng == "Qwen":
+            for disp in sorted(QWEN_DISPLAY):
+                _sid, gen, desc = QWEN_BY_DISPLAY.get(disp, ("", "", ""))
+                bits = [x for x in (gen, desc) if x]
+                out.append({"name": disp, "kind": "Qwen",
+                            "sub": " · ".join(bits) or _tr("встроенный"),
+                            "vid": None, "custom": False})
+            for name in self.voice_values("Qwen"):
+                vid, info = self._find_voice(name)
+                path = (info or {}).get("path") or ""
+                if not info or not path or not os.path.exists(path):
+                    continue
+                out.append(self._voice_entry_custom(name, vid, info))
+        else:
+            for name in self.voice_values("Vox"):
+                vid, info = self._find_voice(name)
+                path = (info or {}).get("path") or ""
+                if not info or not path or not os.path.exists(path):
+                    continue
+                out.append(self._voice_entry_custom(name, vid, info))
+        return out
+
+    def _voices_row(self, parent, ent, idx, selected):
+        """Одна карточка голоса: имя, сведения, ✓ и кнопки правки/удаления."""
+        card = ctk.CTkFrame(parent, width=1, fg_color=(COLOR_ACCENT_SOFT if selected else COLOR_PANEL),
+                            corner_radius=8, border_width=1,
+                            border_color=(COLOR_ACCENT if selected else COLOR_BORDER))
+        card.grid(row=idx, column=0, sticky="ew", pady=(0, 6), padx=(0, 2))
+        card.grid_columnconfigure(0, weight=1)
+
+        head = ctk.CTkFrame(card, width=1, fg_color="transparent")
+        head.grid(row=0, column=0, sticky="w", padx=(10, 4), pady=(7, 0))
+        name_lbl = ctk.CTkLabel(head, text=ent["name"], font=(FONT_FAMILY, 12, "bold"),
+                                text_color=COLOR_TEXT_MAIN, anchor="w")
+        name_lbl.pack(side="left")
+        # галочка есть всегда, показывается/прячется без пересборки списка (16.11.26):
+        # полная перерисовка при ▶/стоп/выборе давала мигание всего списка
+        chk = ctk.CTkLabel(head, text="✓", font=(FONT_FAMILY, 12, "bold"),
+                           text_color=COLOR_ACCENT)
+        if selected:
+            chk.pack(side="left", padx=(5, 0))
+        if getattr(self, "_voice_rows", None) is None:
+            self._voice_rows = {}
+        self._voice_rows[ent["name"]] = {"card": card, "chk": chk, "sel": bool(selected)}
+        sub_lbl = ctk.CTkLabel(card, text=ent.get("sub") or "", font=FONT_TINY,
+                               text_color=COLOR_TEXT_SEC, anchor="w", justify="left",
+                               wraplength=140)
+        sub_lbl.grid(row=1, column=0, sticky="w", padx=(10, 4), pady=(0, 7))
+        if ent.get("prompt"):
+            self._tip(sub_lbl, _tr("промпт описания голоса") + ": " + ent["prompt"])
+
+        side = ctk.CTkFrame(card, width=1, fg_color="transparent")
+        side.grid(row=0, column=1, rowspan=2, sticky="e", padx=(0, 6))
+        # ▶ — СНАЧАЛА (просьба Ярослава 16.11.26): прослушать сам голос, не выбирая
+        # его. Пока звучит — ▶ становится ■ (стоп), повторный клик останавливает.
+        _playing = (getattr(self, "_voice_play_name", "") == ent["name"])
+        b_play = ctk.CTkButton(side, text=("■" if _playing else "▶"), width=24, height=24,
+                               corner_radius=6, font=FONT_TINY, fg_color="transparent",
+                               hover_color=COLOR_SELECT,
+                               text_color=(COLOR_BRAND if _playing else COLOR_TEXT_SEC),
+                               command=lambda n=ent["name"]: self._voices_play(n))
+        b_play.pack(side="left", padx=1)
+        self._tip(b_play, _tr("Прослушать голос"))
+        if getattr(self, "_voice_play_btn", None) is None:
+            self._voice_play_btn = {}
+        self._voice_play_btn[ent["name"]] = b_play
+        if ent.get("custom"):
+            b_ed = ctk.CTkButton(side, text="✎", width=24, height=24, corner_radius=6,
+                                 font=FONT_TINY, fg_color="transparent",
+                                 hover_color=COLOR_SELECT, text_color=COLOR_TEXT_SEC,
+                                 command=lambda n=ent["name"]: self._voices_edit(n))
+            b_ed.pack(side="left", padx=1)
+            self._tip(b_ed, _tr("Изменить"))
+            b_del = ctk.CTkButton(side, text="🗑", width=24, height=24, corner_radius=6,
+                                  font=FONT_TINY, fg_color="transparent",
+                                  hover_color=COLOR_SELECT, text_color=COLOR_TEXT_SEC,
+                                  command=lambda e=ent: self._voices_delete(e))
+            b_del.pack(side="left", padx=1)
+            self._tip(b_del, _tr("Удалить"))
+
+        def pick(_e=None, n=ent["name"]):
+            self._voices_pick(n)
+        for w in (card, name_lbl, sub_lbl):
+            w.bind("<Button-1>", pick, add="+")
+        card.bind("<Enter>", lambda _e: card.configure(border_color=COLOR_ACCENT), add="+")
+
+        def _leave(_e=None, n=ent["name"]):
+            on = bool((getattr(self, "_voice_rows", {}) or {}).get(n, {}).get("sel"))
+            try:
+                card.configure(border_color=(COLOR_ACCENT if on else COLOR_BORDER))
+            except Exception:
+                pass
+        card.bind("<Leave>", _leave, add="+")
+
+    def _voices_fill(self):
+        """Перерисовать список голосов текущего движка."""
+        if not getattr(self, "voices_list", None):
+            return
+        try:
+            for w in self.voices_list.winfo_children():
+                w.destroy()
+            self._voice_rows = {}
+            self._voice_play_btn = {}
+            ent = self._voices_entries()
+            try:
+                cur = self.tts_combo.get()
+            except Exception:
+                cur = getattr(self, "current_tts_name", "")
+            eng = (self.current_engine or "").upper()
+            self.voices_title.configure(text=_tr("Голоса"))
+            self.voices_sub.configure(
+                text=f"{eng} · {len(ent)} " + _tr("голосов") + "\n"
+                     + _tr("Голоса: выберите голос для движка"))
+            for i, e in enumerate(ent):
+                self._voices_row(self.voices_list, e, i, e["name"] == cur)
+            if self.current_engine == "Piper":
+                self.btn_voices_add.configure(text=_tr("📂  Свой голос Piper…"),
+                                              command=lambda: self._import_piper_voice(None, None))
+            elif self.current_engine == "Qwen":
+                self.btn_voices_add.configure(text=_tr("✨ Дизайн голоса"),
+                                              command=self._qwen_design_dialog)
+            else:
+                self.btn_voices_add.configure(text="🎙  " + _tr("Записать свой голос"),
+                                              command=lambda: self.add_custom_voice())
+        except Exception as e:
+            print(f"⚠️ список голосов: {e}")
+
+    def _voices_show(self, on=None):
+        """Показать/скрыть панель голосов вместо инспектора."""
+        on = (not getattr(self, "_voices_on", False)) if on is None else bool(on)
+        if not getattr(self, "voices_panel", None):
+            return
+        self._voices_on = on
+        try:
+            if on:
+                # панель моделей — та же ячейка: прячем без рекурсии
+                if getattr(self, "_models_on", False):
+                    self._models_on = False
+                    self.models_panel.grid_remove()
+                self._voices_fill()
+                self.sidebar.grid_remove()
+                self.voices_panel.grid()
+                self.voices_panel.lift()
+                self._rail_mark(self.rail_voices)
+            else:
+                self.voices_panel.grid_remove()
+                # звук прослушки не должен играть после закрытия панели
+                try:
+                    self._voice_preview_stop()
+                except Exception:
+                    pass
+                self._voice_play_name = ""
+                if not getattr(self, "_focus_on", False):
+                    self.sidebar.grid()
+                self._rail_mark(None)
+        except Exception as e:
+            print(f"⚠️ панель голосов: {e}")
+
+    def _voices_pick(self, name):
+        """Выбрать голос из панели — как выбор в списке «Озвучка»."""
+        try:
+            self.tts_combo.set(name)
         except Exception:
             pass
+        try:
+            self.on_tts_change(name)
+        except Exception as e:
+            print(f"⚠️ выбор голоса: {e}")
+        self._voices_sel_mark(name)
+
+    def _voices_play(self, name):
+        """▶/■ — прослушать образец голоса (или остановить), не меняя выбранный голос.
+
+        Играем сохранённую запись голоса — тот самый «базовый» образец, по которому
+        Vox клонирует тембр (плюс общая громкость голоса, если настроена)."""
+        if getattr(self, "_voice_play_name", "") == name:
+            self._voice_play_name = ""
+            self._voice_preview_stop()
+            self._voices_play_mark()
+            return
+        vid, info = self._find_voice(name)
+        path = (info or {}).get("path") or ""
+        if not path or not os.path.isfile(path) or os.path.splitext(path)[1].lower() not in (
+                ".wav", ".flac", ".ogg", ".mp3", ".m4a"):
+            # у Piper в списке лежит файл модели (.onnx), у встроенных Qwen речи нет
+            self.update_status(f"🔇 {name}: " + _tr("образца нет — запишите голос"))
+            return
+        self._voice_preview_stop()
+        gain = 0
+        try:
+            gain = int(self._voice_gain(name) or 0)
+        except Exception:
+            gain = 0
+        self._voice_play_name = name
+        self._voices_play_mark()
+
+        def work():
+            try:
+                if os.path.splitext(path)[1].lower() == ".wav":
+                    with wave.open(path) as w:
+                        sr = w.getframerate()
+                        data = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+                    if gain:
+                        data = VoiceRecorderDialog._apply_gain(data, gain)
+                    if getattr(self, "book_mode", False):
+                        data = self._book_limit_peak(data)
+                    sd.play(data, samplerate=sr, blocking=True)
+                else:
+                    self._play_wav(path)
+            except Exception as e:
+                print(f"⚠️ прослушка голоса: {e}")
+                try:
+                    self.after(0, lambda: self.update_status(f"⚠️ {name}: {e}"))
+                except Exception:
+                    pass
+            finally:
+                if getattr(self, "_voice_play_name", "") == name:
+                    self._voice_play_name = ""
+                try:
+                    self.after(0, self._voices_play_mark)
+                except Exception:
+                    pass
+        threading.Thread(target=work, daemon=True).start()
+
+    def _voices_play_mark(self):
+        """▶/■ только на нужной карточке — без перерисовки всего списка (16.11.26)."""
+        cur = getattr(self, "_voice_play_name", "")
+        for n, b in (getattr(self, "_voice_play_btn", {}) or {}).items():
+            on = (n == cur)
+            try:
+                b.configure(text=("■" if on else "▶"),
+                            text_color=(COLOR_BRAND if on else COLOR_TEXT_SEC))
+            except Exception:
+                pass
+
+    def _voices_sel_mark(self, name):
+        """Выбранный голос: рамка карточки и галочка — тоже без пересборки списка."""
+        for n, r in (getattr(self, "_voice_rows", {}) or {}).items():
+            on = (n == name)
+            if r.get("sel") == on:
+                continue
+            r["sel"] = on
+            try:
+                r["card"].configure(fg_color=(COLOR_ACCENT_SOFT if on else COLOR_PANEL),
+                                    border_color=(COLOR_ACCENT if on else COLOR_BORDER))
+            except Exception:
+                pass
+            try:
+                if on:
+                    r["chk"].pack(side="left", padx=(5, 0))
+                else:
+                    r["chk"].pack_forget()
+            except Exception:
+                pass
+
+    def _voices_edit(self, name):
+        """✎ — открыть правку образца (или дизайн голоса у встроенных Qwen)."""
+        try:
+            if self.current_engine == "Qwen" and name in QWEN_DISPLAY:
+                self._qwen_design_dialog()
+            elif self.current_engine == "Piper":
+                self._import_piper_voice(None, None)
+            else:
+                self.add_custom_voice(initial_slot=name)
+        except Exception as e:
+            print(f"⚠️ правка голоса: {e}")
+
+    def _voices_delete(self, ent):
+        """🗑 — удалить свой голос (с подтверждением, как в окне образца)."""
+        try:
+            if self._delete_voice(vid=ent.get("vid"), name=ent.get("name")):
+                self._voices_fill()
+        except Exception as e:
+            print(f"⚠️ удаление голоса: {e}")
+
+    # ── панель «Модель ИИ» — третья страница левой панели (16.11.26) ──────────
+    # Ярослав: кнопка «Модели» в рейке поднята выше «Голосов» и открывает выбор
+    # модели ИИ ПРЯМО В ПАНЕЛИ: что установлено и где лежит, сколько занимает на
+    # диске, кнопка «Скачать» для недостающих, своя GGUF с диска и ссылки на
+    # Hugging Face (каждой модели и общий каталог GGUF).
+
+    def _models_dir(self):
+        """Папка, куда качаются и из которой берутся модели анализа."""
+        d = os.path.join(self.BASE_DIR, "models_llm")
+        try:
+            os.makedirs(d, exist_ok=True)
+        except Exception:
+            pass
+        return d
+
+    def _build_models_panel(self):
+        """Собрать панель моделей (в той же ячейке сетки, что инспектор и голоса)."""
+        self._models_on = False
+        self.models_panel = ctk.CTkFrame(self, width=348, fg_color=COLOR_INSPECTOR,
+                                         corner_radius=R_PANEL, border_width=1,
+                                         border_color=COLOR_BORDER)
+        self.models_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 8), pady=10)
+        self.models_panel.grid_propagate(False)
+        self.models_panel.grid_columnconfigure(0, weight=1)
+        self.models_panel.grid_rowconfigure(2, weight=1)
+
+        head = ctk.CTkFrame(self.models_panel, width=1, fg_color="transparent")
+        head.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 4))
+        self.models_title = ctk.CTkLabel(head, text=_tr("Модель ИИ"),
+                                          font=(FONT_FAMILY, 15, "bold"),
+                                          text_color=COLOR_TEXT_MAIN)
+        self.models_title.pack(side="left")
+        self.btn_models_back = ctk.CTkButton(head, text="✕", width=26, height=26,
+                                              corner_radius=8, font=FONT_SMALL,
+                                              fg_color="transparent", hover_color=COLOR_SELECT,
+                                              text_color=COLOR_TEXT_SEC,
+                                              command=lambda: self._models_show(False))
+        self.btn_models_back.pack(side="right")
+        self._tip(self.btn_models_back, _tr("Назад"))
+
+        self.models_sub = ctk.CTkLabel(self.models_panel, text="", font=FONT_TINY,
+                                        text_color=COLOR_TEXT_SEC, anchor="w",
+                                        justify="left", wraplength=252)
+        self.models_sub.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 8))
+
+        self.models_list = ctk.CTkScrollableFrame(self.models_panel, width=1, fg_color="transparent",
+                                                   scrollbar_button_color=COLOR_BORDER,
+                                                   scrollbar_button_hover_color=COLOR_TEXT_SEC)
+        self.models_list.grid(row=2, column=0, sticky="nsew", padx=(10, 2), pady=(0, 4))
+        self.models_list.grid_columnconfigure(0, weight=1)
+
+        foot = ctk.CTkFrame(self.models_panel, width=1, fg_color="transparent")
+        foot.grid(row=3, column=0, sticky="ew", padx=14, pady=(2, 4))
+        foot.grid_columnconfigure(0, weight=1)
+        foot.grid_columnconfigure(1, weight=1)
+        self.btn_models_dir = ctk.CTkButton(foot, text="📂 " + _tr("Папка"), width=1, height=30,
+                                            corner_radius=8, font=FONT_SMALL,
+                                            fg_color=COLOR_FILL_SOFT,
+                              hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
+                              border_width=1, border_color=COLOR_BORDER,
+                              command=self._open_models_folder)
+        self.btn_models_dir.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self._tip(self.btn_models_dir, _tr("Открыть папку с моделями"))
+        b_own = ctk.CTkButton(foot, text="＋ " + _tr("Своя модель"), width=1, height=30,
+                              corner_radius=8, font=FONT_SMALL, fg_color=COLOR_FILL_SOFT,
+                              hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
+                              border_width=1, border_color=COLOR_BORDER,
+                              command=self._models_pick_file)
+        self.btn_models_own = b_own
+        b_own.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        self._tip(b_own, _tr("Добавить .gguf с диска"))
+
+        b_hf = ctk.CTkButton(self.models_panel, text="🌐 " + _tr("Модели на Hugging Face"),
+                             width=1, height=30, corner_radius=8, font=FONT_SMALL,
+                             fg_color="transparent", hover_color=COLOR_SELECT,
+                             text_color=COLOR_BOOK, border_width=1, border_color=COLOR_BORDER,
+                             command=self._open_hf_models)
+        self.btn_models_hf = b_hf
+        b_hf.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 14))
+
+        self.models_panel.grid_remove()
+
+    def _models_entries(self):
+        """Строки панели: пакеты FAIR (есть/нет на диске) + свои GGUF из папки и с диска."""
+        out = []
+        try:
+            cur = self.llm_display.get(self.llm_combo.get(), "")
+        except Exception:
+            cur = ""
+        llm = getattr(self, "llm_models", {}) or {}
+        en = (UI_LANG == "en")
+        pack_names = set()
+        for p in self.MODEL_PACKS:
+            nm = p["name"]
+            pack_names.add(nm)
+            path = llm.get(nm) or os.path.join(self._models_dir(), nm)
+            have = os.path.isfile(path)
+            mb = 0.0
+            try:
+                mb = os.path.getsize(path) / 1048576.0
+            except Exception:
+                mb = 0.0
+            url = p.get("url") or ""
+            out.append({"name": nm, "label": _tr(p.get("label") or nm), "pack": p,
+                        "path": path if have else "", "have": have, "mb": mb,
+                        "size_text": (p.get("size_text_en") if en else p.get("size_text")) or "",
+                        "note": (p.get("note_en") if en else p.get("note")) or "",
+                        "url": url.split("/resolve/")[0] if "/resolve/" in url else url,
+                        "current": cur == nm, "own": False})
+        for nm in sorted(llm.keys()):
+            if nm in pack_names:
+                continue
+            path = llm.get(nm) or ""
+            mb = 0.0
+            try:
+                mb = os.path.getsize(path) / 1048576.0
+            except Exception:
+                mb = 0.0
+            base = nm[:-5] if nm.lower().endswith(".gguf") else nm
+            lab = base[:22].rstrip("-_ ")
+            if len(lab) < len(base):
+                lab += "…"
+            out.append({"name": nm, "label": lab,
+                        "pack": None, "path": path, "have": bool(path and os.path.isfile(path)),
+                        "mb": mb, "size_text": "", "note": "", "url": "",
+                        "current": cur == nm, "own": True})
+        return out
+
+    def _models_row(self, parent, ent, idx):
+        """Карточка модели: имя, где лежит и сколько занимает, ↗ HF, «Скачать»/«Выбрать»."""
+        card = ctk.CTkFrame(parent, width=1, fg_color=(COLOR_ACCENT_SOFT if ent["current"] else COLOR_PANEL),
+                            corner_radius=8, border_width=1,
+                            border_color=(COLOR_ACCENT if ent["current"] else COLOR_BORDER))
+        card.grid(row=idx, column=0, sticky="ew", pady=(0, 6), padx=(0, 2))
+        card.grid_columnconfigure(0, weight=1)
+
+        top = ctk.CTkFrame(card, width=1, fg_color="transparent")
+        top.grid(row=0, column=0, sticky="ew", padx=(10, 8), pady=(7, 0))
+        top.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(top, text=ent["label"], font=(FONT_FAMILY, 12, "bold"),
+                     text_color=COLOR_TEXT_MAIN, anchor="w", justify="left",
+                     wraplength=126).grid(row=0, column=0, sticky="w")
+
+        act = ctk.CTkFrame(top, width=1, fg_color="transparent")
+        act.grid(row=0, column=1, sticky="e")
+        if ent.get("url"):
+            b_hf = ctk.CTkButton(act, text="↗", width=22, height=22, corner_radius=6,
+                                 font=FONT_TINY, fg_color="transparent",
+                                 hover_color=COLOR_SELECT, text_color=COLOR_TEXT_SEC,
+                                 command=lambda u=ent["url"]: self._open_url(u))
+            b_hf.pack(side="left", padx=(0, 3))
+            self._tip(b_hf, _tr("Страница модели на Hugging Face"))
+        if ent["have"]:
+            b_use = ctk.CTkButton(act, text=(_tr("✓ Выбрана") if ent["current"] else _tr("Выбрать")),
+                                  width=76, height=24, corner_radius=6, font=FONT_TINY,
+                                  fg_color=(COLOR_BRAND if ent["current"] else COLOR_FILL_SOFT),
+                                  hover_color=COLOR_BRAND_HOVER,
+                                  text_color=(COLOR_ON_ACCENT if ent["current"] else COLOR_TEXT_MAIN),
+                                  border_width=(0 if ent["current"] else 1),
+                                  border_color=COLOR_BORDER,
+                                  state=("disabled" if ent["current"] else "normal"),
+                                  command=lambda n=ent["name"]: self._models_use(n))
+            b_use.pack(side="left")
+        else:
+            b_dl = ctk.CTkButton(act, text="⬇ " + _tr("Скачать"), width=80, height=24,
+                                 corner_radius=6, font=FONT_TINY, fg_color=COLOR_FILL_SOFT,
+                                 hover_color=COLOR_SELECT, text_color=COLOR_TEXT_MAIN,
+                                 border_width=1, border_color=COLOR_BORDER)
+            b_dl.pack(side="left")
+
+        if ent["have"]:
+            # где лежит: папка проекта — «models_llm», чужая папка — «вне папки»
+            # (полный путь — в подсказке при наведении, в карточке он не влезает)
+            where = os.path.dirname(ent["path"]) if ent["path"] else ""
+            proj = os.path.normcase(os.path.abspath(self.BASE_DIR))
+            inside = os.path.normcase(os.path.abspath(where)).startswith(proj + os.sep)
+            bits = [_tr("на диске") + f" {ent['mb']:.0f} " + _tr("МБ"),
+                    (_tr("в папке models_llm") if inside else _tr("вне папки"))]
+            if ent.get("note"):
+                bits.insert(0, ent["note"])
+            sub = " · ".join([x for x in bits if x])
+        else:
+            bits = [_tr("не скачана"), ent.get("size_text") or ""]
+            if ent.get("note"):
+                bits.insert(0, ent["note"])
+            sub = " · ".join([x for x in bits if x])
+        sub_lbl = ctk.CTkLabel(card, text=sub, font=FONT_TINY, text_color=COLOR_TEXT_SEC,
+                               anchor="w", justify="left", wraplength=236)
+        sub_lbl.grid(row=1, column=0, sticky="w", padx=(10, 8), pady=(0, 7))
+        if ent["have"] and ent["path"]:
+            self._tip(sub_lbl, ent["path"])
+
+        if not ent["have"] and ent.get("pack"):
+            bar = ctk.CTkProgressBar(card, height=4, corner_radius=2,
+                                     progress_color=COLOR_BRAND, fg_color=COLOR_BORDER)
+            bar.set(0)
+            bar.grid(row=2, column=0, sticky="ew", padx=(10, 8), pady=(0, 3))
+            bar.grid_remove()
+            info = ctk.CTkLabel(card, text="", font=FONT_TINY, text_color=COLOR_TEXT_SEC,
+                                anchor="w", justify="left", wraplength=236)
+            info.grid(row=3, column=0, sticky="w", padx=(10, 8), pady=(0, 7))
+            info.grid_remove()
+            b_dl.configure(command=lambda e=ent, b=bar, i=info: self._models_download_row(e, b, i))
+
+        if ent["have"]:
+            def use(_e=None, n=ent["name"]):
+                if not ent["current"]:
+                    self._models_use(n)
+            try:
+                card.bind("<Button-1>", use, add="+")
+            except Exception:
+                pass
+
+    def _models_fill(self):
+        """Перерисовать список моделей."""
+        if not getattr(self, "models_list", None):
+            return
+        try:
+            for w in self.models_list.winfo_children():
+                w.destroy()
+            ent = self._models_entries()
+            have = sum(1 for e in ent if e["have"])
+            self.models_title.configure(text=_tr("Модель ИИ"))
+            # подписи кнопок — по языку интерфейса (панель собирается один раз)
+            try:
+                self.btn_models_dir.configure(text="📂 " + _tr("Папка"))
+                self.btn_models_own.configure(text="＋ " + _tr("Своя модель"))
+                self.btn_models_hf.configure(text="🌐 " + _tr("Модели на Hugging Face"))
+            except Exception:
+                pass
+            self.models_sub.configure(
+                text=f"{_tr('Установлено')}: {have} / {len(ent)} · models_llm\n"
+                     + _tr("Модель ИИ: выберите модель для анализа"))
+            for i, e in enumerate(ent):
+                self._models_row(self.models_list, e, i)
+        except Exception as e:
+            print(f"⚠️ список моделей: {e}")
+
+    def _models_show(self, on=None):
+        """Показать/скрыть панель моделей вместо инспектора (кнопка «Модели» в рейке)."""
+        on = (not getattr(self, "_models_on", False)) if on is None else bool(on)
+        if not getattr(self, "models_panel", None):
+            return
+        self._models_on = on
+        try:
+            if on:
+                # панель голосов живёт в той же ячейке — прячем без рекурсии
+                if getattr(self, "_voices_on", False):
+                    self._voices_on = False
+                    self.voices_panel.grid_remove()
+                self._models_fill()
+                self.sidebar.grid_remove()
+                self.models_panel.grid()
+                self.models_panel.lift()
+                self._rail_mark(self.rail_models)
+            else:
+                self.models_panel.grid_remove()
+                if not getattr(self, "_focus_on", False) and not getattr(self, "_voices_on", False):
+                    self.sidebar.grid()
+                    self._rail_mark(None)
+        except Exception as e:
+            print(f"⚠️ панель моделей: {e}")
+
+    def _models_use(self, name):
+        """Выбрать модель из панели — тем же путём, что выбор в списке «Модель ИИ»."""
+        try:
+            disp = next((d for d, a in (self.llm_display or {}).items() if a == name), None)
+            if not disp:
+                return
+            self.llm_combo.set(disp)
+            self.on_llm_change(disp)
+        except Exception as e:
+            print(f"⚠️ выбор модели: {e}")
+        self._models_fill()
+
+    def _models_pick_file(self):
+        """«Своя модель»: выбрать .gguf с диска, затем обновить панель."""
+        try:
+            self.pick_llm_file()
+        finally:
+            self._models_fill()
+
+    def _models_download_row(self, ent, bar, info):
+        """⬇ Скачать пакет модели в models_llm — с прогрессом прямо в карточке."""
+        pack = ent.get("pack")
+        if not pack:
+            return
+        if getattr(self, "_dl_busy", False):
+            self.update_status("⏳ " + _tr("Уже идёт загрузка"))
+            return
+        self._dl_busy = True
+        try:
+            bar.grid()
+            info.grid()
+            bar.set(0)
+            info.configure(text=_tr("Подготовка…"))
+        except Exception:
+            pass
+        holder = ctk.CTkToplevel(self)
+        holder.withdraw()
+        btn_fake = ctk.CTkButton(holder, text="")
+        self._dl_pack = pack
+        self._dl_cancel = threading.Event()
+
+        def work():
+            try:
+                self._download_model(holder, bar, info, btn_fake)
+            except Exception as e:
+                msg = str(e)[:120]
+                print(f"⚠️ загрузка модели: {e}")
+                try:
+                    self.after(0, lambda: info.configure(text="❌ " + msg))
+                except Exception:
+                    pass
+            finally:
+                self._dl_busy = False
+                try:
+                    if holder.winfo_exists():
+                        holder.destroy()
+                except Exception:
+                    pass
+                try:
+                    self.after(0, self._models_fill)
+                except Exception:
+                    pass
+        threading.Thread(target=work, daemon=True).start()
+
+    def _open_models_folder(self):
+        """📂 Открыть папку models_llm в проводнике."""
+        try:
+            os.startfile(self._models_dir())
+        except Exception as e:
+            self.update_status(f"⚠️ {e}")
+
+    def _open_url(self, url):
+        """Открыть ссылку в браузере (Hugging Face и пр.)."""
+        try:
+            import webbrowser
+            webbrowser.open(url)
+        except Exception as e:
+            print(f"⚠️ ссылка: {e}")
+
+    def _open_hf_models(self):
+        """🌐 Каталог GGUF-моделей на Hugging Face (только для чтения, ничего не качает)."""
+        self._open_url("https://huggingface.co/models?library=gguf&sort=downloads")
 
     # ── библиотека ────────────────────────────────────────────────────────────
 
@@ -5824,11 +7221,43 @@ class ModernTTSApp(*_APP_BASE):
             print(f"⚠️ библиотека: {e}")
 
     @staticmethod
-    def _lib_kind_of(source):
+    def _lib_kind_of(source, title=""):
         s = (source or "").lower()
+        t = (title or "").lower()
         if any(k in s for k in ("youtube", "youtu.be", "rutube", "vk.com/video", "vkvideo")):
             return "video"
+        if any(k in s for k in (".epub", ".fb2", ".mobi", ".djvu")) or "книга" in t:
+            return "book"
+        if any(k in s for k in ("история", "рассказ", "story")) or "история" in t:
+            return "story"
         return "article"
+
+    def _lib_ensure_current(self, text=None):
+        """Проект для текущего текста: найти по содержимому или создать новый.
+        Нужно, чтобы озвучка без анализа тоже попадала в библиотеку отдельным
+        проектом (текст + аудио), как и любая другая (17.11.26)."""
+        try:
+            if text is None:
+                text = self.result_box.get("1.0", "end-1c")
+        except Exception:
+            text = text or ""
+        text = (text or "").strip()
+        if len(text) < 20:
+            return None
+        entries = getattr(self, "_lib_entries", None)
+        if entries is None:
+            entries = self._lib_entries = self._lib_load()
+        cur = self._lib_entry()
+        if cur and (cur.get("text") or "").strip() == text:
+            return cur
+        for e in entries:
+            if (e.get("text") or "").strip() == text:
+                self._lib_current = e.get("id")
+                return e
+        title = self._lib_title_of(text)
+        return self._lib_touch(text, source=getattr(self, "_last_source", "") or "",
+                               kind=self._lib_kind_of(getattr(self, "_last_source", ""), title),
+                               title=title)
 
     @staticmethod
     def _lib_title_of(text):
@@ -5847,7 +7276,7 @@ class ModernTTSApp(*_APP_BASE):
         if entries is None:
             entries = self._lib_entries = self._lib_load()
         title = (title or self._lib_title_of(text))[:90]
-        kind = kind or self._lib_kind_of(source)
+        kind = kind or self._lib_kind_of(source, title)
         words = len(re.findall(r"[\wА-Яа-яЁё]+", text))
         now = time.time()
         # тот же текст — не плодим дубли, только освежаем дату
@@ -5878,8 +7307,14 @@ class ModernTTSApp(*_APP_BASE):
         return None
 
     def _lib_attach_audio(self, wav_path, duration=None):
-        """Приложить готовую озвучку к записи библиотеки (копией в library/)."""
+        """Приложить готовую озвучку к записи библиотеки (копией в library/).
+
+        Все озвучки сохраняются: если у проекта уже есть звук, прежний не затираем,
+        а кладём в «версии» (takes) — к любой можно вернуться через меню.
+        Если проекта ещё нет (озвучили без анализа) — создаём его здесь (17.11.26)."""
         e = self._lib_entry()
+        if not e:
+            e = self._lib_ensure_current()
         if not e or not wav_path or not os.path.isfile(wav_path):
             return
         try:
@@ -5887,16 +7322,75 @@ class ModernTTSApp(*_APP_BASE):
                 import wave as _w
                 with _w.open(wav_path, "rb") as f:
                     duration = f.getnframes() / float(f.getframerate() or 1)
+            la = getattr(self, "_last_audio", None) or ("", "", "", 0, "")
+            engine = la[1] if len(la) > 1 else ""
+            voice = la[2] if len(la) > 2 else ""
+            # Библиотека — это проекты: храним ТОЛЬКО последнюю озвучку
+            # (просьба Ярослава 18.11.26). Прежние версии не копим, файлы
+            # старых версий (<id>_v*.wav) удаляем, чтобы не занимали диск.
             dst = os.path.join(self._lib_dir(), f"{e['id']}.wav")
-            if os.path.abspath(wav_path) != os.path.abspath(dst):
-                shutil.copyfile(wav_path, dst)
+            # normcase: на Windows «a.wav» и «A.wav» — один файл, иначе SameFileError
+            if os.path.normcase(os.path.abspath(wav_path)) != os.path.normcase(os.path.abspath(dst)):
+                try:
+                    shutil.copyfile(wav_path, dst)
+                except shutil.SameFileError:
+                    pass
+            e.pop("takes", None)
+            try:
+                for name in os.listdir(self._lib_dir()):
+                    if name.startswith(f"{e['id']}_v") and name.lower().endswith(".wav"):
+                        os.remove(os.path.join(self._lib_dir(), name))
+            except Exception:
+                pass
             e["audio"] = dst
             e["duration"] = round(float(duration or 0), 1)
+            e["engine"] = engine
+            e["voice"] = voice
+            e["audio_created"] = time.time()
             self._lib_save()
             self._lib_render()
             self._update_docbar()
         except Exception as ex:
             print(f"⚠️ библиотека (аудио): {ex}")
+
+    def _lib_use_take(self, entry_id, idx):
+        """Сделать версию озвучки текущей (прежнюю — обратно в версии)."""
+        e = self._lib_entry(entry_id)
+        if not e:
+            return
+        takes = e.get("takes") or []
+        if not (0 <= idx < len(takes)):
+            return
+        t = takes[idx]
+        takes[idx] = {"file": e.get("audio") or "", "duration": e.get("duration") or 0,
+                      "engine": e.get("engine") or "", "voice": e.get("voice") or "",
+                      "created": e.get("audio_created") or 0}
+        e["audio"] = t.get("file") or ""
+        e["duration"] = t.get("duration") or 0
+        e["engine"] = t.get("engine") or ""
+        e["voice"] = t.get("voice") or ""
+        e["audio_created"] = t.get("created") or 0
+        e["takes"] = takes
+        self._lib_save()
+        self._lib_open(entry_id)
+
+    def _reveal_file(self, path):
+        """Показать файл в проводнике (выделенным)."""
+        try:
+            if path and os.path.isfile(path):
+                subprocess.Popen(["explorer", "/select,", os.path.normpath(path)])
+            elif path:
+                os.startfile(os.path.dirname(path))
+        except Exception as e:
+            print(f"⚠️ проводник: {e}")
+
+    def _lib_set_kind(self, entry_id, kind):
+        e = self._lib_entry(entry_id)
+        if not e:
+            return
+        e["kind"] = kind
+        self._lib_save()
+        self._lib_render()
 
     def _lib_set_filter(self, key):
         self._lib_filter = key
@@ -5974,7 +7468,7 @@ class ModernTTSApp(*_APP_BASE):
                 continue
             shown.append(e)
 
-        glyph = {"article": "≡", "book": "▭", "video": "▶", "note": "✎"}
+        glyph = {"article": "≡", "book": "▭", "video": "▶", "note": "✎", "story": "❖"}
         group = None
         for e in shown:
             g = self._lib_when(e.get("created") or 0)
@@ -6009,7 +7503,9 @@ class ModernTTSApp(*_APP_BASE):
                                 anchor="w")
             meta.pack(fill="x")
             for w in (row, ic, body, title, meta):
-                w.bind("<Button-1>", lambda _e, i=e.get("id"): self._lib_open(i), add="+")
+                # клик — выделить, двойной клик — войти в проект (18.11.26)
+                w.bind("<Button-1>", lambda _e, i=e.get("id"): self._lib_select(i), add="+")
+                w.bind("<Double-Button-1>", lambda _e, i=e.get("id"): self._lib_open(i), add="+")
                 w.bind("<Button-3>", lambda _e, i=e.get("id"): self._lib_menu(_e, i), add="+")
                 if not active:
                     w.bind("<Enter>", lambda _e, r=row: r.configure(fg_color=COLOR_SELECT), add="+")
@@ -6021,7 +7517,6 @@ class ModernTTSApp(*_APP_BASE):
                          anchor="w").pack(fill="x", padx=10, pady=14)
         try:
             total = len(entries)
-            self.lib_count_lbl.configure(text=str(total))
             mb = 0.0
             for e in entries:
                 p = e.get("audio") or ""
@@ -6038,7 +7533,25 @@ class ModernTTSApp(*_APP_BASE):
             return
         m = tk.Menu(self, tearoff=0)
         m.add_command(label=_tr("Открыть"), command=lambda: self._lib_open(entry_id))
-        m.add_command(label=_tr("Озвучить заново"), command=lambda: self._lib_open(entry_id, play=True))
+        if e.get("audio") and os.path.isfile(e["audio"]):
+            m.add_command(label=_tr("Слушать озвучку"),
+                          command=lambda: self._lib_open(entry_id, play=True))
+        m.add_command(label=_tr("Озвучить заново"),
+                      command=lambda: self._lib_open(entry_id, play=True))
+        m.add_separator()
+        # тип проекта — можно поправить вручную (статья / книга / видео / история)
+        tm = tk.Menu(m, tearoff=0)
+        for k, lbl in (("article", _tr("Статья")), ("book", _tr("Книга")),
+                       ("video", _tr("Видео")), ("story", _tr("История")),
+                       ("note", _tr("Заметка"))):
+            tm.add_command(label=("● " if (e.get("kind") or "article") == k else "   ") + lbl,
+                           command=lambda k=k: self._lib_set_kind(entry_id, k))
+        m.add_cascade(label=_tr("Тип проекта"), menu=tm)
+        # «Версии озвучки» больше не показываем: проект хранит только последнюю
+        # озвучку (просьба Ярослава 18.11.26).
+        if e.get("audio"):
+            m.add_command(label=_tr("Показать файл озвучки"),
+                          command=lambda p=e["audio"]: self._reveal_file(p))
         m.add_separator()
         m.add_command(label=_tr("Удалить из библиотеки"),
                       command=lambda: self._lib_delete(entry_id))
@@ -6052,9 +7565,17 @@ class ModernTTSApp(*_APP_BASE):
         e = self._lib_entry(entry_id)
         self._lib_entries = [x for x in getattr(self, "_lib_entries", [])
                              if x.get("id") != entry_id]
-        if e and e.get("audio"):
+        files = []
+        if e:
+            if e.get("audio"):
+                files.append(e["audio"])
+            for t in (e.get("takes") or []):
+                if t.get("file"):
+                    files.append(t["file"])
+        for p in files:
             try:
-                os.remove(e["audio"])
+                if p and os.path.isfile(p):
+                    os.remove(p)
             except Exception:
                 pass
         if getattr(self, "_lib_current", None) == entry_id:
@@ -6067,6 +7588,21 @@ class ModernTTSApp(*_APP_BASE):
         if not e:
             return
         self._lib_current = entry_id
+        # Режим «Книга по голосам» скрывает обычное поле текста (book_view вместо
+        # result_box) — при входе в проект из библиотеки выходим из него и чистим
+        # фрагменты прошлой книги, иначе новый текст просто не видно (18.11.26).
+        if getattr(self, "book_mode", False):
+            try:
+                self._book_disable()
+            except Exception:
+                pass
+        self.book_items = []
+        self.book_source = ""
+        try:
+            self._book_render_view()
+            self._book_refresh_panel([self.BOOK_AUTHOR])
+        except Exception:
+            pass
         self._set_box_text(e.get("text") or "", generated=False)
         self.box_is_source = False
         self._last_source = e.get("source") or ""
@@ -6075,13 +7611,57 @@ class ModernTTSApp(*_APP_BASE):
         except Exception:
             pass
         if e.get("audio") and os.path.isfile(e["audio"]):
-            self._last_audio = (e.get("text") or "", self.current_engine,
-                                self.tts_combo.get(), self.speech_rate, e["audio"])
+            self._last_audio = (e.get("text") or "", e.get("engine") or self.current_engine,
+                                e.get("voice") or self.tts_combo.get(), self.speech_rate, e["audio"])
+            # Озвучка проекта сразу грузится в нижнюю панель: Play/Pause готовы к работе
+            self._load_player_audio(e["audio"], e)
+        else:
+            self._load_player_audio("", e)
         self._update_docbar()
         self._lib_render()
         self._rail_mark(self.rail_lib)
         if play:
             self.after(150, self.play_result)
+
+    def _lib_select(self, entry_id):
+        """Одиночный клик — выделить проект (подсветка), без открытия."""
+        if getattr(self, "_lib_current", None) == entry_id:
+            return
+        self._lib_current = entry_id
+        self._lib_render()
+
+    def _load_player_audio(self, path, entry=None):
+        """Показать озвучку проекта в нижней панели (Play/Pause без автозапуска)."""
+        title = (entry or {}).get("title") or _tr("Текст")
+        try:
+            if path and os.path.isfile(path):
+                with wave.open(path) as w:
+                    sr, ch = w.getframerate(), w.getnchannels()
+                    raw = w.readframes(w.getnframes())
+                    dur = w.getnframes() / float(sr or 1)
+                data = np.frombuffer(raw, dtype=np.int16)
+                if ch > 1:
+                    data = data.reshape(-1, ch)
+                self._close_play_stream()
+                self._play_data, self._play_sr = data, sr
+                self._play_pos = 0
+                self._play_paused = False
+                self._play_done = True
+                self._playing = False
+                self.player_title.configure(text=title)
+                self.player_sub.configure(text=self._lib_dur(dur))
+                self.progress_bar.set(0)
+                self._pp_state(False)
+            else:
+                self._play_data, self._play_sr = None, None
+                self._play_pos, self._play_done = 0, True
+                self._playing = False
+                self.player_title.configure(text=_tr("Готов к озвучке"))
+                self.player_sub.configure(text="")
+                self.progress_bar.set(0)
+                self._pp_state(False)
+        except Exception as ex:
+            print(f"⚠️ плеер проекта: {ex}")
 
     def _build_library(self):
         """Правая панель «Библиотека»: поиск, фильтры, список, счётчик."""
@@ -6099,10 +7679,16 @@ class ModernTTSApp(*_APP_BASE):
                                           font=(FONT_FAMILY, 14, "bold"),
                                           text_color=COLOR_TEXT_MAIN)
         self.lib_title_lbl.pack(side="left")
-        self.lib_count_lbl = ctk.CTkLabel(head, text="", font=(FONT_FAMILY, 9, "bold"),
-                                          text_color=COLOR_TEXT_SEC, fg_color=COLOR_CARD,
-                                          corner_radius=R_PILL, width=26, height=18)
-        self.lib_count_lbl.pack(side="right")
+        # Крестик закрытия панели (просьба Ярослава 17.11.26). Раньше справа висела
+        # пилюля-счётчик: её принимали за кнопку закрытия, а она не кликалась.
+        # Счётчик и так есть в подвале — «N текстов · X МБ».
+        self.lib_close_btn = ctk.CTkButton(head, text="✕", width=24, height=24,
+                                           corner_radius=6, font=(FONT_FAMILY, 12),
+                                           fg_color="transparent", hover_color=COLOR_SELECT,
+                                           text_color=COLOR_TEXT_SEC,
+                                           command=lambda: self._toggle_library(False))
+        self.lib_close_btn.pack(side="right")
+        self._tip(self.lib_close_btn, _tr("Закрыть библиотеку"))
 
         self.lib_search = ctk.CTkEntry(self.library,
                                        placeholder_text=_tr("Поиск по текстам · Ctrl K"),
@@ -6119,17 +7705,25 @@ class ModernTTSApp(*_APP_BASE):
 
         chips = ctk.CTkFrame(self.library, fg_color="transparent")
         chips.grid(row=2, column=0, sticky="ew", padx=12, pady=(8, 6))
+        _chip_row1 = ctk.CTkFrame(chips, fg_color="transparent")
+        _chip_row1.pack(fill="x")
+        _chip_row2 = ctk.CTkFrame(chips, fg_color="transparent")
+        _chip_row2.pack(fill="x", pady=(4, 0))
         self._lib_filter = "all"
         self._lib_chips = {}
         self._lib_chip_labels = {"all": "Все", "article": "Статьи", "book": "Книги",
-                                 "video": "Видео", "note": "Заметки"}
-        for key, label in (("all", _tr("Все")), ("article", _tr("Статьи")),
-                           ("book", _tr("Книги")), ("video", _tr("Видео")),
-                           ("note", _tr("Заметки"))):
-            b = ctk.CTkButton(chips, text=label, height=24, corner_radius=R_PILL,
-                              font=FONT_TINY, fg_color="transparent", hover_color=COLOR_SELECT,
+                                 "video": "Видео", "story": "Истории", "note": "Заметки"}
+        # Пять чипов в один ряд не влезали (нужно 276 px при 248 доступных) и
+        # «Истории» обрезались — раскладываем в два ряда (17.11.26).
+        for key, label, _row in (("all", _tr("Все"), _chip_row1),
+                                 ("article", _tr("Статьи"), _chip_row1),
+                                 ("book", _tr("Книги"), _chip_row1),
+                                 ("video", _tr("Видео"), _chip_row2),
+                                 ("story", _tr("Истории"), _chip_row2)):
+            b = ctk.CTkButton(_row, text=label, height=24, corner_radius=R_PILL,
+                              font=(FONT_FAMILY, 9), fg_color="transparent", hover_color=COLOR_SELECT,
                               border_width=1, border_color=COLOR_BORDER,
-                              text_color=COLOR_TEXT_SEC, width=40,
+                              text_color=COLOR_TEXT_SEC, width=0,
                               command=lambda k=key: self._lib_set_filter(k))
             b.pack(side="left", padx=(0, 4))
             self._lib_chips[key] = b
@@ -6195,7 +7789,7 @@ class ModernTTSApp(*_APP_BASE):
                 self._rail_mark(self.rail_lib)
             else:
                 self.library.grid_remove()
-                self._rail_mark(self.rail_new)
+                self._rail_mark(None)
         except Exception:
             pass
 
@@ -6303,12 +7897,14 @@ class ModernTTSApp(*_APP_BASE):
     # ── режим фокуса ─────────────────────────────────────────────────────────
 
     def _toggle_focus(self, force=None):
-        """Скрыть панели и оставить только текст (Ctrl+B; Esc — выйти)."""
+        """Скрыть панели и оставить только текст (Ctrl+B; Esc или кнопка
+        «Полный вид» в шапке — выйти, 16.11.26)."""
         cur = bool(getattr(self, "_focus_on", False))
         on = (not cur) if force is None else bool(force)
         self._focus_on = on
         for w in (getattr(self, "rail", None), getattr(self, "sidebar", None),
-                  getattr(self, "library", None)):
+                  getattr(self, "library", None), getattr(self, "voices_panel", None),
+                  getattr(self, "models_panel", None)):
             if w is None:
                 continue
             try:
@@ -6318,8 +7914,30 @@ class ModernTTSApp(*_APP_BASE):
                     w.grid()
             except Exception:
                 pass
+        # из фокуса — обратно: если была открыта панель голосов, вернуть её
         try:
-            self.update_status(_tr("Фокус: Esc — выйти, Ctrl+B — панели"))
+            if not on and getattr(self, "_voices_on", False):
+                self.sidebar.grid_remove()
+                if getattr(self, "_models_on", False):
+                    self.models_panel.grid_remove()
+                self.voices_panel.grid()
+            elif not on and getattr(self, "_models_on", False):
+                self.sidebar.grid_remove()
+                self.models_panel.grid()
+        except Exception:
+            pass
+        # кнопка выхода из фокуса живёт в шапке (в фокусе рейки и панелей нет)
+        try:
+            if getattr(self, "btn_focus_exit", None) is not None:
+                if on:
+                    self.btn_focus_exit.grid()
+                else:
+                    self.btn_focus_exit.grid_remove()
+        except Exception:
+            pass
+        try:
+            self.update_status(_tr("Фокус: Esc — выйти, Ctrl+B — панели") if on
+                               else _tr("Полный вид"))
         except Exception:
             pass
 
@@ -6417,83 +8035,25 @@ class ModernTTSApp(*_APP_BASE):
                                   else theme_vals[0])
             self.theme_toggle.grid(row=0, column=3, sticky="e", padx=(0, 6))
 
-        # шестерёнка справа от переключателя языка — открывает первичные настройки
-        # (модели анализа, движки Vox/Qwen, докачка) заново (просьба Ярослава 13.11.26).
-        # Иконка во всю кнопку: CTkLabel/CTkButton добавляют ~16 px внутренних отступов
-        # и шестерёнка выходила мелкой, поэтому кнопка целиком нарисована картинкой
-        # 30×30 (скруглённый фон + рамка + крупная шестерёнка) в tkinter.Label.
+        # Шестерёнки рядом с переключателем языка БОЛЬШЕ НЕТ (просьба Ярослава
+        # 17.11.26: «значок настройки рядом с переключателем языков убери вообще —
+        # он у нас есть в другом месте»). Настройки открываются из рейки
+        # (rail_settings → _open_settings). Атрибут оставлен None на случай
+        # внешних обращений.
         self.btn_settings = None
-        try:
-            import tkinter as _tk
-            from PIL import Image as _GImg, ImageDraw as _GDraw, ImageFont as _GFont
-            from PIL import ImageTk as _GTk
 
-            def _rgb(pair, idx=0):
-                h = str(pair[idx]).lstrip("#")
-                return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) + (255,)
-
-            def _gear_png(fill):
-                """Кнопка целиком: скруглённый фон, рамка и контурная шестерёнка
-                (6 зубцов, как в образце Ярослава 13.11.26). Профиль зуба — плоская
-                вершина + плавные скругления к плоской впадине; рисуем 480×480
-                и сжимаем до 30 px, поэтому линии гладкие."""
-                import math as _m
-                S = 480
-                im = _GImg.new("RGBA", (S, S), (0, 0, 0, 0))
-                d = _GDraw.Draw(im)
-                d.rounded_rectangle((10, 10, S - 10, S - 10), radius=120, fill=fill,
-                                    outline=_rgb(COLOR_BORDER), width=14)
-                cx = cy = S / 2.0
-                # знак на 25% мельче прежнего (просьба Ярослава 13.11.26): 212→159 и т.д.
-                r_out, r_in, hole = 159.0, 126.0, 61.5
-                top_frac, fillet = 0.18, 0.30   # мягкие лепестки, как в образце
-                fg = (0x4A, 0x55, 0x68, 255)      # серо-синий, как на образце
-                lw = 29                            # 75% от прежних 38 (~1,8 px в 30)
-
-                def _r(a):
-                    step = 2 * _m.pi / 6
-                    ph = (a % step) / step
-                    dlt = abs(ph - 0.5)
-                    half = top_frac / 2
-                    if dlt <= half:
-                        return r_out
-                    if dlt >= half + fillet:
-                        return r_in
-                    t = (dlt - half) / fillet
-                    t = t * t * (3 - 2 * t)       # smoothstep
-                    return r_out + (r_in - r_out) * t
-
-                pts = []
-                n = 720
-                for i in range(n):
-                    a = 2 * _m.pi * i / n
-                    r = _r(a)
-                    pts.append((cx + r * _m.cos(a), cy + r * _m.sin(a)))
-                pts.append(pts[0])
-                d.line(pts, fill=fg, width=lw, joint="curve")
-                d.ellipse((cx - hole, cy - hole, cx + hole, cy + hole), outline=fg, width=lw)
-                return im.resize((30, 30), _GImg.LANCZOS)
-
-            self._gear_img = _GTk.PhotoImage(_gear_png(_rgb(COLOR_FILL_SOFT)))
-            self._gear_img_hover = _GTk.PhotoImage(_gear_png(_rgb(COLOR_BORDER)))
-            self.btn_settings = _tk.Label(topbar, image=self._gear_img, bd=0, padx=0, pady=0,
-                                          bg=str(COLOR_BG[0]), cursor="hand2")
-            self.btn_settings.bind("<Button-1>", lambda e: self._open_settings())
-            self.btn_settings.bind("<Enter>", lambda e: self.btn_settings.configure(
-                image=self._gear_img_hover))
-            self.btn_settings.bind("<Leave>", lambda e: self.btn_settings.configure(
-                image=self._gear_img))
-            self.btn_settings.grid(row=0, column=(4 if THEMES_ENABLED else 3),
-                                   sticky="e", padx=(6, 0))
-        except Exception as e:
-            print(f"⚠️ шестерёнка: {e}")
-            self.btn_settings = ctk.CTkButton(topbar, text="⚙", width=30, height=30,
-                                              corner_radius=8, fg_color=COLOR_FILL_SOFT,
-                                              hover_color=COLOR_BORDER,
-                                              text_color=COLOR_TEXT_MAIN,
-                                              command=self._open_settings)
-            self.btn_settings.grid(row=0, column=(4 if THEMES_ENABLED else 3),
-                                   sticky="e", padx=(6, 0))
+        # выход из режима фокуса: рейки и панелей там нет, поэтому кнопка живёт
+        # в шапке и появляется только в фокусе (просьба Ярослава 16.11.26)
+        self.btn_focus_exit = ctk.CTkButton(topbar, text="⤢  " + _tr("Полный вид"),
+                                            width=112, height=26, corner_radius=R_PILL,
+                                            font=FONT_SMALL, fg_color=COLOR_FILL_SOFT,
+                                            hover_color=COLOR_SELECT,
+                                            text_color=COLOR_TEXT_MAIN, border_width=1,
+                                            border_color=COLOR_BORDER,
+                                            command=lambda: self._toggle_focus(False))
+        self.btn_focus_exit.grid(row=0, column=6, sticky="e", padx=(6, 0))
+        self.btn_focus_exit.grid_remove()
+        self._tip(self.btn_focus_exit, _tr("Выйти из фокуса") + " · Esc")
 
         # ---------------- инспектор (левая панель) ----------------
         # Одна плоская панель с прокруткой: разделы разделены «волосяными» линиями,
@@ -6506,19 +8066,19 @@ class ModernTTSApp(*_APP_BASE):
         self.sidebar.grid(row=0, column=1, sticky="nsew", padx=(10, 8), pady=10)
 
         def make_card(title):
-            sec = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-            sec.pack(fill="x", padx=12, pady=(2, 0))
-            head = ctk.CTkFrame(sec, fg_color="transparent")
-            head.pack(fill="x", pady=(12, 6))
+            sec = ctk.CTkFrame(self.sidebar, width=1, fg_color="transparent")
+            sec.pack(fill="x", padx=12, pady=(0, 0))
+            head = ctk.CTkFrame(sec, width=1, fg_color="transparent")
+            head.pack(fill="x", pady=(3, 2))
             ctk.CTkLabel(head, text=_tr(title), font=FONT_SECTION,
                          text_color=COLOR_TEXT_SEC).pack(side="left")
-            ctk.CTkFrame(sec, fg_color=COLOR_HAIR, height=1).pack(fill="x", pady=(0, 10))
+            ctk.CTkFrame(sec, width=1, fg_color=COLOR_HAIR, height=1).pack(fill="x", pady=(0, 4))
             return sec
 
         # ----- Источник -----
         src = make_card("ИСТОЧНИК")
 
-        url_row = ctk.CTkFrame(src, fg_color="transparent")
+        url_row = ctk.CTkFrame(src, width=1, fg_color="transparent")
         url_row.pack(fill="x", padx=12, pady=(0, 7))
         url_row.grid_columnconfigure(0, weight=1)
 
@@ -6545,11 +8105,11 @@ class ModernTTSApp(*_APP_BASE):
         except Exception as e:
             print(f"⚠️ Привязки url: {e}")
 
-        preset_row = ctk.CTkFrame(src, fg_color="transparent")
+        preset_row = ctk.CTkFrame(src, width=1, fg_color="transparent")
         preset_row.pack(fill="x", padx=12, pady=(0, 7))
         preset_row.grid_columnconfigure(0, weight=1)
 
-        preset_head = ctk.CTkFrame(preset_row, fg_color="transparent")
+        preset_head = ctk.CTkFrame(preset_row, width=1, fg_color="transparent")
         preset_head.grid(row=0, column=0, sticky="ew")
         ctk.CTkLabel(preset_head, text=_tr("Сжатие"), font=FONT_SMALL,
                      text_color=COLOR_TEXT_SEC).pack(side="left")
@@ -6570,7 +8130,7 @@ class ModernTTSApp(*_APP_BASE):
         self.instruction_entry = ctk.CTkTextbox(src, height=74, corner_radius=3, font=FONT_SMALL, wrap="word",
                                                 fg_color=COLOR_CARD, border_width=1, border_color=COLOR_BORDER,
                                                 text_color=COLOR_TEXT_MAIN)
-        self.instruction_entry.pack(fill="x", padx=12, pady=(0, 8))
+        self.instruction_entry.pack(fill="x", padx=12, pady=(0, 6))
         # текст промпта переводит _translate_instruction, а не общий обход _apply_lang
         # (иначе обход подменял в нём отдельные слова вроде «Скорость» или «Готово»)
         self.instruction_entry._no_auto_tr = True
@@ -6584,8 +8144,8 @@ class ModernTTSApp(*_APP_BASE):
         self._attach_text_menu(self.instruction_entry._textbox,
                                on_insert=lambda t: self.instruction_entry.insert("insert", t))
 
-        run_row = ctk.CTkFrame(src, fg_color="transparent")
-        run_row.pack(fill="x", padx=12, pady=(0, 5))
+        run_row = ctk.CTkFrame(src, width=1, fg_color="transparent")
+        run_row.pack(fill="x", padx=12, pady=(0, 4))
         run_row.grid_columnconfigure(0, weight=1)
 
         self.btn_process = ctk.CTkButton(run_row, text="Запустить анализ", command=self.start_full_process,
@@ -6615,12 +8175,12 @@ class ModernTTSApp(*_APP_BASE):
                                          progress_color="#F2C94C", fg_color=COLOR_SWITCH_OFF,
                                          button_color=COLOR_FILL_SOFT, button_hover_color=COLOR_SELECT,
                                          command=self._on_emo_auto_toggle)
-        self.emo_auto_cb.pack(fill="x", padx=12, pady=(0, 9))
+        self.emo_auto_cb.pack(fill="x", padx=12, pady=(0, 0))
 
         # ----- Модель ИИ -----
         ai = make_card("МОДЕЛЬ ИИ")
 
-        llm_row = ctk.CTkFrame(ai, fg_color="transparent")
+        llm_row = ctk.CTkFrame(ai, width=1, fg_color="transparent")
         llm_row.pack(fill="x", padx=12, pady=(0, 3))
         llm_row.grid_columnconfigure(0, weight=1)
 
@@ -6633,7 +8193,7 @@ class ModernTTSApp(*_APP_BASE):
                                            dropdown_hover_color=COLOR_SELECT)
         self.llm_combo.grid(row=0, column=0, sticky="ew")
 
-        self.btn_llm_browse = ctk.CTkButton(llm_row, text="…", width=30, height=30,
+        self.btn_llm_browse = ctk.CTkButton(llm_row, text="…", width=26, height=30,
                                             corner_radius=8, font=FONT_NORMAL,
                                             fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
                                             text_color=COLOR_TEXT_MAIN,
@@ -6644,9 +8204,16 @@ class ModernTTSApp(*_APP_BASE):
         # она стояла между выбором модели и «Другая модель» и мешала. Скачивание
         # осталось в диалоге «Модель ИИ» (_offer_model_download) — не возвращать.
 
-        # Слева — процессор, справа — видеокарта: положение тумблера = где считает модель
-        gpu_row = ctk.CTkFrame(ai, fg_color="transparent")
-        gpu_row.pack(fill="x", padx=12, pady=(2, 2))
+        # Раскладка блока (рисунок Ярослава 17.11.26): слева в одну строку
+        # «Процессор [тумблер] Видеокарта»; справа на той же строке —
+        # «Чанки [тумблер]»; вторым рядом справа — «по главам ✓ [поле числа]».
+        # Поле числа одно: при включённых главах показывает число глав.
+        mode_row = ctk.CTkFrame(ai, width=1, fg_color="transparent")
+        mode_row.pack(fill="x", padx=12, pady=(2, 3))
+        mode_row.grid_columnconfigure(1, weight=1)
+
+        gpu_row = ctk.CTkFrame(mode_row, width=1, fg_color="transparent")
+        gpu_row.grid(row=0, column=0, sticky="w", padx=(0, 10))
 
         self.lbl_mode_cpu = ctk.CTkLabel(gpu_row, text="Процессор", font=FONT_SMALL,
                                          text_color=COLOR_TEXT_MAIN, anchor="w")
@@ -6656,19 +8223,14 @@ class ModernTTSApp(*_APP_BASE):
                                         progress_color=COLOR_BRAND, fg_color=COLOR_SWITCH_OFF,
                                         button_color=COLOR_FILL_SOFT, button_hover_color=COLOR_SELECT,
                                         command=self._on_gpu_toggle)
-        self.llm_gpu_cb.pack(side="left", padx=6)
+        self.llm_gpu_cb.pack(side="left", padx=(6, 6))
 
         self.lbl_mode_gpu = ctk.CTkLabel(gpu_row, text="Видеокарта", font=FONT_SMALL,
                                          text_color=COLOR_TEXT_SEC, anchor="w")
         self.lbl_mode_gpu.pack(side="left")
 
-        # Справа — разбивка на чанки: текст считается по частям (для длинных текстов).
-        # В ряду с Процессор/Видеокарта: элементы ужаты (свитчи 36, поле 40, короткие
-        # паддинги), чтобы строка села плотно и без переноса (финал 09.11.26).
-        # 10.11.26 (просьба Ярослава): вместо выпадающего меню 2–16 — поле с клавиатуры,
-        # ограничение снято совсем: можно 28, 30, 100 — сколько наберёшь.
-        chunk_box = ctk.CTkFrame(gpu_row, fg_color="transparent")
-        chunk_box.pack(side="right")
+        chunk_box = ctk.CTkFrame(mode_row, width=1, fg_color="transparent")
+        chunk_box.grid(row=0, column=1, sticky="e")
         self.lbl_chunks = ctk.CTkLabel(chunk_box, text="Чанки", font=FONT_SMALL,
                                        text_color=COLOR_TEXT_SEC, anchor="e")
         self.lbl_chunks.pack(side="left")
@@ -6676,24 +8238,10 @@ class ModernTTSApp(*_APP_BASE):
                                       progress_color=COLOR_BRAND, fg_color=COLOR_SWITCH_OFF,
                                       button_color=COLOR_FILL_SOFT, button_hover_color=COLOR_SELECT,
                                       command=self._on_chunks_toggle)
-        self.chunk_cb.pack(side="left", padx=(2, 0))
-        self.chunk_entry = ctk.CTkEntry(chunk_box, textvariable=self.chunk_count_var,
-                                        width=40, height=26, corner_radius=3,
-                                        fg_color=COLOR_CARD2, border_color=COLOR_BORDER,
-                                        text_color=COLOR_TEXT_MAIN, font=FONT_TINY,
-                                        justify="center")
-        self.chunk_entry.pack(side="left", padx=(0, 0))
-        self.chunk_entry.bind("<KeyRelease>", self._on_chunk_key)
-        self.chunk_entry.bind("<FocusOut>", self._commit_chunk_count)
-        self.chunk_entry.bind("<Return>", self._commit_chunk_count)
+        self.chunk_cb.pack(side="left", padx=(5, 0))
 
-        # Строкой ниже, справа: подпись «по главам» слева и галочка справа от неё
-        # (просьба Ярослава 10.11.26). Включённая галочка = чанки берутся по главам
-        # текста: метки импорта fb2/epub [[…]] либо распознанные заголовки глав.
-        chap_row = ctk.CTkFrame(ai, fg_color="transparent")
-        chap_row.pack(fill="x", padx=12, pady=(0, 4))
-        chap_box = ctk.CTkFrame(chap_row, fg_color="transparent")
-        chap_box.pack(side="right")
+        chap_box = ctk.CTkFrame(mode_row, width=1, fg_color="transparent")
+        chap_box.grid(row=1, column=1, sticky="e", pady=(3, 0))
         self.lbl_chapters = ctk.CTkLabel(chap_box, text="по главам", font=FONT_SMALL,
                                          text_color=COLOR_TEXT_SEC, anchor="e")
         self.lbl_chapters.pack(side="left")
@@ -6705,27 +8253,32 @@ class ModernTTSApp(*_APP_BASE):
                                            checkmark_color=COLOR_ON_ACCENT, font=FONT_TINY,
                                            command=self._on_chapters_toggle)
         self.chapters_cb.pack(side="left", padx=(6, 0))
+        # поле числа — рядом с «по главам» (одно: чанков или глав)
+        self.chunk_entry = ctk.CTkEntry(chap_box, textvariable=self.chunk_count_var,
+                                        width=40, height=26, corner_radius=3,
+                                        fg_color=COLOR_CARD2, border_color=COLOR_BORDER,
+                                        text_color=COLOR_TEXT_MAIN, font=FONT_TINY,
+                                        justify="center")
+        self.chunk_entry.pack(side="left", padx=(4, 0))
+        self.chunk_entry.bind("<KeyRelease>", self._on_chunk_key)
+        self.chunk_entry.bind("<FocusOut>", self._commit_chunk_count)
+        self.chunk_entry.bind("<Return>", self._commit_chunk_count)
+
         # строка с токенами/знаками/VRAM переехала сюда же: слева она, галочка
         # «по главам» справа — отдельной строкой вислового текста больше нет
         # (просьба Ярослава 10.11.26)
         self.llm_limit_label = ctk.CTkLabel(ai, text="…", font=FONT_TINY,
                                             text_color=COLOR_TEXT_SEC, anchor="w",
-                                            justify="left", wraplength=272)
-        self.llm_limit_label.pack(fill="x", padx=12, pady=(0, 6))
+                                            justify="left", wraplength=300)
+        self.llm_limit_label.pack(fill="x", padx=12, pady=(0, 4))
         self._sync_chunk_menu()
 
-        ctx_row = ctk.CTkFrame(ai, fg_color="transparent")
-        ctx_row.pack(fill="x", padx=12, pady=(0, 7))
+        ctx_row = ctk.CTkFrame(ai, width=1, fg_color="transparent")
+        ctx_row.pack(fill="x", padx=12, pady=(0, 2))
         ctx_row.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(ctx_row, text="Контекст", font=FONT_SMALL,
                      text_color=COLOR_TEXT_SEC).grid(row=0, column=0, sticky="w")
-
-        self.ctx_slider = ctk.CTkSlider(ctx_row, from_=MIN_CTX, to=8192, number_of_steps=8192 - MIN_CTX,
-                                        command=self._on_ctx_slider, height=16, width=110,
-                                        progress_color=COLOR_BRAND, button_color=COLOR_BRAND,
-                                        button_hover_color=COLOR_BRAND_HOVER, fg_color=COLOR_BORDER)
-        self.ctx_slider.grid(row=0, column=1, sticky="ew", padx=7)
 
         self.ctx_entry = ctk.CTkEntry(ctx_row, font=FONT_TINY, width=78, justify="right", height=26,
                                       corner_radius=3, fg_color=COLOR_CARD2, border_width=1,
@@ -6735,17 +8288,24 @@ class ModernTTSApp(*_APP_BASE):
         self.ctx_entry.bind("<FocusOut>", lambda e: self._apply_ctx_exact())
         self._attach_text_menu(self.ctx_entry._entry)
 
+        self.ctx_slider = ctk.CTkSlider(ctx_row, from_=MIN_CTX, to=8192, number_of_steps=8192 - MIN_CTX,
+                                        command=self._on_ctx_slider, height=16, width=110,
+                                        progress_color=COLOR_BRAND, button_color=COLOR_BRAND,
+                                        button_hover_color=COLOR_BRAND_HOVER, fg_color=COLOR_BORDER)
+        self.ctx_slider.grid(row=0, column=1, sticky="ew", padx=7)
+
         # ----- Озвучка -----
         tts = make_card("ОЗВУЧКА")
 
         self.engine_menu = SegmentToggle(tts, values=self.ENGINE_VALUES,
+                                         labels=["Piper", "Vox", "Qwen"],
                                          command=self.on_engine_change, height=30, btn_width=86)
         self.engine_menu.pack(fill="x", padx=12, pady=(0, 3))
 
         # Пояснение к выбранному движку (для Vox — требование к видеопамяти)
         self.engine_hint = ctk.CTkLabel(tts, text="", font=FONT_SMALL, text_color=COLOR_TEXT_MAIN,
                                         anchor="w", justify="left", wraplength=272)
-        self.engine_hint.pack(fill="x", padx=12, pady=(0, 7))
+        self.engine_hint.pack(fill="x", padx=12, pady=(0, 4))
 
         # дополнение Vox не стоит — рядом с движком кнопка, чтобы можно было поставить вручную
         self.btn_vox_install = ctk.CTkButton(
@@ -6753,10 +8313,10 @@ class ModernTTSApp(*_APP_BASE):
             corner_radius=3, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
             text_color=COLOR_TEXT_MAIN, command=self._offer_vox)
         if not self._vox_installed():
-            self.btn_vox_install.pack(fill="x", padx=12, pady=(0, 7))
+            self.btn_vox_install.pack(fill="x", padx=12, pady=(0, 5))
 
-        voice_row = ctk.CTkFrame(tts, fg_color="transparent")
-        voice_row.pack(fill="x", padx=12, pady=(0, 7))
+        voice_row = ctk.CTkFrame(tts, width=1, fg_color="transparent")
+        voice_row.pack(fill="x", padx=12, pady=(0, 5))
         voice_row.grid_columnconfigure(0, weight=1)
         self._tts_voice_row = voice_row
 
@@ -6765,7 +8325,7 @@ class ModernTTSApp(*_APP_BASE):
         # него поле с текущим голосом открывает палитру: чипы-номера по 15 в ряду,
         # когда ряд заполнен — строится следующий; без прокрутки. Под полем —
         # строка «имя — описание» выбранного голоса, как у Qwen.
-        self.vox_field_row = ctk.CTkFrame(tts, fg_color="transparent")
+        self.vox_field_row = ctk.CTkFrame(tts, width=1, fg_color="transparent")
         self.vox_voice_btn = ctk.CTkButton(
             self.vox_field_row, text="", height=30, corner_radius=3, font=FONT_SMALL,
             anchor="w", fg_color=COLOR_CARD2, hover_color=COLOR_SELECT,
@@ -6779,26 +8339,26 @@ class ModernTTSApp(*_APP_BASE):
         self.vox_voice_desc.pack(fill="x", pady=(4, 0))
 
         # ----- Qwen3-TTS: инструменты движка (видны только когда выбран Qwen) -----
-        self.qwen_row = ctk.CTkFrame(tts, fg_color="transparent")
+        self.qwen_row = ctk.CTkFrame(tts, width=1, fg_color="transparent")
         self.qwen_row.grid_columnconfigure(0, weight=1)
         self.qwen_row.grid_columnconfigure(1, weight=1)
         self.btn_qwen_design = ctk.CTkButton(
             self.qwen_row, text=_tr("✨ Дизайн голоса"), height=28, corner_radius=3,
             font=FONT_SMALL, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
             text_color=COLOR_TEXT_MAIN, command=self._qwen_design_dialog)
-        self.btn_qwen_design.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self.btn_qwen_design.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 3))
         self.btn_qwen_design.bind("<Button-3>", self._qwen_size_menu)
         self.btn_qwen_cfg = ctk.CTkButton(
             self.qwen_row, text=_tr("⚙ Настройки Qwen"), height=28, corner_radius=3,
             font=FONT_SMALL, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
             text_color=COLOR_TEXT_MAIN, command=self._qwen_settings_dialog)
-        self.btn_qwen_cfg.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        self.btn_qwen_cfg.grid(row=1, column=0, columnspan=2, sticky="ew")
         self.btn_qwen_cfg.bind("<Button-3>", self._qwen_size_menu)
         self.btn_qwen_cfg.bind("<Button-3>", self._qwen_size_menu)
         # ----- Vox: вкладка движка (видна только когда выбран Vox) — выбор варианта -----
         # «✨ Дизайн голоса» у Vox — на том же месте, что и у Qwen: слева в ряду
         # инструментов движка (просьба Ярослава, 10.11.26)
-        self.vox_row = ctk.CTkFrame(tts, fg_color="transparent")
+        self.vox_row = ctk.CTkFrame(tts, width=1, fg_color="transparent")
         self.vox_row.grid_columnconfigure(0, weight=1)
         self.vox_row.grid_columnconfigure(1, weight=1)
         self.btn_vox_design = ctk.CTkButton(
@@ -6810,7 +8370,7 @@ class ModernTTSApp(*_APP_BASE):
             font=FONT_SMALL, fg_color=COLOR_FILL_SOFT, hover_color=COLOR_BORDER,
             text_color=COLOR_TEXT_MAIN, command=self._vox_settings_dialog)
         # в ряд кнопки ставит _show_vox_tools (grid + grid_remove, как у Qwen-ряда)
-        self.qwen_instruct_row = ctk.CTkFrame(tts, fg_color="transparent")
+        self.qwen_instruct_row = ctk.CTkFrame(tts, width=1, fg_color="transparent")
         self.qwen_instruct_row.grid_columnconfigure(1, weight=1)
         self.qwen_instruct = ctk.CTkEntry(
             self.qwen_instruct_row, font=FONT_TINY, height=26, corner_radius=3,
@@ -6830,13 +8390,13 @@ class ModernTTSApp(*_APP_BASE):
                                            dropdown_hover_color=COLOR_SELECT)
         self.tts_combo.grid(row=0, column=0, sticky="ew")
 
-        self.rate_row = ctk.CTkFrame(tts, fg_color="transparent")
-        self.rate_row.pack(fill="x", padx=12, pady=(0, 10))
+        self.rate_row = ctk.CTkFrame(tts, width=1, fg_color="transparent")
+        self.rate_row.pack(fill="x", padx=12, pady=(0, 6))
         self.rate_row.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(self.rate_row, text="Скорость", font=FONT_SMALL,
                      text_color=COLOR_TEXT_SEC).grid(row=0, column=0, sticky="w")
         self.rate_slider = ctk.CTkSlider(self.rate_row, from_=0.5, to=1.5, number_of_steps=10,
-                                         command=self._on_rate_slider, height=16,
+                                         command=self._on_rate_slider, height=16, width=120,
                                          progress_color=COLOR_BRAND, button_color=COLOR_BRAND,
                                          button_hover_color=COLOR_BRAND_HOVER, fg_color=COLOR_BORDER)
         self.rate_slider.grid(row=0, column=1, sticky="ew", padx=7)
@@ -6852,7 +8412,7 @@ class ModernTTSApp(*_APP_BASE):
                                            text_color=COLOR_TEXT_MAIN,
                                            border_width=1, border_color=COLOR_BORDER,
                                            command=lambda: self.add_custom_voice())
-        self.btn_add_voice.pack(fill="x", padx=12, pady=(0, 10), before=self.rate_row)
+        self.btn_add_voice.pack(fill="x", padx=12, pady=(0, 6), before=self.rate_row)
         self.btn_add_voice.pack_forget()  # показываем только для кастомных голосов
 
         # загрузить СВОЙ файл голоса Piper — та же кнопка-слот, что «Образец голоса» у Vox
@@ -6867,6 +8427,10 @@ class ModernTTSApp(*_APP_BASE):
 
         # ---- карточка памяти: последней в левом столбце, под «ОЗВУЧКОЙ» (макет Ярослава) ----
         self.mem_panel = self._build_mem_panel(self.sidebar)
+
+        # вторая «страница» той же левой панели — список голосов движка (16.11.26)
+        self._build_voices_panel()
+        self._build_models_panel()
 
         # ---------------- документ ----------------
         # Строка «Длина · голос · счётчик» (макет 2.1): пресеты сжатия под рукой,
@@ -8831,7 +10395,8 @@ class ModernTTSApp(*_APP_BASE):
         self._book_widen(True)
         try:
             self.book_panel.grid()
-            self.btn_book.configure(fg_color=COLOR_BRAND_HOVER)
+            self.btn_book.configure(fg_color=COLOR_BRAND_HOVER, text_color=COLOR_ON_ACCENT,
+                                    border_color=COLOR_BRAND_HOVER)
         except Exception:
             pass
         self._book_show_view(True)
@@ -8864,7 +10429,10 @@ class ModernTTSApp(*_APP_BASE):
         self._book_widen(False)
         try:
             self.book_panel.grid_remove()
-            self.btn_book.configure(fg_color=COLOR_BRAND)
+            # вне режима — контурная зелёная кнопка (было: залитая медью, текст
+            # оставался тёмно-зелёным и его не читалось — Ярослав, 16.11.26)
+            self.btn_book.configure(fg_color="transparent", text_color=COLOR_BOOK,
+                                    border_color=COLOR_BOOK)
         except Exception:
             pass
         self._book_show_view(False)
@@ -9382,6 +10950,29 @@ class ModernTTSApp(*_APP_BASE):
                 return i
         return None
 
+    def _book_text_without_name(self, txt, keep=""):
+        """Убрать из фразы продублированное имя говорящего.
+
+        В «Книге по голосам» имя персонажа живёт в своём столбце, а в тексте
+        реплики его быть не должно. При разметке эмоций модель иногда снова
+        пишет «Иван: фраза» или «(радость) Иван: фраза» — снимаем префикс,
+        сам текст реплики не меняем (Ярослав 18.11.26: в 1.9 такого не было)."""
+        t = (txt or "").lstrip()
+        known = set(getattr(self, "book_cast", {}) or {})
+        if keep:
+            known.add(keep)
+        for _ in range(2):
+            m = re.match(r"^\(([^()]{1,40})\)\s+", t)
+            lead = f"({m.group(1)}) " if m else ""
+            rest = t[m.end():] if m else t
+            mn = re.match(r"^([А-ЯЁ][а-яё\-]{1,20}(?:\s+[А-ЯЁ][а-яё\-]{1,20})?)\s*:\s*", rest)
+            if mn and (mn.group(1) in known or mn.group(1) == keep
+                       or mn.group(1) in ("Имя", "Персонаж", "Герой", "Реплика", "Голос")):
+                t = lead + rest[mn.end():]
+                continue
+            break
+        return t.strip()
+
     def _book_apply_analysis(self, batch, out):
         """Влить ответ модели в пакет фрагментов, не теряя имена персонажей."""
         raw_lines = [l.strip() for l in (out or "").split("\n") if l.strip()]
@@ -9391,7 +10982,9 @@ class ModernTTSApp(*_APP_BASE):
             return False
         if len(new) == len(batch):
             for it, (_spk, txt) in zip(batch, new):
-                it["text"] = txt          # имя остаётся НАШИМ — разметка не слетает
+                # имя остаётся НАШИМ — разметка не слетает; если модель продублировала
+                # говорящего внутри фразы («(радость) Иван: …»), снимаем префикс
+                it["text"] = self._book_text_without_name(txt, it.get("speaker") or "")
             return True
         # число строк изменилось (сокращение, объединение) — верим только реальной разметке:
         # строки БЕЗ «Имя:» мы сами подписываем «Автор», это не считается разметкой модели
@@ -9404,7 +10997,8 @@ class ModernTTSApp(*_APP_BASE):
             for spk, txt in new:
                 if not (spk in self.book_cast or self._book_name_like(spk)):
                     spk = batch[0].get("speaker") or self.BOOK_AUTHOR
-                repl.append({"speaker": spk, "text": txt})
+                repl.append({"speaker": spk,
+                             "text": self._book_text_without_name(txt, spk)})
             self.book_items[start:start + len(batch)] = repl
             return True
         print(f"⚠️ Пакет не применён: модель не сохранила разметку "
@@ -9448,6 +11042,9 @@ class ModernTTSApp(*_APP_BASE):
             if emo_names:
                 instr = instr + "\n\n" + emotion_marker_rule(emo_names)
                 print(f"🎭 Авто-эмоции по книге: {len(emo_names)}")
+            # как в 1.11, но флаг всё же выставляем: иначе правило стиля запрещает
+            # скобки и модель не ставит ни одного маркера
+            self._emo_markers_on = bool(emo_names)
             ratio = self._preset_ratio(self.preset_menu.get())
             batches = self._book_batches(limit)
             total = len(batches)
@@ -9459,6 +11056,10 @@ class ModernTTSApp(*_APP_BASE):
                     int(k * 95 / max(1, n)) + 3, f"Фрагменты {k + 1}/{n}"))
                 text = self._book_render([(it.get("speaker"), it.get("text")) for it in batch])
                 instr_i = instr + self.BOOK_KEEP_RULE
+                if k == 0:
+                    _flog("книга: эмоций в промпте "
+                          f"{len(emo_names)}" + (f" ({', '.join(emo_names[:10])})" if emo_names else "")
+                          + " | промпт: " + instr_i.replace("\n", " ")[:420])
                 if ratio:
                     tgt = max(60, int(len(text) * ratio))
                     instr_i += (f"\n\nОГРАНИЧЕНИЕ ОБЪЁМА: от {int(tgt * 0.8)} до {tgt} знаков.")
@@ -9511,6 +11112,7 @@ class ModernTTSApp(*_APP_BASE):
                                    + (f", без изменений {failed}" if failed else ""))
         self._book_render_view()
         self._book_refresh_panel(self._book_names())
+        self._emo_markers_on = False      # правило стиля — только на время разметки
         if not err and self.auto_play_var.get() and not self.cancel_event.is_set():
             self.after(300, self.play_result)
 
@@ -9685,6 +11287,23 @@ class ModernTTSApp(*_APP_BASE):
             self.ctx_entry.insert(0, f"{used:,}".replace(",", " "))
 
         chars = max(2000, int((used - 800) * 1.8))
+        # «Чанки» (17.11.26, формула Ярослава: «делим на 2 чанка — поддерживаемый
+        # контекст увеличивается в 2 раза»). В модель грузится ОДНА часть за раз,
+        # поэтому лимит на часть остаётся прежним (chars = model_limits), а общий
+        # объём текста, который можно разобрать, растёт пропорционально частям.
+        try:
+            chunks_on, chunks_n = self._chunks_settings()
+        except Exception:
+            chunks_on, chunks_n = False, 1
+        parts = max(1, int(chunks_n)) if chunks_on else 1
+        if chunks_on and self._chapters_setting():
+            try:
+                k = self._chapters_count_now()
+                if k:
+                    parts = max(1, int(k))
+            except Exception:
+                pass
+        chars_total = chars * parts
         self.model_ctx[disp] = used
         self.model_limits[disp] = chars
 
@@ -9697,14 +11316,20 @@ class ModernTTSApp(*_APP_BASE):
             # оставаться частично в отображённом файле), в ОЗУ — служебная часть
             vram = weights + kvn + int(0.30 * 2**30)
             ram = int(0.75 * 2**30) + weights * 0.55 + kvn * 0.25
-            txt = _tr(f"{used:,} ток. (≈{chars:,} знаков) · VRAM ≈ {gib(vram):.1f} · ОЗУ ≈ {gib(ram):.1f} ГБ")
+            if parts > 1:
+                txt = _tr(f"{used:,} ток. ×{parts} · ≈{chars_total:,} зн. · VRAM ≈ {gib(vram):.1f} · ОЗУ ≈ {gib(ram):.1f} ГБ")
+            else:
+                txt = _tr(f"{used:,} ток. (≈{chars:,} зн.) · VRAM ≈ {gib(vram):.1f} · ОЗУ ≈ {gib(ram):.1f} ГБ")
             gu, gt = self._gpu_mem_probe()
             if gu is not None and gt:
                 free_v = gt - gu
         else:
             # режим «процессор»: всё — и веса, и кэш — лежит в системной ОЗУ
             ram = weights * 1.05 + kvn + int(0.35 * 2**30)
-            txt = _tr(f"{used:,} ток. (≈{chars:,} знаков) · ОЗУ ≈ {gib(ram):.1f} ГБ")
+            if parts > 1:
+                txt = _tr(f"{used:,} ток. ×{parts} · ≈{chars_total:,} зн. · ОЗУ ≈ {gib(ram):.1f} ГБ")
+            else:
+                txt = _tr(f"{used:,} ток. (≈{chars:,} зн.) · ОЗУ ≈ {gib(ram):.1f} ГБ")
 
         rt, ra = self._sys_mem_info()
         known = bool(ra) or free_v is not None
@@ -11208,13 +12833,15 @@ class ModernTTSApp(*_APP_BASE):
         return None
 
     def _vox_extra_weights(self, kind):
-        """Веса дополнительного варианта Vox (tiny): локальная папка или кэш HF.
-        Готовым считаем снапшот, где уже есть и config.json, и файл весов."""
+        """Веса дополнительного варианта Vox (tiny/shtorm): локальная папка или кэш HF.
+        Готовым считаем только набор с config.json И файлом весов — иначе недокачанная
+        папка (в ней бывает служебный .cache) выглядела бы установленной."""
         info = self.VOX_EXTRA_VARIANTS.get(kind)
         if not info:
             return None
         local = os.path.join(self.BASE_DIR, info["local"])
-        if os.path.isdir(local) and os.listdir(local):
+        if (os.path.isfile(os.path.join(local, "config.json"))
+                and os.path.isfile(os.path.join(local, "model.safetensors"))):
             return local
         hub = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub")
         snaps = os.path.join(hub, info["cache"], "snapshots")
@@ -11702,6 +13329,26 @@ class ModernTTSApp(*_APP_BASE):
         except Exception:
             pass
 
+    def _open_models_page(self, kind=None):
+        """Открыть панель «Модели для озвучки» (шаг 2 мастера) с отмеченным вариантом
+        Vox — так веса качаются там, где живут все модели (просьба Ярослава 17.11.26)."""
+        try:
+            self._first_run_setup(settings_mode=True)
+        except Exception as e:
+            print(f"⚠️ панель моделей: {e}")
+            return
+        var = {"tiny": getattr(self, "_setup_vox_tiny", None),
+               "shtorm": getattr(self, "_setup_vox_shtorm", None)}.get(kind)
+        try:
+            if var is not None:
+                var.set(True)
+        except Exception:
+            pass
+        try:
+            self._setup_goto(1)
+        except Exception:
+            pass
+
     def _vox_install_variant(self, kind, parent=None):
         """Установка недостающего варианта движка прямо из вкладки настроек Vox.
         Обычный вариант ставится готовым диалогом «Дополнение Vox» (среда + torch + voxcpm)."""
@@ -11710,7 +13357,13 @@ class ModernTTSApp(*_APP_BASE):
                 self._install_vox()
             return
         if kind in self.VOX_EXTRA_VARIANTS:
-            self._vox_install_extra(kind, parent)
+            # веса качаются на панели «Модели для озвучки» (17.11.26)
+            try:
+                if parent is not None:
+                    parent.destroy()
+            except Exception:
+                pass
+            self._open_models_page(kind)
             return
         if self._nano_installed():
             return
@@ -11750,45 +13403,64 @@ class ModernTTSApp(*_APP_BASE):
                 self.after(0, lambda d=detail: stage.configure(text=_tr("Не вышло: ") + str(d)[-200:]))
         threading.Thread(target=work, daemon=True).start()
 
-    def _vox_install_extra(self, kind, parent=None):
-        """Установка русской сборки Vox (Vox Tiny): качаем только веса в кэш HF —
-        среда и голоса общие с обычным Vox."""
-        info = self.VOX_EXTRA_VARIANTS.get(kind)
-        if not info:
-            return
-        if self._vox_extra_weights(kind):
-            self._vox_pick_variant(kind, parent)
-            return
-        if not self._vox_installed():
-            messagebox.showwarning(
-                info["title"], _tr("GPU-среда не установлена — сначала нужен движок Vox."),
-                parent=parent or self)
-            return
-        dlg = ctk.CTkToplevel(self)
-        dlg.title(_tr("Установка ") + info["title"])
-        dlg.geometry("560x170")
-        _center_on_parent(dlg)
-        dlg.resizable(False, False)
-        dlg.transient(self)
-        ctk.CTkLabel(dlg, text=info["title"], font=FONT_SUBHEADER,
-                     text_color=COLOR_HEAD).pack(pady=(16, 2))
-        stage = ctk.CTkLabel(dlg, text=_tr(info["dl"]), font=FONT_TINY,
-                             text_color=COLOR_TEXT_SEC, justify="left",
-                             wraplength=500, anchor="w")
-        stage.pack(fill="x", padx=16, pady=(4, 6))
+    def _hf_download_progress(self, repo, dest, title, set_info, set_bar):
+        """Скачать веса HF в папку приложения — ПОФАЙЛОВО и с докачкой.
 
-        def work():
-            try:
-                from huggingface_hub import snapshot_download
-                snapshot_download(info["repo"])
-                self.after(0, lambda: stage.configure(text=_tr(info["done"])))
-                self.after(0, lambda: self._vox_pick_variant(kind, None))
-                self.after(2500, lambda: dlg.winfo_exists() and dlg.destroy())
-            except Exception as e:
-                self.after(0, lambda e=e: stage.configure(
-                    text=_tr("Не вышло: ") + str(e)[-200:]))
-        threading.Thread(target=work, daemon=True).start()
+        Почему не `snapshot_download` (17-18.11.26): на этой сети он то висел
+        («1817 МБ готово» и тишина), то падал на симлинках (WinError 1314), то
+        выдавал «установлено», не скачав файл. Качаем сами через `_fetch_file`:
+        каждый файл докачивается с места обрыва (`<файл>.part`), прогресс —
+        по общему объёму всех файлов репозитория."""
+        os.makedirs(dest, exist_ok=True)
+        # мусор от прежних snapshot_download (огромный .cache с недокачанными
+        # блобами) — он же и сбивал с толку счётчик размера
+        _junk = os.path.join(dest, ".cache")
+        if os.path.isdir(_junk):
+            shutil.rmtree(_junk, ignore_errors=True)
+        from huggingface_hub import HfApi
+        files = []
+        try:
+            mi = HfApi().model_info(repo, files_metadata=True)
+            for s in mi.siblings:
+                name = getattr(s, "rfilename", "") or ""
+                if not name or name.startswith("."):
+                    continue
+                files.append((name, int(getattr(s, "size", 0) or 0)))
+        except Exception as e:
+            _flog(f"hf {repo}: список файлов не получен — {e}")
+            raise RuntimeError(f"список файлов не получен: {e}")
+        if not files:
+            raise RuntimeError("в репозитории нет файлов")
+        total = sum(sz for _, sz in files) or 1
+        _flog(f"hf {repo}: файлов {len(files)}, всего {total / 1e6:.0f} МБ → {dest}")
+        done_base = 0
+        for name, size in files:
+            path = os.path.join(dest, *name.split("/"))
+            folder = os.path.dirname(path)
+            if folder:
+                os.makedirs(folder, exist_ok=True)
+            have = os.path.getsize(path) if os.path.isfile(path) else 0
+            if size and have == size:
+                done_base += size
+                self._ui(set_info, f"{done_base / 1e6:.0f} / {total / 1e6:.0f} МБ")
+                self._ui(set_bar, min(0.99, done_base / total))
+                continue
+            url = f"https://huggingface.co/{repo}/resolve/main/{name}"
 
+            def on_bytes(done, _file_total, _base=done_base, _size=size):
+                got = _base + (_size if _size else done)
+                if _size:
+                    got = _base + min(done, _size)
+                self._ui(set_info, f"{got / 1e6:.0f} / {total / 1e6:.0f} МБ")
+                self._ui(set_bar, min(0.99, got / total))
+
+            if not self._fetch_file(url, path, on_bytes):
+                raise RuntimeError(f"не скачался файл {name}")
+            done_base += size or (os.path.getsize(path) if os.path.isfile(path) else 0)
+            _flog(f"hf {repo}: {name} готов ({done_base / 1e6:.0f} / {total / 1e6:.0f} МБ)")
+        self._ui(set_info, f"{total / 1e6:.0f} / {total / 1e6:.0f} МБ")
+        self._ui(set_bar, 1.0)
+        _flog(f"hf {repo}: всё скачано")
     def _vox_settings_dialog(self):
         """Вкладка настроек Vox — как «Настройки Qwen», но про выбор варианта движка:
         быстрый Turbo или обычный Classic. Веса и голоса у них общие."""
@@ -11826,27 +13498,29 @@ class ModernTTSApp(*_APP_BASE):
                 ("turbo", "🚀 Vox Turbo", _tr("быстрее на ~50% · нужно 12 ГБ видеопамяти")),
                 ("classic", "🎧 Vox", _tr("обычный вариант — достаточно 8 ГБ видеопамяти")),
                 ("tiny", self.VOX_EXTRA_VARIANTS["tiny"]["title"],
-                 _tr(self.VOX_EXTRA_VARIANTS["tiny"]["hint"]))):
+                 _tr(self.VOX_EXTRA_VARIANTS["tiny"]["hint"])),
+                ("shtorm", self.VOX_EXTRA_VARIANTS["shtorm"]["title"],
+                 _tr(self.VOX_EXTRA_VARIANTS["shtorm"]["hint"]))):
             fr = ctk.CTkFrame(dlg, fg_color="transparent")
             fr.pack(fill="x", padx=14, pady=4)
+            _inst = self._vox_var_installed(kind)
             ctk.CTkLabel(fr, font=FONT_SMALL,
                          text_color=COLOR_TEXT_MAIN if kind == cur else COLOR_TEXT_SEC,
                          anchor="w",
-                         text=title + ("   " + _tr("(работает)") if kind == cur else "")
+                         text=title + ("   " + _tr("(работает)") if (kind == cur and _inst) else "")
                          ).pack(side="left")
-            if kind != cur:
-                if self._vox_var_installed(kind):
-                    ctk.CTkButton(fr, text=_tr("Переключить на него"), height=26, corner_radius=3,
-                                  font=FONT_TINY, fg_color=COLOR_BRAND,
-                                  hover_color=COLOR_BRAND_HOVER, text_color=COLOR_ON_ACCENT,
-                                  command=lambda k=kind: self._vox_pick_variant(k, dlg)
-                                  ).pack(side="right")
-                else:
-                    ctk.CTkButton(fr, text=_tr("Установить"), height=26, corner_radius=3,
-                                  font=FONT_TINY, fg_color="#c6763a", hover_color="#a95f2c",
-                                  text_color="#14100c",
-                                  command=lambda k=kind: self._vox_install_variant(k, dlg)
-                                  ).pack(side="right")
+            if not _inst:
+                ctk.CTkButton(fr, text=_tr("Установить"), height=26, corner_radius=3,
+                              font=FONT_TINY, fg_color="#c6763a", hover_color="#a95f2c",
+                              text_color="#14100c",
+                              command=lambda k=kind: self._vox_install_variant(k, dlg)
+                              ).pack(side="right")
+            elif kind != cur:
+                ctk.CTkButton(fr, text=_tr("Переключить на него"), height=26, corner_radius=3,
+                              font=FONT_TINY, fg_color=COLOR_BRAND,
+                              hover_color=COLOR_BRAND_HOVER, text_color=COLOR_ON_ACCENT,
+                              command=lambda k=kind: self._vox_pick_variant(k, dlg)
+                              ).pack(side="right")
             ctk.CTkLabel(fr, font=FONT_TINY, text_color=COLOR_TEXT_SEC, anchor="w",
                          justify="left", wraplength=430, text=desc).pack(side="left", padx=(12, 0))
         ctk.CTkLabel(dlg, font=FONT_TINY, text_color=COLOR_RED, anchor="w", justify="left",
@@ -12309,8 +13983,8 @@ class ModernTTSApp(*_APP_BASE):
             # режиме Vox скрыт (падение на before=скрытого виджета обрывало
             # переключение движков — Ярослав, 11.11.26)
             self.vox_row.pack(fill="x", padx=12, pady=(0, 6), before=self.rate_row)
-            self.btn_vox_design.grid(row=0, column=0, sticky="ew", padx=(0, 4))
-            self.btn_vox_cfg.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+            self.btn_vox_design.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 3))
+            self.btn_vox_cfg.grid(row=1, column=0, columnspan=2, sticky="ew")
             try:
                 self.btn_vox_cfg.configure(text=_tr("⚙ Настройки Vox" + self._vox_var_name()))
             except Exception:
@@ -13777,7 +15451,7 @@ class ModernTTSApp(*_APP_BASE):
         self.rate_label.configure(text=f"×{rate:.1f}")
         self.vox_fast_var.set(bool(data.get("vox_fast", False)))
         vv = str(data.get("vox_variant") or "turbo").lower()
-        self.vox_variant = vv if vv in ("turbo", "classic", "tiny") else "turbo"
+        self.vox_variant = vv if vv in ("turbo", "classic", "tiny", "shtorm") else "turbo"
         qc = data.get("qwen_cfg")
         if isinstance(qc, dict):   # подкрученные параметры движка Qwen
             for key in ("device", "precision", "language"):
@@ -13967,6 +15641,7 @@ class ModernTTSApp(*_APP_BASE):
     def _on_chunks_toggle(self):
         self.save_settings()
         self._sync_chunk_menu()
+        self.refresh_model_info()      # лимиты знаков растут с числом частей (17.11.26)
 
     def _on_chapters_toggle(self):
         # «по главам» без чанков бессмысленна: тумблер «Чанки» включаем сами
@@ -13985,6 +15660,7 @@ class ModernTTSApp(*_APP_BASE):
                 self.chunk_count_var.set(self._chunk_count_ok)   # вернуть ручной выбор
             except Exception:
                 pass
+        self.refresh_model_info()            # лимиты под число частей (17.11.26)
 
     def _on_chunk_key(self, *_):
         """В поле числа чанков проходят только цифры (буквы/минус срезаются)."""
@@ -14013,6 +15689,7 @@ class ModernTTSApp(*_APP_BASE):
         self._chunk_count_ok = str(n)
         self.chunk_count_var.set(str(n))
         self.save_settings()
+        self.refresh_model_info()          # пересчитать лимиты под новое число частей
 
     def _pick_setup_pack(self, label):
         """Выбор LLM-модели в окне первичной установки.
@@ -14214,6 +15891,8 @@ class ModernTTSApp(*_APP_BASE):
         else:
             self.update_status(f"Движок: Piper (CPU). Голос: «{self.tts_combo.get()}»")
         self.save_settings()
+        if getattr(self, "_voices_on", False):
+            self._voices_fill()          # панель голосов показывает голоса НОВОГО движка
 
     # ================= ВИДЕОКАРТА (CUDA) =================
 
@@ -14287,7 +15966,12 @@ class ModernTTSApp(*_APP_BASE):
                         tail = "".join(f.readlines()[-12:])
                 except Exception:
                     pass
-                raise Exception("GPU-сервер завершился при загрузке модели.\n" + tail.strip()[-600:])
+                hint = _tr(
+                    "Не хватает памяти видеокарты. Включите «Чанки» в карточке «МОДЕЛЬ ИИ» "
+                    "и разделите текст на части — так нужно меньше памяти. Или уменьшите "
+                    "«Контекст» ползунком.")
+                raise Exception(_tr("GPU-сервер завершился при загрузке модели.\n")
+                                + tail.strip()[-600:] + "\n\n" + hint)
             try:
                 with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=2) as r:
                     if r.status == 200:
@@ -15098,6 +16782,12 @@ class ModernTTSApp(*_APP_BASE):
                 self.llm_models[nm] = pth
 
         self._rebuild_llm_menu()
+        # панель «Модель ИИ» открыта — обновить список (после скачивания/выбора)
+        try:
+            if getattr(self, "_models_on", False):
+                self._models_fill()
+        except Exception:
+            pass
 
     def _rebuild_llm_menu(self, keep=None):
         """Меню моделей: найденные в models_llm/ + добавленные пользователем вручную."""
@@ -16687,7 +18377,14 @@ class ModernTTSApp(*_APP_BASE):
             else:
                 self._pp_state(True)
             return
-        # не играем или уже закончилось — играем готовый звук заново
+        # не играем или уже закончилось — играем то, что загружено в панель
+        # (озвучка проекта из библиотеки), а не «последний» файл вообще (18.11.26)
+        data = getattr(self, "_play_data", None)
+        if data is not None and getattr(self, "_play_sr", None):
+            if self._play_done or self._play_pos >= len(data):
+                self._play_pos = 0
+            self._start_playback(data, self._play_sr)
+            return
         cached = getattr(self, "_last_audio", None)
         if cached and os.path.isfile(cached[4]):
             self._play_wav(cached[4])

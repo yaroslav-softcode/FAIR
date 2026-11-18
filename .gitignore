@@ -67,3 +67,8 @@ NUL
 
 # библиотека 2.1 — состояние, не код
 library/
+
+# веса Vox Shtorm (~5 ГБ) — качаются приложением
+models_vox_shtorm/
+build2b.log
+iscc21.log

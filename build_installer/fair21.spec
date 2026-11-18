@@ -22,6 +22,8 @@ datas += [
     (os.path.join(SRC, "app.ico"), "."),
     (os.path.join(SRC, "logo.png"), "."),
     (os.path.join(SRC, "titlebar_clear.ico"), "."),
+    (os.path.join(SRC, "titlebar_arrow.ico"), "."),
+    (os.path.join(SRC, "rail_logo.png"), "."),
     # голоса кладём в дистрибутив: английский (LJSpeech, public domain) и два русских
     # (Irina/Ruslan, CC BY-NC-SA — атрибуция в THIRD-PARTY.md, продажа запрещена)
     (os.path.join(SRC, "models", "en_US-ljspeech-high.onnx"), "piper"),
