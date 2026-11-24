@@ -10,19 +10,6 @@ voices, voice design from a text description). No cloud, no subscription.
 
 License: GPL-3.0 · UI: English / Russian
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <img src="screenshots/fair_ru.webp" alt="FAIR — интерфейс на русском" width="440"><br>
-      <sub>Русский интерфейс</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="screenshots/fair_en.webp" alt="FAIR — English UI" width="440"><br>
-      <sub>English UI</sub>
-    </td>
-  </tr>
-</table>
-
 ## English
 
 ### Features
@@ -59,6 +46,8 @@ License: GPL-3.0 · UI: English / Russian
 - **Integration**: local API + MCP bridge (`fair_status`, `fair_speak`) so AI
   assistants can start narration from the command line — no Python required.
 - Copy the result, Stop at any moment, a calm paper-and-gold “old book” colour scheme.
+
+![FAIR — English UI](screenshots/fair_en.webp)
 
 ### Install
 
@@ -131,6 +120,8 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
   ИИ-ассистенты могут запускать озвучку из командной строки, Python на машине
   не нужен.
 - Копирование результата, «Стоп» в любой момент, спокойная «книжная» гамма — бумага, кожа, золото.
+
+![FAIR — русский интерфейс](screenshots/fair_ru.webp)
 
 ### Установка
 
