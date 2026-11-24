@@ -12,6 +12,8 @@ License: GPL-3.0 · UI: English / Russian
 
 ## English
 
+![FAIR — English UI](screenshots/fair_en.webp)
+
 ### Features
 
 - **Source**: article link (text extracted automatically), **video link** (YouTube,
@@ -47,8 +49,6 @@ License: GPL-3.0 · UI: English / Russian
   assistants can start narration from the command line — no Python required.
 - Copy the result, Stop at any moment, a calm paper-and-gold “old book” colour scheme.
 
-![FAIR — English UI](screenshots/fair_en.webp)
-
 ### Install
 
 1. Download `FAIR-Setup-<version>.exe` from [Releases](../../releases).
@@ -81,6 +81,8 @@ set FAIR_SELFCHECK=1
 Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech synthesis.
 
 ## Русский
+
+![FAIR — русский интерфейс](screenshots/fair_ru.webp)
 
 ### Что умеет
 
@@ -120,8 +122,6 @@ Report: `%TEMP%\fair_selfcheck.json` — imports, voice presence, real speech sy
   ИИ-ассистенты могут запускать озвучку из командной строки, Python на машине
   не нужен.
 - Копирование результата, «Стоп» в любой момент, спокойная «книжная» гамма — бумага, кожа, золото.
-
-![FAIR — русский интерфейс](screenshots/fair_ru.webp)
 
 ### Установка
 
