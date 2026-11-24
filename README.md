@@ -10,9 +10,9 @@ voices, voice design from a text description). No cloud, no subscription.
 
 License: GPL-3.0 · UI: English / Russian
 
-## English
-
 ![FAIR — English UI](screenshots/fair_en.webp)
+
+## English
 
 ### Features
 
