@@ -10,7 +10,18 @@ voices, voice design from a text description). No cloud, no subscription.
 
 License: GPL-3.0 · UI: English / Russian
 
-![FAIR (English UI)](screenshots/fair_en.png)
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="screenshots/fair_ru.webp" alt="FAIR — интерфейс на русском" width="440"><br>
+      <sub>Русский интерфейс</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="screenshots/fair_en.webp" alt="FAIR — English UI" width="440"><br>
+      <sub>English UI</sub>
+    </td>
+  </tr>
+</table>
 
 ## English
 
